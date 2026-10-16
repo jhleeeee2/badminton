@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>배드민턴 랠리</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- ───────── 대기화면 ───────── -->
+<div class="wrap" id="lobby">
+  <h1>배드민턴 랠리 <span class="cock">●</span></h1>
+  <p class="sub">게임 종류와 대전 모드를 고르고 시작하세요.</p>
+  <div class="acctbar" id="acctBar"></div>
+  <section class="lsec">
+    <div class="lhead">게임 종류</div>
+    <div class="typegrid" id="typeList"></div>
+  </section>
+  <section class="lsec">
+    <div class="lhead">대전 모드</div>
+    <div class="modegrid" id="modeList"></div>
+  </section>
+  <section class="lsec" id="aiSettings">
+    <div class="lhead">AI 대전 설정</div>
+    <div class="cards">
+      <div class="seg" id="diffSeg">
+        <span class="seglbl">난이도</span>
+        <button data-d="easy">쉬움</button>
+        <button data-d="normal" class="active">중간</button>
+        <button data-d="hard">어려움</button>
+        <button data-d="hell">지옥</button>
+        <button data-d="imp">임파서블</button>
+      </div>
+      <div class="seg" id="winSeg">
+        <span class="seglbl">목표 점수</span>
+        <button data-w="11" class="active">11</button>
+        <button data-w="15">15</button>
+        <button data-w="21">21</button>
+      </div>
+      <div class="seg" id="handSeg">
+        <span class="seglbl">주 손</span>
+        <button data-h="R" class="active">오른손</button>
+        <button data-h="L">왼손</button>
+      </div>
+    </div>
+  </section>
+  <section class="lsec" id="trainSettings" hidden>
+    <div class="lhead">훈련 — 선수 키우기 <span class="lsub">연속 성공으로 레벨업 · 레벨 효과는 AI 대전에 적용</span></div>
+    <div class="traingrid" id="trainList"></div>
+  </section>
+  <div class="lfoot">
+    <span class="lnote" id="lobbyNote"></span>
+    <button id="lobbyTut">튜토리얼</button>
+    <button id="lobbyStart">시작<span class="key">Enter</span></button>
+  </div>
+</div>
+
+<!-- ───────── 클래식 게임 화면 ───────── -->
+<div class="wrap" id="classic" hidden>
+  <h1><button id="menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">클래식</span></h1>
+  <div class="hud">
+    <div class="cards">
+      <div class="card"><span class="lbl" style="color:var(--opp)">상대</span><span id="opts" class="val">0</span></div>
+      <div class="card"><span class="lbl" style="color:var(--me)">나</span><span id="pts" class="val">0</span></div>
+      <div class="card"><span class="lbl">랠리</span><span id="score" class="val">0</span></div>
+      <div class="card"><span class="lbl">최근 샷</span><span id="spd" class="val small">-</span></div>
+      <div class="card"><span class="lbl">대쉬</span><span id="dashI" class="val small" style="color:var(--ok)">●</span></div>
+      <div class="card"><span class="lbl">설정</span><span id="cfgI" class="val small">-</span></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="tutBtn">튜토리얼</button>
+      <button id="startBtn">시작</button>
+    </div>
+  </div>
+  <div class="stage">
+    <canvas id="court" width="648" height="300"></canvas>
+    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>A 클리어 · S 드라이브 · D 드롭 · F 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · Shift 대쉬 · 서브는 Space를 길게</div>
+  </div>
+  <div class="row">
+    <button id="bL" class="wide" aria-label="왼쪽 이동">←</button>
+    <button id="bR" class="wide" aria-label="오른쪽 이동">→</button>
+    <button id="bJ" class="wide" aria-label="점프">↑</button>
+    <button id="bC" class="wide" aria-label="앉기">↓</button>
+    <button id="bD" class="wide" aria-label="대쉬">⚡</button>
+    <button id="bSrv">서브<span class="key">␣</span></button>
+  </div>
+  <div class="row">
+    <button id="sC">클리어<span class="key">A</span></button>
+    <button id="sV">드라이브<span class="key">S</span></button>
+    <button id="sP">드롭<span class="key">D</span></button>
+    <button id="sH">헤어핀<span class="key">F</span></button>
+    <button id="sS" style="font-weight:600;">스매시<span class="key">␣</span></button>
+  </div>
+  <p class="foot"><b style="color:var(--text2)">Shift 대쉬</b>: 이동키를 누른 채 Shift — 그 방향으로 짧게 가속(랠리당 1회). 대쉬하며 앞으로 치면 파워 보너스. <b style="color:var(--text2)">↓ 앉기</b>: 리치가 늘고 삑사리 없이 안정적으로 받는 완전 수비 자세(리턴은 약해짐). 전진하며 치면 빠르고 길게, 후퇴하며 치면 느리고 짧게 갑니다. 모든 샷에 삑사리 확률이 있고(스매시가 가장 높음) 타점이 낮을수록 잘 납니다. 자세한 건 튜토리얼 버튼을 눌러보세요.</p>
+</div>
+<!-- ───────── 3D 코트 화면 ───────── -->
+<div class="wrap wide3d" id="court3d" hidden>
+  <h1><button id="c3menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">3D 코트 · 시험판</span></h1>
+  <div class="hud">
+    <div class="cards">
+      <div class="card team opp"><span class="lbl">상대</span><span id="c3opts" class="val">0</span><span id="c3srvOpp" class="srv" hidden>서브</span></div>
+      <div class="card team me"><span class="lbl">나</span><span id="c3pts" class="val">0</span><span id="c3srvMe" class="srv" hidden>서브</span></div>
+      <div class="card rallyc"><span class="lbl">랠리</span><span id="c3rally" class="val">0</span></div>
+      <div class="card"><span class="lbl">최근 샷</span><span id="c3shot" class="val small">-</span></div>
+      <div class="card"><span class="lbl">설정</span><span id="c3cfg" class="val small">-</span></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="c3muteBtn" title="M">🔊 소리</button>
+      <button id="c3tutBtn">튜토리얼</button>
+      <button id="c3startBtn">다시 시작</button>
+    </div>
+  </div>
+  <div class="stage stage3d" id="c3stage">
+    <div class="c3vig" id="c3vig"></div>
+    <div class="c3flash" id="c3flash"></div>
+    <div class="c3board" id="c3board">
+      <div class="side opp"><span class="nm">상대</span><span class="sc" id="c3bOpp">0</span></div>
+      <div class="side me"><span class="nm">나</span><span class="sc" id="c3bMe">0</span></div>
+      <div class="tag" id="c3bTag"></div>
+    </div>
+    <div class="c3banner" id="c3banner"></div>
+    <div class="c3hint" id="c3hint"></div>
+    <div class="c3bottom">
+      <div class="c3hand" id="c3hand"></div>
+      <div class="c3ext ready" id="c3ext"><span class="k">Shift</span>런지<span class="eb"><span id="c3extFill"></span></span></div>
+      <div class="c3gauge" id="c3gauge" hidden>
+        <div class="c3bar"><div class="c3zone" id="c3zoneLo"></div><div class="c3zone" id="c3zoneHi"></div><div class="c3fill" id="c3fill"></div><div class="c3tick" id="c3tick"></div></div>
+        <div class="c3glbl" id="c3glbl"></div>
+      </div>
+    </div>
+    <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)</div>
+  </div>
+  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
+</div>
+<div id="tut">
+  <div class="tutbox">
+    <h2 id="tutTitle"></h2>
+    <div class="body" id="tutBody"></div>
+    <div class="tutnav">
+      <button id="tutPrev">이전</button>
+      <span class="pg" id="tutPg"></span>
+      <div style="display:flex;gap:6px;">
+        <button id="tutClose">닫기</button>
+        <button id="tutNext">다음</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ───────── 계정: 로그인 / 회원가입 / 내 기록 ───────── -->
+<div id="acct">
+  <div class="acctbox">
+    <h2 id="acctTitle">로그인</h2>
+    <div class="atabs" id="acctTabs">
+      <button type="button" data-t="login" class="active">로그인</button>
+      <button type="button" data-t="signup">회원가입</button>
+    </div>
+    <form id="acctForm" autocomplete="on">
+      <label>이메일<input id="acctEmail" type="email" required autocomplete="email"></label>
+      <label>비밀번호 <small>6자 이상</small><input id="acctPw" type="password" required minlength="6" autocomplete="current-password"></label>
+      <label id="acctNickRow" hidden>닉네임 <small>2~16자 · 다른 사람과 겹치면 안 돼요</small><input id="acctNick" type="text" maxlength="16"></label>
+      <button id="acctSubmit" type="submit" class="primary">로그인</button>
+    </form>
+    <div id="acctRec" hidden></div>
+    <div class="amsg" id="acctMsg"></div>
+    <div class="anav"><button type="button" id="acctClose">닫기<span class="key">Esc</span></button></div>
+  </div>
+</div>
+<!-- 로드 순서 중요: 클래식 게임 → (Three.js) 3D 코트 → 대기화면 → 진입점 -->
+<script src="js/classic/config.js"></script>
+<script src="js/classic/core/shuttle.js"></script>
+<script src="js/classic/systems/match.js"></script>
+<script src="js/classic/systems/effects.js"></script>
+<script src="js/classic/entities/athlete.js"></script>
+<script src="js/classic/entities/player.js"></script>
+<script src="js/classic/entities/ai.js"></script>
+<script src="js/classic/systems/shots.js"></script>
+<script src="js/classic/view/hud.js"></script>
+<script src="js/classic/view/renderer.js"></script>
+<script src="js/classic/game.js"></script>
+<script src="js/classic/ui/input.js"></script>
+<script src="js/classic/ui/tutorial.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="js/court3d/config.js"></script>
+<script src="js/court3d/physics.js"></script>
+<script src="js/court3d/shots.js"></script>
+<script src="js/court3d/match.js"></script>
+<script src="js/court3d/athlete.js"></script>
+<script src="js/court3d/view.js"></script>
+<script src="js/court3d/ai.js"></script>
+<script src="js/court3d/sound.js"></script>
+<script src="js/court3d/hud.js"></script>
+<script src="js/court3d/progress.js"></script>
+<script src="js/court3d/train.js"></script>
+<script src="js/court3d/game.js"></script>
+<script src="js/court3d/input.js"></script>
+<script src="js/court3d/tutorial.js"></script>
+<script src="js/app/catalog.js"></script>
+<script src="vendor/supabase.min.js"></script>
+<script src="js/app/account.js"></script>
+<script src="js/app/lobby.js"></script>
+<script src="js/app/main.js"></script>
+</body>
+</html>

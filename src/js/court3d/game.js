@@ -1,0 +1,340 @@
+// court3d/game.js — 3D 게임 본체: 고정 간격 시뮬레이션, 슬로우, 타격 판정, 서브·득점 흐름
+// phase: 'idle' → 'serve'(서버가 셔틀을 들고 대기) → 'rally' → 'point'(잠시 멈춤) → 'serve' … → 'over'
+
+const HAND_NAMES = { FH: '포핸드', BH: '백핸드', RTH: '라운드 더 헤드' };
+const CAT_NAMES = { over: '머리 위', side: '옆', low: '아래' };
+
+class Game3D {
+  constructor(container, hud) {
+    this.hud = hud;
+    this.view = new CourtView3D(container);
+    this.match = new Match3D();
+    this.diffId = 'normal';
+    this.me = new Athlete3D(this.view.scene, { side: 'me', color: C3.COLORS.me, kit: C3.KITS.me, hand: 'R' });
+    this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
+    this.ai = new AI3D(this, this.opp);
+    this.trainer = new Trainer3D(this); this.mode = 'ai';
+    this.sh = { p: { x: 0, y: 1, z: 2 }, v: { x: 0, y: 0, z: 0 }, live: false, held: null, lastHitter: null, serve: false, netted: false, pred: null };
+    this.phase = 'idle'; this.timeScale = 1; this.acc = 0; this.yaw = 0; this.serveU = 0; this.aimNdc = null; this.aimPt = { x: 0, z: -4.5 };
+    this.running = false; this.inputOn = false; this.lastTs = 0; this.pointT = 0; this.hitStop = 0;
+    this.loop = this.loop.bind(this);
+    this.placeForServe();
+    this.frame(0);
+  }
+
+  configure({ diff, win, hand, mode, train }) {
+    this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
+    this.mode = mode === 'train' ? 'train' : 'ai';
+    if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
+    else this.trainer.stop();
+    this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + (hand === 'L' ? '왼손' : '오른손')
+      : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + (hand === 'L' ? '왼손' : '오른손'));
+  }
+
+  start() {
+    this.match.reset(); this.hud.hideMessage(); this.hud.setScore(0, 0, 'me', null); this.hud.setShot('-'); this.hud.setRally(0);
+    if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
+    this.setupPoint();
+    this.lastTs = 0;
+    if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
+  }
+  stop() {
+    this.phase = 'idle'; this.me.charge = null; this.timeScale = 1;
+    this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
+  }
+
+  // ───── 서브 준비: 서비스 코트에 선수 배치, 서버가 셔틀을 듦 ─────
+  setupPoint() {
+    const m = this.match;
+    if (this.trainer.active) m.server = 'opp';
+    const court = m.serveCourt(), server = m.server, recv = m.other(server);
+    this.phase = 'serve';
+    for (const a of [this.me, this.opp]) {
+      const b = m.box(a.side, court), cx = (b.xMin + b.xMax) / 2;
+      const isServer = a.side === server;
+      a.pos.x = cx * (isServer ? 0.35 : 0.45) + (cx > 0 ? 0.25 : -0.25);
+      a.pos.z = a.side === 'me' ? (isServer ? 3.0 : 3.5) : (isServer ? -3.0 : -3.5);
+      a.vel = { x: 0, z: 0 }; a.y = 0; a.vy = 0; a.extT = 0; a.recoverT = 0; a.coolT = 0; a.charge = null; a.swingS = null;
+      a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
+    }
+    Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null });
+    this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+    this.ai.reset(); this.ai.serveT = this.trainer.active ? 0.9 : 1.1;
+    if (this.trainer.active) {
+      this.me.bounds = this.halfBounds('me'); this.view.setTarget(null);
+      this.hud.setHint(this.trainer.hint()); return;
+    }
+    this.hud.setScore(m.pts, m.opts, server, m.matchPoint());
+    this.hud.setHint(server === 'me' ? `내 서브 (${court === 'right' ? '오른쪽' : '왼쪽'} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향` : '상대 서브');
+  }
+  placeForServe() { this.setupPoint(); this.phase = 'idle'; }
+
+  heldPos(a) {    // 서브 전 셔틀 위치: 라켓 반대 손에 들고 허리 아래
+    const r = a.right();
+    return { x: a.pos.x + r.x * 0.28 * a.h, y: 0.95, z: a.pos.z + a.facing * 0.42 };
+  }
+
+  // ───── 타격 ─────
+  serveBy(a, c, yaw) {
+    if (this.phase !== 'serve' || this.sh.held !== a) return;
+    const p0 = this.heldPos(a);
+    a.swing('serve', c, p0, 'low'); a.onHit(p0);
+    const plan = Shots3.plan({ side: a.side, type: 'serve', c, yaw, p0, errMul: a.side === 'opp' ? this.ai.d.err : 1 });
+    this.launch(a, p0, plan, true);
+    this.phase = 'rally';
+    // 서브가 맞는 순간부터 자유롭게 이동
+    for (const x of [this.me, this.opp]) x.bounds = this.halfBounds(x.side);
+    this.hud.setHint('');
+  }
+  halfBounds(side) { return side === 'me' ? { xMin: -3.4, xMax: 3.4, zMin: 0.35, zMax: 7.6 } : { xMin: -3.4, xMax: 3.4, zMin: -7.6, zMax: -0.35 }; }
+
+  hit(a, sw) {
+    const s = this.sh, p0 = { ...s.p }, k = a.classify(p0);
+    let yaw = sw.yaw, aimDepth = null;
+    if (a.side === 'me') yaw = this.yawTo(p0);   // 내 샷: 타점에서 커서 아래 바닥 점 '방향' (거리는 충전량)
+    const plan = Shots3.plan({
+      side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
+      bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
+      errMul: a.side === 'opp' ? this.ai.d.err * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
+      strAng: a.side === 'me' ? Progress3.smashAngle() : 0
+    });
+    a.onHit(p0);
+    this.launch(a, p0, plan, false, k);
+  }
+
+  aiHit() {
+    const a = this.opp, s = this.sh;
+    if (s.lastHitter === 'opp' || a.swingS) return;
+    const sh = this.ai.chooseShot(s.p);
+    const sw = a.swing(sh.type, sh.c, s.p); sw.yaw = sh.yaw;
+    this.hit(a, sw);
+  }
+
+  launch(a, p0, plan, isServe, k) {
+    const s = this.sh;
+    Object.assign(s, { p: { ...p0 }, v: { ...plan.v0 }, live: true, held: null, lastHitter: a.side, serve: isServe, netted: false, pred: plan.sim });
+    this.match.rally++; this.hud.setRally(this.match.rally);
+    // 역동성: 불꽃·충격파·화면 흔들림·줌·소리, 상대는 스플릿 스텝 [게임 연출]
+    const pw = Math.min(1, plan.kmh / 260), col = a.side === 'me' ? C3.COLORS.me : C3.COLORS.opp;
+    const smash = /스매시/.test(plan.name);
+    this.view.burst(p0, col, pw); this.view.shock(p0, col, 0.6 + pw * 1.4);
+    this.view.shake(0.02 + pw * pw * 0.32);
+    if (smash) {   // 스매시 타격감: 잠깐 멈춤(히트스톱) + 큰 충격파·흔들림·줌 + 화면 번쩍 + 무거운 소리 [게임 연출]
+      const k = Math.max(0, Math.min(1, (plan.kmh - 80) / 180));
+      this.hitStop = 0.045 + 0.06 * k;
+      this.view.shock(p0, 0xFFFFFF, 1.6 + k * 1.6); this.view.burst(p0, 0xFFE08A, 0.6 + 0.4 * k);
+      this.view.shake(0.12 + 0.3 * k); this.view.punch(-(5 + 7 * k)); this.view.smashTrail(1.4);
+      this.hud.flash(a.side === 'me' ? '#FFB13B' : '#B9A8FF', 0.35 + 0.35 * k);
+      Sound3.smash(k);
+    }
+    Sound3.hit(plan.kmh);
+    (a.side === 'me' ? this.opp : this.me).splitStep();
+    const r = this.match.rally;
+    if (r >= 8 && r % 4 === 0) { { const sp = this.tempo().spd; this.hud.banner('랠리 ' + r + '!' + (sp > 1.001 ? ' 속도 x' + sp.toFixed(2) : ''), '#FFD23F', 0.9); } this.view.cheer(0.35); Sound3.cheer(0.2); }
+    const handTxt = k ? HAND_NAMES[k.hand] + ' ' : '';
+    this.hud.setShot((a.side === 'me' ? '' : '상대 ') + handTxt + plan.name + ' · ' + plan.kmh + 'km/h');
+    if (a.side === 'me' && plan.kmh > 200 && /스매시/.test(plan.name)) this.hud.banner(plan.name + '! ' + plan.kmh + 'km/h', '#FF7A45', 0.9);
+    if (a.side === 'me') {
+      const sm = /스매시/.test(plan.name);
+      this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() : 0);
+      if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
+    }
+    this.view.clearTrail();
+    // 보조 표시 (난이도별): 상대가 친 공의 궤적·낙하 지점·내가 설 위치
+    const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp';
+    // 낙하 지점: 난이도별로 늦게·흐리게·작게 표시 (쉬움=바로, 지옥=떨어지기 직전, 임파서블=없음)
+    this.view.setLanding(null); this.landPend = null; this.flyT = 0;
+    if (land && toMe && A.land) {
+      const inn = isServe ? this.match.inBox(this.match.box('me', this.match.serveCourt()), land.x, land.z) : this.match.inSingles(land.x, land.z);
+      this.landPend = { p: land, at: land.t * A.landAt, col: A.inout ? (inn ? 0x34C08B : 0xE25B5A) : 0xFFFFFF, a: A.landA, s: A.landS };
+    }
+    // 판단력 레벨: 가끔 낙하 지점 힌트(하늘색)를 일찍 보여줌 (경기에서만)
+    if (land && toMe && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
+      this.landPend = { p: land, at: land.t * 0.35, col: 0x5BC8FF, a: 0.6, s: 1 };
+    const full = (toMe && (A.path || A.stand)) ? Phys3.simulate(p0, plan.v0, { path: true, coarse: 2 }) : null;
+    this.view.setPath(toMe && A.path ? full.path : null);
+    const st = toMe && A.stand && !full.net ? planIntercept(this.me, full, C3.BODY.SPEED, true) : null;
+    this.view.setStand(st && !st.hopeless ? st.stand : null);
+  }
+
+  // 랠리 템포: 랠리가 길어질수록 게임 속도↑, 슬로우 범위↓ (훈련 제외)
+  tempo() {
+    const T = C3.RALLY_TEMPO, n = (this.trainer.active || this.phase !== 'rally') ? 0 : Math.max(0, this.match.rally - T.START);
+    return { spd: Math.min(T.SPEED_MAX, 1 + T.SPEED_STEP * n), slow: Math.max(T.SLOW_MIN, 1 - T.SLOW_STEP * n) };
+  }
+
+  // ───── 판정 ─────
+  landed() {
+    const s = this.sh, m = this.match, hitter = s.lastHitter, other = m.other(hitter);
+    const landSide = s.p.z > 0 ? 'me' : 'opp';
+    s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+    const inside = m.inSingles(s.p.x, s.p.z);
+    this.view.ripple(s.p, inside ? 0xFFFFFF : 0xFF4D4D, 1.2); this.view.burst({ x: s.p.x, y: 0.03, z: s.p.z }, inside ? 0xFFFFFF : 0xFF4D4D, 0.15); Sound3.land();
+    if (this.trainer.active) {   // 훈련 판정 → 잠깐 멈춘 뒤 다음 피딩
+      this.trainer.result(this.trainer.judge(s));
+      this.phase = 'point'; this.pointT = 0.9; this.me.charge = null; this.view.setTarget(null);
+      return;
+    }
+    if (landSide === hitter) return this.point(other, s.netted ? '네트!' : '범실');
+    if (s.serve) {
+      const ok = m.inBox(m.box(landSide, m.serveCourt()), s.p.x, s.p.z);
+      return ok ? this.point(hitter, '서브 에이스!') : this.point(other, '서브 폴트 (서비스 코트 밖)');
+    }
+    if (m.inSingles(s.p.x, s.p.z)) this.point(hitter, '득점');
+    else this.point(other, '아웃');
+  }
+
+  point(winner, reason) {
+    const m = this.match;
+    m.award(winner);
+    const meWon = winner === 'me';
+    this.me.react(meWon ? 'win' : 'lose'); this.opp.react(meWon ? 'lose' : 'win');
+    this.view.cheer(meWon ? 1 : 0.55); Sound3.cheer(meWon ? 1 : 0.5); Sound3.chime(meWon);
+    this.hud.setScore(m.pts, m.opts, m.server, m.winner() ? null : m.matchPoint()); this.hud.setRally(0);
+    const mine = winner === 'me';
+    const txt = reason === '득점' ? (mine ? '득점!' : '실점') : (mine ? '득점! ' : '실점 · ') + reason;
+    this.hud.banner(txt, mine ? '#5BFFB0' : '#FF6B6B', 1.3);
+    this.phase = 'point'; this.pointT = 1.4; this.me.charge = null;
+    const w = m.winner();
+    if (w) {
+      this.phase = 'over';
+      if (!this.trainer.active && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
+      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}<br>Enter 또는 다시 시작 = 재대결 · Esc = 메뉴`);
+    } else {
+      const mp = m.matchPoint();
+      if (mp) { this.hud.banner(mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
+      else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
+    }
+  }
+
+  // ───── 루프 ─────
+  loop(ts) {
+    if (this.phase === 'idle') { this.running = false; return; }
+    if (!this.lastTs) this.lastTs = ts;
+    const real = Math.min(0.05, (ts - this.lastTs) / 1000); this.lastTs = ts;
+    this.frame(real);
+    requestAnimationFrame(this.loop);
+  }
+
+  frame(real) {
+    const s = this.sh, STEP = C3.PHYS.STEP;
+    // 슬로우: 셔틀이 칠 차례인 선수의 라켓 팔 어깨 근처면
+    let slow = false;
+    const tp = this.tempo();
+    if (s.live && !s.netted && this.phase === 'rally') {
+      for (const a of [this.me, this.opp]) {
+        if (a.side === s.lastHitter || (a.side === 'opp' && (!C3.SLOW.ON_AI || this.trainer.active))) continue;   // 훈련: AI 쪽 슬로우 없음
+        // 순발력 레벨만큼 내 슬로우 범위 증가 · 훈련 중엔 슬로우를 덜 걸리게(작은 범위, 레벨 보너스 없음)
+        const sh = a.shoulder(), R = this.trainer.active ? C3.SLOW.TRAIN_RADIUS : (C3.SLOW.RADIUS + (a.side === 'me' ? Progress3.slowBonus() : 0)) * tp.slow;   // 랠리가 길수록 슬로우 범위 축소
+        if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < R) slow = true;
+      }
+    }
+    const target = slow ? C3.SLOW.SCALE : 1, rate = slow ? C3.SLOW.IN_RATE : C3.SLOW.OUT_RATE;
+    this.timeScale += (target - this.timeScale) * Math.min(1, real * rate);
+    this.hud.setSlow((1 - this.timeScale) / (1 - C3.SLOW.SCALE));
+
+    this.me.updateCharge(real);
+    let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율
+    if (this.hitStop > 0) { this.hitStop -= real; sim = 0; }   // 히트스톱 중엔 시간 정지
+    if (this.phase === 'serve' || this.phase === 'rally') {
+      this.acc += sim;
+      while (this.acc >= STEP) { this.step(STEP); this.acc -= STEP; }
+    } else if (this.phase === 'point') {
+      this.pointT -= real;
+      for (const a of [this.me, this.opp]) { a.moveDir = { x: 0, z: 0 }; a.update(sim); }
+      if (this.pointT <= 0) this.setupPoint();
+    }
+    if (this.sh.live && this.phase === 'point') this.sh.live = false;
+
+    // 화면
+    if (s.held) s.p = this.heldPos(s.held);
+    this.me.animate(sim || 0.016, s.p, s.live && s.lastHitter !== 'me');
+    this.opp.animate(sim || 0.016, s.p, s.live && s.lastHitter !== 'opp');
+    this.view.setShuttle(s.p, s.live ? s.v : { x: 0, y: 0, z: 0 }, this.phase !== 'idle' || true);
+    // 조준: 커서 아래 바닥 점을 구해 그쪽 방향으로 (3D에서도 조준선이 커서를 지나가게)
+    if (this.aimNdc) { const q = this.view.floorPoint(this.aimNdc.x, this.aimNdc.y); if (q) this.aimPt = q; }
+    const mySrv = this.phase === 'serve' && this.match.server === 'me';
+    this.view.setAim(this.me.pos.x, this.me.pos.z, mySrv ? this.aimYaw() : this.yawTo(this.me.pos), mySrv || this.phase === 'rally', null);
+    this.view.setMarkers(this.me, this.opp, this.me.extT > 0 ? this.me.extPhase() : 0, this.me.extReady());
+    this.view.updateFx(real || 0.016);
+    this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
+    this.hud.update(real, this.me, s);
+    this.view.render();
+  }
+
+  step(dt) {
+    const s = this.sh;
+    this.me.update(dt); this.opp.update(dt); this.ai.update(dt);
+    if (!s.live) return;
+    const prev = { ...s.p };
+    this.flyT += dt;
+    const lp = this.landPend;
+    if (lp && this.flyT >= lp.at) { this.view.setLanding(lp.p, lp.col, lp.a, lp.s); this.landPend = null; }
+    if (s.netted) { s.v.x = 0; s.v.z = 0; }
+    Phys3.step(s.p, s.v, dt);
+    if (!s.netted) {
+      const nh = Phys3.netHit(prev, s.p);
+      if (nh) {   // 네트에 걸림 → 친 쪽 코트로 떨어짐
+        s.netted = true; s.p.x = nh.x; s.p.y = nh.y; s.p.z = s.lastHitter === 'me' ? 0.06 : -0.06; s.v = { x: 0, y: -0.5, z: 0 };
+        this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+        this.view.netWobble(); Sound3.net();
+        return;
+      }
+    }
+    if (s.p.y <= 0) { s.p.y = 0; this.landed(); return; }
+    // 플레이어 타격 판정 (스윙 창 안에서 셔틀이 리치 안 + 내 코트 쪽)
+    const a = this.me;
+    if (!s.netted && s.lastHitter !== 'me' && a.canHitNow() && s.p.z > -0.02) {
+      const sh = a.shoulder();
+      if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) <= a.reach()) this.hit(a, a.swingS);
+    }
+  }
+
+  // ───── 플레이어 명령 (Input3D가 호출) ─────
+  press(type) {
+    if (this.phase === 'serve' && this.match.server === 'me' && type === 'lift') this.me.startCharge('serve');
+    else if (this.phase === 'rally') this.me.startCharge(type);
+  }
+  release(type) {
+    const ch = this.me.charge;
+    if (!ch || (ch.type !== type && !(ch.type === 'serve' && type === 'lift'))) return;
+    this.me.takeCharge();
+    if (ch.type === 'serve') { this.serveBy(this.me, ch.c, this.aimYaw()); return; }
+    const s = this.sh;
+    const sp = s.live ? s.p : null;
+    Sound3.whoosh();
+    this.me.swing(type, ch.c, sp && Math.hypot(sp.x - this.me.pos.x, sp.z - this.me.pos.z) < 3 ? sp : null,
+      { down: 'over', lift: 'low', flat: 'side' }[type]);
+  }
+  // 조준 각도: 랠리 땐 마우스 그대로, 내 서브 땐 대각선 서비스 코트 중앙을 기준으로 마우스가 ±조정 [게임 보조]
+  aimYaw() {
+    if (!(this.phase === 'serve' && this.match.server === 'me')) return this.yaw;
+    const b = this.match.box('opp', this.match.serveCourt()), p = this.heldPos(this.me);
+    const y0 = Math.atan2((b.xMin + b.xMax) / 2 - p.x, -(((b.zMin + b.zMax) / 2) - p.z));
+    return y0 + this.serveU * C3.AIM_MAX * 0.5;
+  }
+  // 점 o에서 조준점(커서 아래 바닥)까지의 방향 각. 내 쪽(뒤·옆)을 가리키면 옆 끝으로 제한
+  yawTo(o) {
+    const t = this.aimPt, M = C3.AIM_YAW_MAX;
+    const dx = t.x - o.x, dz = -(t.z - o.z);
+    if (dz < 0.3) return Math.sign(dx || 1) * M;
+    return Math.max(-M, Math.min(M, Math.atan2(dx, dz)));
+  }
+  jump() { if (this.phase === 'rally' || this.phase === 'serve') this.me.jump(); }
+  // Shift 런지: 이동키 방향 우선, 없으면 셔틀이 내 라켓 팔에 가장 가깝게 지나갈 지점 쪽으로
+  extend() {
+    if (this.phase !== 'rally') return;
+    const me = this.me, s = this.sh;
+    let target = null;
+    if (s.live && s.lastHitter !== 'me' && !s.netted) {
+      const sim = Phys3.simulate(s.p, s.v, { path: true, coarse: 2 }), sh = me.shoulder();
+      let best = 1e9;
+      for (const q of sim.path) {
+        if (q.z < 0.2 || q.y < 0.15 || q.y > 2.9) continue;
+        const d = Math.hypot(q.x - sh.x, (q.y - sh.y) * 0.5, q.z - sh.z);
+        if (d < best) { best = d; target = q; }
+      }
+    }
+    if (me.extend(target)) { Sound3.whoosh(); this.view.dust(me.pos, me.extDir); }
+  }
+}
