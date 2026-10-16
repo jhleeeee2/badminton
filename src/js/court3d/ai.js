@@ -38,7 +38,7 @@ class AI3D {
     }
     const best = planIntercept(this.a, sim, d.spd, Math.random() < d.jump);
     if (best) {   // 위치 판단 오차 (쉬울수록 큼, 가끔 크게 잘못 읽음)
-      const e = 0.08 * d.err, miss = Math.random() < d.misread ? 0.8 : 0;
+      const e = 0.08 * d.err, miss = Math.random() < d.misread * g.aiErrMul() ? 0.8 : 0;   // 랠리 템포만큼 오판↑
       best.stand.x += Phys3.randn() * e + (Math.random() < 0.5 ? -miss : miss);
       best.stand.z += Phys3.randn() * e;
     }
@@ -102,7 +102,7 @@ class AI3D {
     // 부드러운 플레이: 높게 띄워 코트 가운데 깊숙이 (쉬움일수록 자주)
     let soft = R() < d.soft;
     if (soft) { type = 'lift'; c = p.y < 0.6 ? rr(0.55, 0.75) : rr(0.6, 0.85); }
-    if (R() < d.over) c = rr(1.17, 1.3);                     // 과충전 실수
+    if (R() < d.over * this.game.aiErrMul()) c = rr(1.17, 1.3);   // 랠리 템포만큼 과충전↑                     // 과충전 실수
     const me = this.game.me;
     const tx = soft ? rr(-0.9, 0.9) : R() < d.edge ? -Math.sign(me.pos.x || (R() - 0.5)) * rr(1.3, 2.3) : rr(-2.0, 2.0);
     const tz = 1.5 + 4 * Math.min(1, c);

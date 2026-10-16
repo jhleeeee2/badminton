@@ -27,7 +27,7 @@ const C3 = Object.freeze({
   SLOW: Object.freeze({ RADIUS: 1.25, TRAIN_RADIUS: 0.8, SCALE: 0.25, IN_RATE: 18, OUT_RATE: 8, ON_AI: true }),   // 라켓 팔 바로 옆(리치 1.2m + 0.2m)에서만   // [게임]
   // 랠리 템포: 랠리(타구 수)가 START를 넘으면 한 타마다 게임 속도 +SPEED_STEP (최대 SPEED_MAX),
   //           슬로우 범위는 −SLOW_STEP 비율씩 줄어듦 (최소 SLOW_MIN배). 훈련에는 적용 안 함   // [게임]
-  RALLY_TEMPO: Object.freeze({ START: 3, SPEED_STEP: 0.03, SPEED_MAX: 1.4, SLOW_STEP: 0.04, SLOW_MIN: 0.55 }),
+  RALLY_TEMPO: Object.freeze({ START: 3, SPEED_STEP: 0.03, SPEED_MAX: 1.4, SLOW_STEP: 0.04, SLOW_MIN: 0.55, AI_ERR_K: 2 }),   // AI_ERR_K: AI 실수 배율 = 1 + K×(속도배율−1)
 
   // 충전: 현실 시간 기준 (슬로우 중에도 같은 속도로 차오름)
   CHARGE: Object.freeze({ TIME: 0.65, MAX: 1.35, FAULT: 1.15, SERVE_NET: 0.1, SERVE_CYCLE: 0.85 }),   // SERVE_CYCLE: 서브 게이지 0→최대 한 번 가는 시간             // [게임]

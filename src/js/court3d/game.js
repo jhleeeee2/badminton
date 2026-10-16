@@ -13,7 +13,7 @@ class Game3D {
     this.me = new Athlete3D(this.view.scene, { side: 'me', color: C3.COLORS.me, kit: C3.KITS.me, hand: 'R' });
     this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
     this.ai = new AI3D(this, this.opp);
-    this.trainer = new Trainer3D(this); this.mode = 'ai';
+    this.trainer = new Trainer3D(this); this.mode = 'ai'; this.net = new Net3D();
     this.sh = { p: { x: 0, y: 1, z: 2 }, v: { x: 0, y: 0, z: 0 }, live: false, held: null, lastHitter: null, serve: false, netted: false, pred: null };
     this.phase = 'idle'; this.timeScale = 1; this.acc = 0; this.yaw = 0; this.serveU = 0; this.aimNdc = null; this.aimPt = { x: 0, z: -4.5 };
     this.running = false; this.inputOn = false; this.lastTs = 0; this.pointT = 0; this.hitStop = 0;
@@ -24,21 +24,35 @@ class Game3D {
 
   configure({ diff, win, hand, mode, train }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
-    this.mode = mode === 'train' ? 'train' : 'ai';
+    this.mode = mode === 'train' ? 'train' : mode === 'room' ? 'room' : 'ai';
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else this.trainer.stop();
-    this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + (hand === 'L' ? '왼손' : '오른손')
-      : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + (hand === 'L' ? '왼손' : '오른손'));
+    if (this.mode !== 'room') { this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); }
+    else this.diffId = 'normal';
+    const hn = hand === 'L' ? '왼손' : '오른손';
+    this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
+      : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
+      : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn);
   }
 
-  start() {
-    this.match.reset(); this.hud.hideMessage(); this.hud.setScore(0, 0, 'me', null); this.hud.setShot('-'); this.hud.setRally(0);
+  get online() { return this.mode === 'room' && this.net.connected; }
+
+  start(fromNet) {
+    if (this.mode === 'room') {
+      if (!this.net.connected) return;   // 친구가 들어와야 시작
+      if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
+    }
+    this.match.reset();
+    if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
+    this.hud.hideMessage(); this.hud.setScore(0, 0, this.match.server, null); this.hud.setShot('-'); this.hud.setRally(0);
     if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
+    if (this.mode === 'room' && this.net.peer) this.setOppName(this.net.peer.name);
     this.setupPoint();
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
+    this.net.close();
     this.phase = 'idle'; this.me.charge = null; this.timeScale = 1;
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -57,7 +71,7 @@ class Game3D {
       a.vel = { x: 0, z: 0 }; a.y = 0; a.vy = 0; a.extT = 0; a.recoverT = 0; a.coolT = 0; a.charge = null; a.swingS = null;
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
-    Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null });
+    Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
     this.ai.reset(); this.ai.serveT = this.trainer.active ? 0.9 : 1.1;
     if (this.trainer.active) {
@@ -95,7 +109,7 @@ class Game3D {
     const plan = Shots3.plan({
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
-      errMul: a.side === 'opp' ? this.ai.d.err * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
+      errMul: a.side === 'opp' ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
       strAng: a.side === 'me' ? Progress3.smashAngle() : 0
     });
     a.onHit(p0);
@@ -112,8 +126,12 @@ class Game3D {
 
   launch(a, p0, plan, isServe, k) {
     const s = this.sh;
-    Object.assign(s, { p: { ...p0 }, v: { ...plan.v0 }, live: true, held: null, lastHitter: a.side, serve: isServe, netted: false, pred: plan.sim });
+    Object.assign(s, { p: { ...p0 }, v: { ...plan.v0 }, live: true, held: null, lastHitter: a.side, serve: isServe, netted: false, pred: plan.sim, waitNet: false });
     this.match.rally++; this.hud.setRally(this.match.rally);
+    if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
+      const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
+      this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
+    }
     // 역동성: 불꽃·충격파·화면 흔들림·줌·소리, 상대는 스플릿 스텝 [게임 연출]
     const pw = Math.min(1, plan.kmh / 260), col = a.side === 'me' ? C3.COLORS.me : C3.COLORS.opp;
     const smash = /스매시/.test(plan.name);
@@ -163,6 +181,72 @@ class Game3D {
     return { spd: Math.min(T.SPEED_MAX, 1 + T.SPEED_STEP * n), slow: Math.max(T.SLOW_MIN, 1 - T.SLOW_STEP * n) };
   }
 
+  // AI 실수 배율: 속도 증가분의 2배 비율로 오차·과충전·오판 확률 증가 (속도 x1.4 → 실수 x1.8)
+  aiErrMul() { return 1 + C3.RALLY_TEMPO.AI_ERR_K * (this.tempo().spd - 1); }
+
+  // ───── 온라인 (Net3D가 호출) ─────
+  setOppName(n) {
+    const b = document.querySelector('#c3board .opp .nm'), c = document.querySelector('.card.team.opp .lbl');
+    if (b) b.textContent = n; if (c) c.textContent = n;
+  }
+  netPeerJoined(peer, win) {
+    this.opp.setHand(peer.hand); this.setOppName(peer.name);
+    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room' });
+    this.setOppName(peer.name);
+    this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
+    if (this.net.host) setTimeout(() => this.start(), 600);   // 방장이 시작 신호
+    else this.hud.showMessage(peer.name + '의 방에 들어왔어요<br>곧 시작합니다…');
+  }
+  netPeerLeft() {
+    this.phase = 'idle'; this.me.charge = null; this.hud.setGauge(null);
+    this.hud.showMessage('상대가 방에서 나갔어요.<br>Esc = 메뉴');
+  }
+  netError(msg) {
+    this.phase = 'idle'; this.hud.showMessage(msg + '<br>Esc = 메뉴');
+  }
+  netRestart(m) {
+    if ([11, 15, 21].includes(m.win)) this.match.win = m.win;
+    this.start(true);
+  }
+  netSwing(m) {
+    const a = this.opp;
+    a.charge = null;
+    a.swing(m.ty, m.c, m.sp ? mir3(m.sp) : null, m.cat);
+  }
+  netLaunch(m) {
+    if (this.phase === 'idle' || this.phase === 'over') return;
+    const p0 = mir3(m.p), v0 = mir3(m.v), a = this.opp;
+    if (m.serve) {
+      if (this.phase !== 'serve') this.setupPoint();   // 아직 득점 연출 중이었으면 바로 서브 상태로
+      this.phase = 'rally';
+      for (const x of [this.me, this.opp]) x.bounds = this.halfBounds(x.side);
+      this.hud.setHint('');
+      a.swing('serve', 0.5, p0, 'low');
+    } else if (this.phase !== 'rally') return;
+    if (!a.swingS) a.swing('flat', 0.5, p0, 'side');
+    a.onHit(p0);
+    this.match.rally = Math.max(0, (m.r | 0) - 1);   // launch()에서 +1
+    this.launch(a, p0, { v0, sim: Phys3.simulate(p0, v0), kmh: m.kmh | 0, name: String(m.name || '') }, !!m.serve, m.hand ? { hand: m.hand } : null);
+    // 지연 보정: 상대가 친 뒤 흐른 시간만큼 셔틀을 앞으로 감음
+    const ff = Math.min(NET3.MAX_FF, this.net.lat) * C3.GAME_SPEED * this.tempo().spd, STEP = C3.PHYS.STEP, s = this.sh;
+    for (let t = 0; t < ff && s.live && !s.netted; t += STEP) {
+      const prev = { ...s.p };
+      Phys3.step(s.p, s.v, STEP); this.flyT += STEP;
+      const nh = Phys3.netHit(prev, s.p);
+      if (nh) { s.netted = true; s.p.x = nh.x; s.p.y = nh.y; s.p.z = -0.06; s.v = { x: 0, y: -0.5, z: 0 }; this.view.setLanding(null); this.view.netWobble(); Sound3.net(); }
+      if (s.p.y <= 0.02) { s.p.y = 0.02; break; }
+    }
+  }
+  netPoint(m) {
+    if (this.phase === 'idle' || this.phase === 'over') return;
+    const s = this.sh;
+    if (s.live) {   // 내 화면의 셔틀 정리 (낙하 표시)
+      s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+      this.view.ripple({ x: s.p.x, y: 0, z: s.p.z }, 0xFFFFFF, 1.0);
+    }
+    this.point(flip3(m.w), String(m.r || ''), { pts: m.pts | 0, opts: m.opts | 0 });
+  }
+
   // ───── 판정 ─────
   landed() {
     const s = this.sh, m = this.match, hitter = s.lastHitter, other = m.other(hitter);
@@ -184,9 +268,11 @@ class Game3D {
     else this.point(other, '아웃');
   }
 
-  point(winner, reason) {
+  point(winner, reason, sync) {
     const m = this.match;
     m.award(winner);
+    if (sync) { m.pts = sync.pts; m.opts = sync.opts; }   // 온라인: 판정한 쪽 점수로 맞춤
+    else if (this.online) this.net.send({ t: 'pt', w: winner, r: reason, pts: m.opts, opts: m.pts });   // w는 내 기준(받는 쪽이 뒤집음), 점수는 상대 기준으로 바꿔 보냄
     const meWon = winner === 'me';
     this.me.react(meWon ? 'win' : 'lose'); this.opp.react(meWon ? 'lose' : 'win');
     this.view.cheer(meWon ? 1 : 0.55); Sound3.cheer(meWon ? 1 : 0.5); Sound3.chime(meWon);
@@ -198,8 +284,8 @@ class Game3D {
     const w = m.winner();
     if (w) {
       this.phase = 'over';
-      if (!this.trainer.active && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
-      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}<br>Enter 또는 다시 시작 = 재대결 · Esc = 메뉴`);
+      if (!this.trainer.active && this.mode !== 'room' && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
+      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else {
       const mp = m.matchPoint();
       if (mp) { this.hud.banner(mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
@@ -234,7 +320,9 @@ class Game3D {
     this.hud.setSlow((1 - this.timeScale) / (1 - C3.SLOW.SCALE));
 
     this.me.updateCharge(real);
+    if (this.mode === 'room') this.net.tick(real);
     let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율
+    this.simRate = this.timeScale * C3.GAME_SPEED * tp.spd;
     if (this.hitStop > 0) { this.hitStop -= real; sim = 0; }   // 히트스톱 중엔 시간 정지
     if (this.phase === 'serve' || this.phase === 'rally') {
       this.acc += sim;
@@ -242,6 +330,7 @@ class Game3D {
     } else if (this.phase === 'point') {
       this.pointT -= real;
       for (const a of [this.me, this.opp]) { a.moveDir = { x: 0, z: 0 }; a.update(sim); }
+      if (this.mode === 'room') this.net.applyRemote(sim, this.simRate || C3.GAME_SPEED);
       if (this.pointT <= 0) this.setupPoint();
     }
     if (this.sh.live && this.phase === 'point') this.sh.live = false;
@@ -264,8 +353,9 @@ class Game3D {
 
   step(dt) {
     const s = this.sh;
-    this.me.update(dt); this.opp.update(dt); this.ai.update(dt);
-    if (!s.live) return;
+    this.me.update(dt); this.opp.update(dt);
+    if (this.mode === 'room') this.net.applyRemote(dt, this.simRate || C3.GAME_SPEED); else this.ai.update(dt);
+    if (!s.live || s.waitNet) return;
     const prev = { ...s.p };
     this.flyT += dt;
     const lp = this.landPend;
@@ -281,7 +371,11 @@ class Game3D {
         return;
       }
     }
-    if (s.p.y <= 0) { s.p.y = 0; this.landed(); return; }
+    if (s.p.y <= 0) {
+      s.p.y = 0;
+      if (this.online && s.lastHitter === 'me') { s.waitNet = true; s.v = { x: 0, y: 0, z: 0 }; return; }   // 판정은 받는 쪽(상대)이 보냄
+      this.landed(); return;
+    }
     // 플레이어 타격 판정 (스윙 창 안에서 셔틀이 리치 안 + 내 코트 쪽)
     const a = this.me;
     if (!s.netted && s.lastHitter !== 'me' && a.canHitNow() && s.p.z > -0.02) {
@@ -303,8 +397,9 @@ class Game3D {
     const s = this.sh;
     const sp = s.live ? s.p : null;
     Sound3.whoosh();
-    this.me.swing(type, ch.c, sp && Math.hypot(sp.x - this.me.pos.x, sp.z - this.me.pos.z) < 3 ? sp : null,
-      { down: 'over', lift: 'low', flat: 'side' }[type]);
+    const swp = sp && Math.hypot(sp.x - this.me.pos.x, sp.z - this.me.pos.z) < 3 ? sp : null, cat = { down: 'over', lift: 'low', flat: 'side' }[type];
+    this.me.swing(type, ch.c, swp, cat);
+    if (this.online) this.net.send({ t: 'sw', ty: type, c: Math.round(ch.c * 100) / 100, sp: swp ? { x: swp.x, y: swp.y, z: swp.z } : null, cat });
   }
   // 조준 각도: 랠리 땐 마우스 그대로, 내 서브 땐 대각선 서비스 코트 중앙을 기준으로 마우스가 ±조정 [게임 보조]
   aimYaw() {

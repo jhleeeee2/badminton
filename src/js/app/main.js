@@ -55,7 +55,7 @@ class App {
   }
 
   launch(sel) {
-    if (sel.mode !== 'ai' && !(sel.mode === 'train' && sel.type === 'court3d')) return;
+    if (sel.mode !== 'ai' && !((sel.mode === 'train' || sel.mode === 'room') && sel.type === 'court3d')) return;
     if (sel.type === 'classic') {
       const g = this.classic;
       g.match.diff = DIFFS[sel.diff];
@@ -69,8 +69,27 @@ class App {
       this.court3d.configure(sel);
       Sound3.unlock();
       this.show('court3d');
-      this.court3d.start();
+      if (sel.mode === 'room') this.openRoom(sel);
+      else this.court3d.start();
     }
+  }
+
+  // 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
+  openRoom(sel) {
+    const g = this.court3d, r = sel.room;
+    g.placeForServe(); g.frame(0); g.hud.setHint('');
+    g.hud.showMessage(r.host
+      ? `방을 만드는 중…`
+      : `방 <b>${r.code}</b>에 들어가는 중…`);
+    const name = (typeof Account !== 'undefined' && Account.nickname) || '게스트';
+    g.net.open(g, r.code, r.host, { hand: sel.hand, win: sel.win, name })
+      .then(() => {
+        if (g.net.connected || this.screen !== 'court3d') return;
+        g.hud.showMessage(r.host
+          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다`
+          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드를 다시 확인해 주세요</small>`);
+      })
+      .catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
   }
 
   toMenu() {

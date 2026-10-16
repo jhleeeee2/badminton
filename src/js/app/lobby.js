@@ -15,12 +15,16 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.roomBox = $('roomSettings'); this.roomCode = $('roomCode'); this.diffBox = $('diffSeg'); this.aiHead = $('aiHead');
     this.renderTypes();
     this.renderModes();
     this.bindSeg('#diffSeg', 'd', v => { this.sel.diff = v; });
     this.bindSeg('#winSeg', 'w', v => { this.sel.win = parseInt(v); });
     this.bindSeg('#handSeg', 'h', v => { this.sel.hand = v; });
     this.startBtn.addEventListener('click', () => this.start());
+    $('roomCreate').addEventListener('click', () => { this.roomCode.value = ''; this.start(); });
+    $('roomJoin').addEventListener('click', () => this.start());
+    this.roomCode.addEventListener('input', () => { this.roomCode.value = this.roomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
     this.refresh();
   }
 
@@ -71,7 +75,10 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    this.aiBox.hidden = this.sel.mode !== 'ai' || !this.canStart();
+    const room = this.sel.mode === 'room';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
+    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
+    this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
@@ -96,7 +103,16 @@ class Lobby {
     }
   }
 
-  start() { if (this.canStart()) this.app.launch({ ...this.sel }); }
+  start() {
+    if (!this.canStart()) return;
+    const sel = { ...this.sel };
+    if (sel.mode === 'room') {   // 코드가 있으면 입장, 없으면 방 만들기
+      const code = (this.roomCode.value || '').trim().toUpperCase();
+      if (code && code.length !== 5) { this.note.textContent = '방 코드는 5자리예요.'; return; }
+      sel.room = code ? { code, host: false } : { code: Net3D.makeCode(), host: true };
+    }
+    this.app.launch(sel);
+  }
 
   // 마지막 선택 기억 (저장이 막힌 환경이면 그냥 기본값)
   load() {

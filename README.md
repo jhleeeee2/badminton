@@ -36,6 +36,7 @@ src/                         개발용 원본 (여기만 수정)
       hud.js / input.js      Hud3D / Input3D — 점수·게이지·포백 표시·슬로우 효과 / WASD·마우스·Q·E·클릭
       sound.js               Sound3 — Web Audio 합성 효과음(타격·네트·착지·환호), M 음소거
       game.js                Game3D — 고정 간격 시뮬레이션, 슬로우, 타격·득점 흐름
+      online.js              Net3D — 친구 1:1 방 (Supabase Realtime 방송 채널·방 코드), 상대 선수 보간, 지연 보정
       tutorial.js            TUTORIAL_3D_PAGES
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
@@ -67,3 +68,11 @@ WASD 이동 · 마우스 좌우 방향 · Q 올리기 / E 찍기 / 좌클릭 직
 - 훈련 레벨은 로그인 시 progress 테이블과 합침(종목별 높은 값).
 - 테이블: profiles(닉네임) · matches(경기 기록) · progress(훈련 레벨), 모두 RLS로 본인 것만 쓰기.
 - account.js의 키는 publishable(공개용). secret/service_role 키는 절대 넣지 말 것.
+
+## 친구 1:1 방 (3D 코트, 온라인)
+- 대기화면 → 3D 코트 → 친구 1:1 방 → 한 명이 '방 만들기'(5자리 코드), 친구는 코드 입력 후 '입장'. 인터넷 필요, 로그인 불필요.
+- 별도 서버 없이 Supabase Realtime 채널 `bm3d-<코드>`의 broadcast·presence만 사용 (DB 테이블 안 씀).
+- 동기화: 각자 자기 선수 위치를 초당 15번 보냄 · 칠 때는 발사 위치·속도만 보냄(셔틀 물리는 결정론적이라 양쪽 궤적 동일)
+  · 판정(타격/낙하/득점)은 셔틀을 받는 쪽 컴퓨터가 결정해 알림 · 좌표는 받는 쪽에서 180° 회전(x→−x, z→−z).
+- 첫 서브·목표 점수는 방장 기준. 온라인 경기는 경기 기록(matches)에 저장하지 않음.
+- Supabase 대시보드에서 Realtime을 '비공개 채널만 허용'으로 바꾸면 방이 연결되지 않음.

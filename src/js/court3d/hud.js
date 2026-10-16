@@ -51,7 +51,8 @@ class Hud3D {
   setShot(t) { this.el.shot.textContent = t; }
   setConfig(t) { this.el.cfg.textContent = t; }
   setHint(t) { this.el.hint.textContent = t; }
-  showMessage(h) { this.el.msg.innerHTML = h; this.el.msg.hidden = false; this.el.startBtn.textContent = h === this.introMsg ? '시작' : '다시 시작'; }
+  showMessage(h) { this.el.msg.innerHTML = '<div>' + h + '</div>';   // div로 감싸야 <br> 줄바꿈이 가로로 안 펼쳐짐
+    this.el.msg.hidden = false; this.el.startBtn.textContent = h === this.introMsg ? '시작' : '다시 시작'; }
   hideMessage() { this.el.msg.hidden = true; this.el.startBtn.textContent = '다시 시작'; }
   banner(text, color, dur) {
     const b = this.el.banner; b.textContent = text; b.style.color = color; this.bannerT = dur; b.style.opacity = 1;

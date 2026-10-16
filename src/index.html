@@ -21,7 +21,7 @@
     <div class="modegrid" id="modeList"></div>
   </section>
   <section class="lsec" id="aiSettings">
-    <div class="lhead">AI 대전 설정</div>
+    <div class="lhead" id="aiHead">AI 대전 설정</div>
     <div class="cards">
       <div class="seg" id="diffSeg">
         <span class="seglbl">난이도</span>
@@ -42,6 +42,15 @@
         <button data-h="R" class="active">오른손</button>
         <button data-h="L">왼손</button>
       </div>
+    </div>
+  </section>
+  <section class="lsec" id="roomSettings" hidden>
+    <div class="lhead">친구 1:1 방 <span class="lsub">인터넷 필요 · 한 명이 방을 만들고, 친구는 그 코드로 입장 · 목표 점수는 방장 설정</span></div>
+    <div class="cards roomrow">
+      <button id="roomCreate" class="roombtn">방 만들기</button>
+      <span class="roomor">또는</span>
+      <input id="roomCode" class="roomcode" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false">
+      <button id="roomJoin" class="roombtn">입장</button>
     </div>
   </section>
   <section class="lsec" id="trainSettings" hidden>
@@ -191,6 +200,7 @@
 <script src="js/court3d/hud.js"></script>
 <script src="js/court3d/progress.js"></script>
 <script src="js/court3d/train.js"></script>
+<script src="js/court3d/online.js"></script>
 <script src="js/court3d/game.js"></script>
 <script src="js/court3d/input.js"></script>
 <script src="js/court3d/tutorial.js"></script>
