@@ -49,7 +49,7 @@
     <div class="cards roomrow">
       <button id="roomCreate" class="roombtn">방 만들기</button>
       <span class="roomor">또는</span>
-      <input id="roomCode" class="roomcode" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false">
+      <input id="roomCode" class="roomcode" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false" lang="en" inputmode="latin" autocapitalize="characters">
       <button id="roomJoin" class="roombtn">입장</button>
     </div>
   </section>
@@ -104,7 +104,7 @@
 </div>
 <!-- ───────── 3D 코트 화면 ───────── -->
 <div class="wrap wide3d" id="court3d" hidden>
-  <h1><button id="c3menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">3D 코트 · 시험판</span></h1>
+  <h1><button id="c3menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">3D 코트 · 시험판</span> <span class="c3room" id="c3room" hidden title="클릭하면 코드 복사">방 <b id="c3roomCode"></b></span></h1>
   <div class="hud">
     <div class="cards">
       <div class="card team opp"><span class="lbl">상대</span><span id="c3opts" class="val">0</span><span id="c3srvOpp" class="srv" hidden>서브</span></div>
@@ -114,6 +114,7 @@
       <div class="card"><span class="lbl">설정</span><span id="c3cfg" class="val small">-</span></div>
     </div>
     <div style="display:flex;gap:8px;">
+      <button id="c3landBtn" title="L">📍 낙하 표시 켬</button>
       <button id="c3muteBtn" title="M">🔊 소리</button>
       <button id="c3tutBtn">튜토리얼</button>
       <button id="c3startBtn">다시 시작</button>
@@ -139,7 +140,7 @@
     </div>
     <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)</div>
   </div>
-  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
+  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
 </div>
 <div id="tut">
   <div class="tutbox">

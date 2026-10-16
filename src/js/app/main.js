@@ -21,6 +21,8 @@ class App {
     $('c3menuBtn').addEventListener('click', () => this.toMenu());
     $('c3tutBtn').addEventListener('click', () => this.openTutorial('court3d'));
     $('c3startBtn').addEventListener('click', () => this.court3d && this.court3d.start());
+    $('c3landBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleLand(); e.currentTarget.blur(); });
+    $('c3room').addEventListener('click', () => { const c = $('c3roomCode').textContent; try { navigator.clipboard.writeText(c); this.court3d.hud.banner('방 코드 복사됨: ' + c, '#5BFFB0', 0.9); } catch (e) { /* 무시 */ } });
     $('c3muteBtn').addEventListener('click', () => { Sound3.unlock(); this.court3d && this.court3d.hud.setMute(Sound3.toggleMute()); });
     $('tutBtn').addEventListener('click', () => this.openTutorial('classic'), true);
     document.addEventListener('keydown', e => this.onKey(e));
@@ -77,7 +79,7 @@ class App {
   // 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
   openRoom(sel) {
     const g = this.court3d, r = sel.room;
-    g.placeForServe(); g.frame(0); g.hud.setHint('');
+    g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(r.code);
     g.hud.showMessage(r.host
       ? `방을 만드는 중…`
       : `방 <b>${r.code}</b>에 들어가는 중…`);

@@ -7,6 +7,25 @@ const COURT_ART = {   // 게임 종류 카드의 작은 그림
   persp: '<svg viewBox="0 0 120 44" aria-hidden="true"><polygon points="34,6 86,6 112,40 8,40" fill="none" stroke="currentColor" stroke-width="2"/><line x1="21" y1="23" x2="99" y2="23" stroke="currentColor" stroke-width="2"/><line x1="60" y1="6" x2="60" y2="40" stroke="currentColor" stroke-width="1" opacity=".5"/><ellipse cx="74" cy="32" rx="5" ry="2" fill="currentColor" opacity=".35"/><circle cx="74" cy="17" r="3" fill="var(--warn)"/></svg>'
 };
 
+// 한글(두벌식) → 같은 자리의 영문 키. 예: 'ㅁ'→a, '무'→an, 'ㄱ'→r
+const HG_KEY = { 'ㅂ':'q','ㅈ':'w','ㄷ':'e','ㄱ':'r','ㅅ':'t','ㅛ':'y','ㅕ':'u','ㅑ':'i','ㅐ':'o','ㅔ':'p','ㅁ':'a','ㄴ':'s','ㅇ':'d','ㄹ':'f','ㅎ':'g','ㅗ':'h','ㅓ':'j','ㅏ':'k','ㅣ':'l','ㅋ':'z','ㅌ':'x','ㅊ':'c','ㅍ':'v','ㅠ':'b','ㅜ':'n','ㅡ':'m',
+  'ㅃ':'Q','ㅉ':'W','ㄸ':'E','ㄲ':'R','ㅆ':'T','ㅒ':'O','ㅖ':'P',
+  'ㅘ':'hk','ㅙ':'ho','ㅚ':'hl','ㅝ':'nj','ㅞ':'np','ㅟ':'nl','ㅢ':'ml',
+  'ㄳ':'rt','ㄵ':'sw','ㄶ':'sg','ㄺ':'fr','ㄻ':'fa','ㄼ':'fq','ㄽ':'ft','ㄾ':'fx','ㄿ':'fv','ㅀ':'fg','ㅄ':'qt' };
+const HG_CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ', HG_JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+const HG_JONG = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function hangulToQwerty(s) {
+  let out = '';
+  for (const c of s) {
+    const n = c.charCodeAt(0) - 0xAC00;
+    if (n >= 0 && n < 11172) {   // 완성형 음절 → 초성·중성·종성
+      const jo = HG_JONG[n % 28], ju = HG_JUNG[Math.floor(n / 28) % 21], ch = HG_CHO[Math.floor(n / 588)];
+      out += HG_KEY[ch] + HG_KEY[ju] + (jo ? HG_KEY[jo] : '');
+    } else out += HG_KEY[c] || c;
+  }
+  return out;
+}
+
 class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
@@ -24,7 +43,18 @@ class Lobby {
     this.startBtn.addEventListener('click', () => this.start());
     $('roomCreate').addEventListener('click', () => { this.roomCode.value = ''; this.start(); });
     $('roomJoin').addEventListener('click', () => this.start());
-    this.roomCode.addEventListener('input', () => { this.roomCode.value = this.roomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+    // 방 코드: 한글 입력 상태여도 영문으로 — 키 위치(e.code)로 직접 넣고, 그래도 들어온 한글은 두벌식 자판 위치대로 영문 변환
+    const rc = this.roomCode, clean = () => { rc.value = hangulToQwerty(rc.value).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); };
+    rc.addEventListener('keydown', e => {
+      const m = /^(?:Key([A-Z])|Digit([0-9])|Numpad([0-9]))$/.exec(e.code);
+      if (!m || e.ctrlKey || e.metaKey || e.altKey) return;
+      e.preventDefault();
+      const ch = m[1] || m[2] || m[3], s = rc.selectionStart, t = rc.selectionEnd;
+      rc.value = (rc.value.slice(0, s) + ch + rc.value.slice(t)); clean();
+      const pos = Math.min(rc.value.length, s + 1); rc.setSelectionRange(pos, pos);
+    });
+    rc.addEventListener('input', clean);
+    rc.addEventListener('compositionend', clean);
     this.refresh();
   }
 

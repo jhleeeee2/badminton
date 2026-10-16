@@ -12,6 +12,7 @@ class Input3D {
       Sound3.unlock();
       const c = e.code;
       if (c === 'KeyM' && !e.repeat) { game.hud.setMute(Sound3.toggleMute()); return; }
+      if (c === 'KeyL' && !e.repeat) { game.toggleLand(); return; }
       if ([...moveKeys, K.lift, K.smash, K.jump, ...K.ext].includes(c)) e.preventDefault();
       if (e.repeat) return;
       if (moveKeys.includes(c)) { this.keys[c] = true; this.applyMove(); }

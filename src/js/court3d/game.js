@@ -14,6 +14,10 @@ class Game3D {
     this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
     this.ai = new AI3D(this, this.opp);
     this.trainer = new Trainer3D(this); this.mode = 'ai'; this.net = new Net3D();
+    // 낙하 지점 표시 켜기/끄기 (L) — 브라우저에 기억
+    this.showLand = true;
+    try { this.showLand = localStorage.getItem('badminton.c3.showLand') !== '0'; } catch (e) { /* 무시 */ }
+    this.hud.setLand(this.showLand);
     this.sh = { p: { x: 0, y: 1, z: 2 }, v: { x: 0, y: 0, z: 0 }, live: false, held: null, lastHitter: null, serve: false, netted: false, pred: null };
     this.phase = 'idle'; this.timeScale = 1; this.acc = 0; this.yaw = 0; this.serveU = 0; this.aimNdc = null; this.aimPt = { x: 0, z: -4.5 };
     this.running = false; this.inputOn = false; this.lastTs = 0; this.pointT = 0; this.hitStop = 0;
@@ -27,7 +31,7 @@ class Game3D {
     this.mode = mode === 'train' ? 'train' : mode === 'room' ? 'room' : 'ai';
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else this.trainer.stop();
-    if (this.mode !== 'room') { this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); }
+    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); }
     else this.diffId = 'normal';
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -162,12 +166,12 @@ class Game3D {
     const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp';
     // 낙하 지점: 난이도별로 늦게·흐리게·작게 표시 (쉬움=바로, 지옥=떨어지기 직전, 임파서블=없음)
     this.view.setLanding(null); this.landPend = null; this.flyT = 0;
-    if (land && toMe && A.land) {
+    if (land && toMe && A.land && this.showLand) {
       const inn = isServe ? this.match.inBox(this.match.box('me', this.match.serveCourt()), land.x, land.z) : this.match.inSingles(land.x, land.z);
       this.landPend = { p: land, at: land.t * A.landAt, col: A.inout ? (inn ? 0x34C08B : 0xE25B5A) : 0xFFFFFF, a: A.landA, s: A.landS };
     }
     // 판단력 레벨: 가끔 낙하 지점 힌트(하늘색)를 일찍 보여줌 (경기에서만)
-    if (land && toMe && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
+    if (land && toMe && this.showLand && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
       this.landPend = { p: land, at: land.t * 0.35, col: 0x5BC8FF, a: 0.6, s: 1 };
     const full = (toMe && (A.path || A.stand)) ? Phys3.simulate(p0, plan.v0, { path: true, coarse: 2 }) : null;
     this.view.setPath(toMe && A.path ? full.path : null);
@@ -183,6 +187,14 @@ class Game3D {
 
   // AI 실수 배율: 속도 증가분의 2배 비율로 오차·과충전·오판 확률 증가 (속도 x1.4 → 실수 x1.8)
   aiErrMul() { return 1 + C3.RALLY_TEMPO.AI_ERR_K * (this.tempo().spd - 1); }
+
+  toggleLand() {
+    this.showLand = !this.showLand;
+    try { localStorage.setItem('badminton.c3.showLand', this.showLand ? '1' : '0'); } catch (e) { /* 무시 */ }
+    if (!this.showLand) { this.landPend = null; this.view.setLanding(null); }
+    this.hud.setLand(this.showLand);
+    this.hud.banner(this.showLand ? '낙하 지점 표시 켬' : '낙하 지점 표시 끔', '#9FD8FF', 0.8);
+  }
 
   // ───── 온라인 (Net3D가 호출) ─────
   setOppName(n) {

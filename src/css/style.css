@@ -233,3 +233,9 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .roomcode{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:16px;font-family:inherit;letter-spacing:.2em;text-transform:uppercase;width:150px;}
 .roomcode:focus{outline:none;border-color:var(--ok);}
 .c3code{display:inline-block;font-size:38px;font-weight:700;letter-spacing:.25em;padding:6px 18px;margin:6px 0;border:2px dashed var(--ok);border-radius:12px;color:var(--ok);}
+
+/* 게임 중 방 코드 (상단 작게) */
+.c3room{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--text3);border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin-left:6px;cursor:pointer;vertical-align:middle;}
+.c3room b{color:var(--ok);letter-spacing:.15em;font-weight:700;}
+.c3room:hover{border-color:var(--ok);}
+#c3landBtn.off{opacity:.6;}

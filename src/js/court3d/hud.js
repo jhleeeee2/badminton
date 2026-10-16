@@ -58,6 +58,11 @@ class Hud3D {
     const b = this.el.banner; b.textContent = text; b.style.color = color; this.bannerT = dur; b.style.opacity = 1;
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');   // 튀어나오는 애니메이션 다시 시작
   }
+  setLand(on) { const b = document.getElementById('c3landBtn'); if (b) { b.textContent = on ? '📍 낙하 표시 켬' : '📍 낙하 표시 끔'; b.classList.toggle('off', !on); } }
+  setRoom(code) {   // 게임 중 상단에 방 코드 (null이면 숨김)
+    const el = document.getElementById('c3room'); if (!el) return;
+    el.hidden = !code; if (code) document.getElementById('c3roomCode').textContent = code;
+  }
   setMute(m) { const b = document.getElementById('c3muteBtn'); if (b) b.textContent = m ? '🔇 소리' : '🔊 소리'; }
   setSlow(k) { this.el.vig.style.opacity = Math.max(0, Math.min(1, k)) * 0.85; }
 
