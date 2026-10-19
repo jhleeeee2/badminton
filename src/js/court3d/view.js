@@ -11,11 +11,12 @@ const ARENA = Object.freeze({   // [게임] 색 구성
   LED: ['#FF4FD8', '#3DD9FF', '#FFD23F', '#7CFF6B', '#FF7A45', '#9B7BFF'],
   RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF
 });
-// 코트 양쪽 끝(엔드) 배경 [게임]: 내 맞은편(화면 안쪽) 관중석·배경이 엔드마다 살짝 다름.
-//   친구 대전에선 두 사람이 서로 다른 엔드를 보게 되고, 코트 체인지 때 서로 바뀜
+// 코트 양쪽 끝(엔드) = 응원단 [게임]: END A = 빨강팀, END B = 파랑팀
+//   맞은편 관중석·양옆 관중석의 '맞은편 절반'은 맞은편 엔드 팀 색, 양옆의 '내 쪽 절반'은 내 엔드 팀 색
+//   친구 대전에선 두 사람이 서로 다른 엔드를 보고, 코트 체인지 때 서로 바뀜
 const ENDS = Object.freeze([
-  { name: 'A', BG_TOP: '#1B1640', BG_BOTTOM: '#060A18', STAND: 0x1A1E44, LED: 0xB8B8B8, RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF, FLAG: '#FF4FD8' },
-  { name: 'B', BG_TOP: '#10303A', BG_BOTTOM: '#04120F', STAND: 0x1E5A55, LED: 0x8FE3C6, RIM_A: 0xFFB13B, RIM_B: 0x5BFFB0, FLAG: '#5BFFB0' }
+  { name: 'RED', team: '빨강팀', BG_TOP: '#3A1230', BG_BOTTOM: '#0C0610', STAND: 0x5A1A24, LED: 0xFFB0A8, RIM_A: 0xFF4B4B, RIM_B: 0xFFB13B, FLAG: '#FF4B4B', HUE: 0.0 },
+  { name: 'BLUE', team: '파랑팀', BG_TOP: '#122A5A', BG_BOTTOM: '#050A18', STAND: 0x183068, LED: 0xA8C4FF, RIM_A: 0x3D8BFF, RIM_B: 0x3DD9FF, FLAG: '#4B8BFF', HUE: 0.6 }
 ]);
 
 class CourtView3D {
@@ -33,7 +34,8 @@ class CourtView3D {
     this.baseFov = 44;
     this.camera = new THREE.PerspectiveCamera(this.baseFov, 16 / 9, 0.1, 120);
     // 왼쪽 뒤 높은 곳에서 오른쪽 앞을 비스듬히 [게임]. 화각은 매 프레임 '꼭 보여야 할 점'에 맞춰 자동 조절(fitFov)
-    this.camBase = new THREE.Vector3(-2.0, 5.1, 13.4);   // 너무 위에서 내려다보지 않게, 살짝만 높임 (4.6 → 5.1m)
+    // 원근감 강화: 코트에 더 가깝고 낮게 (-2.0, 5.1, 13.4) → (-1.3, 3.6, 10.6) — 가까운 것은 크게, 먼 것은 작게 보여 셔틀 앞뒤 위치를 읽기 쉬움 [게임]
+    this.camBase = new THREE.Vector3(-1.3, 3.6, 10.6);
     this.camLook = new THREE.Vector3(0.3, 0.2, -0.2);
     const H = C3.COURT.HALF_LEN, Wd = C3.COURT.HALF_W_D;
     this.mustSee = [   // 내 코트 맨 뒤(선수가 설 수 있는 곳까지) + 상대 베이스라인
@@ -123,17 +125,19 @@ class CourtView3D {
     flag.position.set(0, 1.25, -9.36); S.add(flag);   // 맞은편 LED판 바로 위
 
     // 관중석: 계단식 좌석 + 여러 색 관중 (InstancedMesh)
-    const stand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });
-    this.farStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });   // 맞은편 관중석 (엔드마다 색이 다름)
+    this.farStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });    // 맞은편 엔드 쪽 관중석 (팀 색)
+    this.nearStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });   // 내 엔드 쪽 관중석 (팀 색)
     const tiers = [];
     for (let r = 0; r < 5; r++) {
       const y = 0.6 + r * 0.5;
       tiers.push({ x0: -10, x1: 10, z: -10.8 - r * 0.8, y, ax: 'x' });
-      tiers.push({ x0: -9, x1: 3, z: -8.2 - r * 0.8, y, ax: 'zL' });
-      tiers.push({ x0: -9, x1: 3, z: 8.2 + r * 0.8, y, ax: 'zR' });
+      tiers.push({ x0: -9, x1: 6, z: -8.2 - r * 0.8, y, ax: 'zL' });   // 양옆 관중석을 내 쪽으로 늘림 (3 → 6m)
+      tiers.push({ x0: -9, x1: 6, z: 8.2 + r * 0.8, y, ax: 'zR' });
       const st = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 0.8), this.farStand); st.position.set(0, y - 0.28, -10.8 - r * 0.8); S.add(st);
-      const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s2.position.set(-8.2 - r * 0.8, y - 0.28, -3); S.add(s2);
-      const s3 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s3.position.set(8.2 + r * 0.8, y - 0.28, -3); S.add(s3);
+      for (const sx of [-1, 1]) {   // 양옆: z=-3 기준으로 맞은편 팀 / 내 팀 구역
+        const a = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 6.4), this.farStand); a.position.set(sx * (8.2 + r * 0.8), y - 0.28, -6.2); S.add(a);
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 9.4), this.nearStand); b.position.set(sx * (8.2 + r * 0.8), y - 0.28, 1.7); S.add(b);
+      }
     }
     const seats = [];
     for (const t of tiers) for (let u = t.x0; u <= t.x1; u += 0.62) {
@@ -146,9 +150,11 @@ class CourtView3D {
     const col = new THREE.Color(), m4 = new THREE.Matrix4();
     seats.forEach((s, i) => {
       m4.makeTranslation(s[0], s[1] + 0.26, s[2]); crowd.setMatrixAt(i, m4);
-      col.setHSL(Math.random(), ARENA.CROWD_S, ARENA.CROWD_L * (0.8 + Math.random() * 0.3)); crowd.setColorAt(i, col);
+      col.setHSL(Math.random(), ARENA.CROWD_S, ARENA.CROWD_L); crowd.setColorAt(i, col);
     });
     S.add(crowd); this.crowd = crowd; this.seats = seats; this.seatPhase = seats.map(() => Math.random() * 6.28);
+    // 응원단 색: 팀 색 ±흔들림, 열에 몇 명은 흰 옷 (setEnd에서 칠함)
+    this.seatJit = seats.map(() => ({ h: (Math.random() - 0.5) * 0.07, l: 0.38 + Math.random() * 0.2, w: Math.random() < 0.12 }));
   }
 
   buildCourt() {
@@ -214,7 +220,7 @@ class CourtView3D {
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.radialTex([[0, 'rgba(0,0,0,0.85)'], [0.5, 'rgba(0,0,0,0.45)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = 0.006; this.scene.add(this.shadow);
     // 잔상: 속도에 따라 노랑 → 주황 → 빨강
-    this.trailN = 22; this.trailPts = [];
+    this.trailN = 36; this.trailPts = [];   // 22 → 36프레임 (궤적 모양이 더 길게 보이게)
     const tg = new THREE.BufferGeometry();
     tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.trailN * 3), 3));
     tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.trailN * 3), 3));
@@ -290,25 +296,42 @@ class CourtView3D {
     u.t = Math.max(0, u.t - dt);
     const up = u.t > 0 ? Math.min(1, (1.5 - u.t) / 0.15, u.t / 0.3) : 0;
     const tgtMe = u.side === 'me' ? up : 0, tgtOpp = u.side === 'opp' ? up : 0;
+    // 심판이 반대쪽 옆에 앉으면(flip) 몸이 180° 돌아 있으므로 '내 코트 쪽 팔'이 바뀜
+    const aPlus = u.flip ? tgtOpp : tgtMe, aMinus = u.flip ? tgtMe : tgtOpp;
     // 팔을 옆·위로: x축 회전(앞뒤 = z 방향)으로 들어 올림
-    u.armMe.rotation.x = -tgtMe * 2.5 + Math.sin(this.time * 1.3) * 0.02;
-    u.armOpp.rotation.x = tgtOpp * 2.5 - Math.sin(this.time * 1.3) * 0.02;
-    const look = u.t > 0 ? (u.side === 'me' ? 0.6 : -0.6) * Math.min(1, u.t / 0.3) : Math.sin(this.time * 0.6) * 0.15;
+    u.armMe.rotation.x = -aPlus * 2.5 + Math.sin(this.time * 1.3) * 0.02;
+    u.armOpp.rotation.x = aMinus * 2.5 - Math.sin(this.time * 1.3) * 0.02;
+    const look = u.t > 0 ? (u.side === 'me' ? 0.6 : -0.6) * (u.flip ? -1 : 1) * Math.min(1, u.t / 0.3) : Math.sin(this.time * 0.6) * 0.15;
     u.head.rotation.y += (Math.PI / 2 - look - u.head.rotation.y) * Math.min(1, dt * 8);
   }
 
   // 화면 안쪽(맞은편) 엔드 배경: 0 = A, 1 = B
   setEnd(far) {
-    const E = ENDS[far] || ENDS[1];
+    far = far ? 1 : 0;
+    const E = ENDS[far], N = ENDS[far ^ 1];
     this.farEnd = far;
     this.scene.background = this.gradientTex(E.BG_TOP, E.BG_BOTTOM);
-    this.farStand.color.setHex(E.STAND); this.farLed.color.setHex(E.LED);
+    this.farStand.color.setHex(E.STAND); this.nearStand.color.setHex(N.STAND); this.farLed.color.setHex(E.LED);
+    // 관중: 맞은편 쪽은 맞은편 팀, 내 쪽은 내 팀 색
+    const col = new THREE.Color();
+    this.seats.forEach((st, i) => {
+      const T = st[2] < -3 ? E : N, j = this.seatJit[i];   // 경계는 네트보다 3m 맞은편 쪽 (내 팀 응원단도 화면에 보이게) [게임]
+      if (j.w) col.setHSL(T.HUE, 0.15, 0.85); else col.setHSL((T.HUE + j.h + 1) % 1, 0.85, j.l);
+      this.crowd.setColorAt(i, col);
+    });
+    this.crowd.instanceColor.needsUpdate = true;
+    // 심판: 실제 주심 의자는 그대로이고 선수가 엔드를 바꾸므로, 내 시점에서는 반대쪽 옆으로 보임
+    //   END A(빨강) 쪽 선수 시점 = 오른쪽, END B(파랑) 쪽 = 왼쪽 → 두 사람이 서로 반대편을 보는 느낌
+    if (this.ump) {
+      const myEnd = far ^ 1, sgn = myEnd === 0 ? 1 : -1;
+      this.ump.g.position.x = sgn * (C3.COURT.HALF_W_D + 1.25); this.ump.g.rotation.y = sgn > 0 ? 0 : Math.PI; this.ump.flip = sgn < 0;
+    }
     this.rimA.color.setHex(E.RIM_A); this.rimB.color.setHex(E.RIM_B);
     const x = this.flagCv.getContext('2d'); x.clearRect(0, 0, 512, 128);
     x.fillStyle = 'rgba(10,12,30,0.7)'; x.fillRect(0, 14, 512, 100);
     x.fillStyle = E.FLAG; x.fillRect(0, 14, 512, 8); x.fillRect(0, 106, 512, 8);
     x.font = 'bold 58px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = E.FLAG;
-    x.fillText('END ' + E.name, 256, 66);
+    x.fillText(E.name + ' TEAM', 256, 66);
     this.flagTex.needsUpdate = true;
   }
 
@@ -426,7 +449,7 @@ class CourtView3D {
       const f = 1 - i / this.trailN; col[i * 3] = c.r * f; col[i * 3 + 1] = c.g * f; col[i * 3 + 2] = c.b * f;
     }
     this.trail.geometry.attributes.position.needsUpdate = true; this.trail.geometry.attributes.color.needsUpdate = true;
-    this.trail.visible = visible && sp > 9;
+    this.trail.visible = visible && sp > 1.5;   // 느린 공도 꼬리를 남김 → 궤적 모양으로 앞뒤 위치를 읽기 쉽게
     // 스매시 직후: 셔틀 빛을 크게, 꼬리를 하얗게
     this.smashT = Math.max(0, (this.smashT || 0) - 0.016);
     if (this.smashT > 0 && sp > 9) { const g2 = 0.45 + 0.9 * Math.min(1, this.smashT); this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
