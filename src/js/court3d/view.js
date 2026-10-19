@@ -36,15 +36,17 @@ class CourtView3D {
     // 왼쪽 뒤 높은 곳에서 오른쪽 앞을 비스듬히 [게임]. 화각은 매 프레임 '꼭 보여야 할 점'에 맞춰 자동 조절(fitFov)
     // 원근감 강화: 코트에 가깝게 (-2.0, 5.1, 13.4) → (-0.9, 4.2, 10.8) — 가까운 것은 크게, 먼 것은 작게 보여 셔틀 앞뒤 위치를 읽기 쉬움 [게임]
     //   (-1.3, 3.6, 10.6)에서 살짝 높이고 가운데로: 코트 바닥이 덜 눌려 보이게
-    this.camBase = new THREE.Vector3(-1.5, 4.2, 10.8);
+    //   10.8 → 9.8: 1m 앞으로 — 내 코트 맨 뒤를 늘 보여 주던 대신, 셔틀·내가 뒤로 갈 때만 따라 물러남(followCamera)
+    this.camBase = new THREE.Vector3(-1.5, 4.2, 9.8);
     this.camLook = new THREE.Vector3(0.35, 0.2, -0.2);
     const H = C3.COURT.HALF_LEN, Wd = C3.COURT.HALF_W_D;
-    this.mustSee = [   // 내 코트 맨 뒤(선수가 설 수 있는 곳까지) + 상대 베이스라인
-      new THREE.Vector3(-Wd - 0.2, 0, H + 1.05), new THREE.Vector3(Wd + 0.2, 0, H + 1.05),
+    this.mustSee = [   // 내 베이스라인 + 상대 베이스라인. 내 선수·셔틀은 매 프레임 따로 넣음
+      new THREE.Vector3(-Wd - 0.2, 0, H), new THREE.Vector3(Wd + 0.2, 0, H),
       new THREE.Vector3(-Wd, 0, -H - 0.3), new THREE.Vector3(Wd, 0, -H - 0.3),
       new THREE.Vector3(0, 2.4, -H - 0.6)   // 상대가 맨 뒤에서 점프해도 머리까지
     ];
     this.fitFov = this.baseFov; this.tilt = 0; this._v = new THREE.Vector3(); this._sp = new THREE.Vector3();
+    this._pf = new THREE.Vector3(); this._ph = new THREE.Vector3(); this.backCur = 0;
     this.camera.position.copy(this.camBase); this.camera.lookAt(this.camLook);
     this.lookCur = this.camLook.clone();
     this.shakeA = 0; this.fovKick = 0; this.time = 0; this.cheerT = 0; this.cheerA = 0; this.netT = 0; this.ledBoost = 0;
@@ -536,10 +538,13 @@ class CourtView3D {
 
   // 카메라: 플레이어를 따라가고, 셔틀 쪽으로 살짝 시선 이동 + 흔들림·줌 펀치
   followCamera(px, dt, pz, sp) {
-    const k = Math.min(1, dt * 3), tx = this.camBase.x + px * 0.25, tz = this.camBase.z + ((pz || 3) - 3) * 0.2;
+    // 뒤로 따라가기 [게임]: 셔틀이 내 코트 뒤쪽(z > 3m)으로 갈수록 카메라가 천천히 조금 물러나고 살짝 올라감 (최대 1.4m 뒤 · 0.45m 위)
+    const back = sp ? Math.max(0, Math.min(3, sp.z - 3)) : 0;
+    this.backCur += (back - this.backCur) * Math.min(1, dt * 1.8);
+    const k = Math.min(1, dt * 3), tx = this.camBase.x + px * 0.25, tz = this.camBase.z + ((pz || 3) - 3) * 0.2 + this.backCur * 0.47;
     this.camera.position.x += (tx - this.camera.position.x) * k;
     this.camera.position.z += (tz - this.camera.position.z) * k;
-    this.camera.position.y += (this.camBase.y - this.camera.position.y) * k;
+    this.camera.position.y += (this.camBase.y + this.backCur * 0.15 - this.camera.position.y) * k;
     const lx = this.camLook.x + px * 0.15 + (sp ? sp.x * 0.12 : 0), lz = this.camLook.z + (sp ? sp.z * 0.06 : 0), ly = this.camLook.y + (sp ? Math.min(3, sp.y) * 0.04 : 0);
     this.lookCur.x += (lx - this.lookCur.x) * Math.min(1, dt * 4); this.lookCur.y += (ly - this.lookCur.y) * Math.min(1, dt * 4); this.lookCur.z += (lz - this.lookCur.z) * Math.min(1, dt * 4);
     this.shakeA *= Math.exp(-dt * 9);
@@ -551,7 +556,8 @@ class CourtView3D {
     // 자동 구도: '꼭 보여야 할 점'(내 코트 맨 뒤·상대 베이스라인·높이 뜬 셔틀)의 위아래 범위를
     // 화면 세로 가운데로 맞추고(카메라를 위아래로 살짝 기울임), 그 범위가 꼭 들어가는 최소 화각을 씀
     let lo = 1e9, hi = -1e9, needX = 0;
-    const pts = sp && sp.y < 9 ? [...this.mustSee, this._sp.set(sp.x, Math.min(sp.y + 0.3, 7), sp.z)] : this.mustSee;
+    const pts = [...this.mustSee, this._pf.set(px, 0, (pz || 3) + 0.5), this._ph.set(px, 2.1, pz || 3)];   // 내 선수 발·머리는 항상 화면 안
+    if (sp && sp.y < 9) pts.push(this._sp.set(sp.x, Math.min(sp.y + 0.3, 7), sp.z));
     for (const q of pts) {
       const v = this._v.copy(q).applyMatrix4(this.camera.matrixWorldInverse), d = Math.max(0.1, -v.z);
       const ay = Math.atan(v.y / d); lo = Math.min(lo, ay); hi = Math.max(hi, ay);
