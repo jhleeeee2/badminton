@@ -201,17 +201,14 @@ class CourtView3D {
   }
 
   buildShuttle() {
-    // 실제 셔틀은 약 7cm — 중계 시점에선 안 보여서 화면용으로 3.4배 키움 (2.8 → 3.4) [게임]
-    // 가시성: 코르크·깃털을 더 밝게 + 어두운 테두리(배경과 대비) + 멀리 있을수록 조금 더 크게(setShuttle)
-    const g = new THREE.Group(), K = 3.4;
-    const cork = new THREE.Mesh(new THREE.SphereGeometry(0.013 * K, 14, 12), new THREE.MeshStandardMaterial({ color: 0xFFB13B, emissive: 0xA04800 }));
-    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K, 0.06 * K, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: 0x9A9A9A, side: THREE.DoubleSide, roughness: 0.5 }));
+    // 실제 셔틀은 약 7cm — 중계 시점에선 안 보여서 화면용으로 2.8배 키움 [게임]
+    const g = new THREE.Group(), K = 2.8;
+    const cork = new THREE.Mesh(new THREE.SphereGeometry(0.013 * K, 12, 10), new THREE.MeshStandardMaterial({ color: 0xFFB13B, emissive: 0x552200 }));
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K, 0.06 * K, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: 0x333333, side: THREE.DoubleSide, roughness: 0.6 }));
     skirt.rotation.x = Math.PI / 2; skirt.position.z = -0.03 * K;   // lookAt은 +z를 진행 방향으로 → 코르크가 앞
-    const rim = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K * 1.18, 0.06 * K * 1.12, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0x0A0C18, side: THREE.BackSide, transparent: true, opacity: 0.75 }));
-    rim.rotation.x = Math.PI / 2; rim.position.z = -0.03 * K;   // 바깥 어두운 테두리 (밝은 바닥·조명 위에서도 윤곽이 보이게)
-    g.add(cork, skirt, rim); this.scene.add(g); this.shuttle = g;
-    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.radialTex([[0, 'rgba(255,250,225,1)'], [0.3, 'rgba(255,225,140,0.55)'], [1, 'rgba(255,215,120,0)']]), depthWrite: false, transparent: true, blending: THREE.AdditiveBlending }));
-    this.glow.scale.set(0.62, 0.62, 1); this.scene.add(this.glow);
+    g.add(cork, skirt); this.scene.add(g); this.shuttle = g;
+    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.radialTex([[0, 'rgba(255,245,210,0.95)'], [0.35, 'rgba(255,215,120,0.4)'], [1, 'rgba(255,215,120,0)']]), depthWrite: false, transparent: true }));
+    this.glow.scale.set(0.45, 0.45, 1); this.scene.add(this.glow);
     this.drop = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, -1, 0)]), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.4 }));
     this.drop.frustumCulled = false; this.scene.add(this.drop);
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.radialTex([[0, 'rgba(0,0,0,0.85)'], [0.5, 'rgba(0,0,0,0.45)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
@@ -412,12 +409,9 @@ class CourtView3D {
     s.position.set(p.x, p.y, p.z);
     const sp = Math.hypot(v.x, v.y, v.z);
     if (sp > 0.3) s.lookAt(p.x + v.x, p.y + v.y, p.z + v.z);
-    // 멀리 있을수록 크게: 카메라에서 11m 넘으면 거리에 비례 (최대 1.9배) → 상대 코트 끝에서도 점처럼 작아지지 않게 [게임]
-    const dist = this.camera.position.distanceTo(s.position), dk = Math.min(1.9, Math.max(1, dist / 11));
-    s.scale.setScalar(dk);
     const h = Math.max(0, p.y), sc = 0.22 + h * 0.05;
     this.glow.visible = visible; this.glow.position.set(p.x, p.y, p.z);
-    const gs = (0.62 + Math.min(0.5, sp / 60)) * dk; this.glow.scale.set(gs, gs, 1);
+    const gs = 0.45 + Math.min(0.5, sp / 60); this.glow.scale.set(gs, gs, 1);
     // 그림자·수직선은 끌 수 있음 (G) — 끄면 인/아웃을 눈으로 판단해야 함
     this.drop.visible = visible && this.shadowOn && h > 0.05; this.drop.position.set(p.x, p.y, p.z); this.drop.scale.set(1, h, 1);
     this.shadow.visible = visible && this.shadowOn;
@@ -435,7 +429,7 @@ class CourtView3D {
     this.trail.visible = visible && sp > 9;
     // 스매시 직후: 셔틀 빛을 크게, 꼬리를 하얗게
     this.smashT = Math.max(0, (this.smashT || 0) - 0.016);
-    if (this.smashT > 0 && sp > 9) { const g2 = (0.62 + 0.9 * Math.min(1, this.smashT)) * dk; this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
+    if (this.smashT > 0 && sp > 9) { const g2 = 0.45 + 0.9 * Math.min(1, this.smashT); this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
     else this.trail.material.opacity = 0.85;
   }
   clearTrail() { this.trailPts = []; }
