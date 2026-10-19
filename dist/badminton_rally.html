@@ -2701,6 +2701,51 @@ class CourtView3D {
     tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.trailN * 3), 3));
     this.trail = new THREE.Line(tg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
     this.trail.frustumCulled = false; this.scene.add(this.trail);
+    // 바람 꼬리 [게임 연출]: 세게 친 공(스매시·클리어)에만, 셔틀 뒤로 짧게(최대 WIND.LEN m) 퍼지는 가는 줄 여러 개.
+    //   공이 느려지면(WIND.MIN m/s 아래) 사라져서 비행 앞부분에만 따라옴.
+    //   줄들이 셔틀 뒤로 원뿔처럼 벌어져서, 정면으로 날아올 땐 셔틀 둘레로 바람이 방사형으로 퍼져 보임
+    this.windOn = false;
+    const WN = this.WIND.N, wg = new THREE.BufferGeometry(), idx = [];
+    for (let i = 0; i < WN; i++) { const o = i * 4; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }   // 줄마다 가는 사각형(리본) 하나
+    wg.setIndex(idx);
+    wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WN * 4 * 3), 3));
+    wg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(WN * 4 * 3), 3));
+    this.wind = new THREE.Mesh(wg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.wind.frustumCulled = false; this.wind.visible = false; this.scene.add(this.wind);
+  }
+  // 줄 수 · 보이기 시작/최대 속도(m/s) · 길이(m) · 앞/뒤 반지름(m) · 앞/뒤 두께(m) · 최대 밝기
+  get WIND() { return { N: 7, MIN: 12, FULL: 36, LEN: 1.2, R0: 0.05, R1: 0.24, W0: 0.012, W1: 0.028, A: 0.55 }; }
+  setWind(on) { this.windOn = !!on; if (!on) this.wind.visible = false; }
+  updateWind(p, v, sp, visible) {
+    const W = this.WIND, k = Math.max(0, Math.min(1, (sp - W.MIN) / (W.FULL - W.MIN)));
+    if (!this.windOn || !visible || k <= 0) { this.wind.visible = false; if (this.windOn && visible && sp < W.MIN * 0.8) this.windOn = false; return; }
+    const d = { x: -v.x / sp, y: -v.y / sp, z: -v.z / sp };   // 뒤쪽
+    let u = { x: d.z, y: 0, z: -d.x }; let L = Math.hypot(u.x, u.z);
+    if (L < 1e-3) { u = { x: 1, y: 0, z: 0 }; L = 1; }
+    u = { x: u.x / L, y: 0, z: u.z / L };
+    const w = { x: d.y * u.z - d.z * u.y, y: d.z * u.x - d.x * u.z, z: d.x * u.y - d.y * u.x };
+    const cam = this.camera.position, len = W.LEN * (0.5 + 0.5 * k);
+    const arr = this.wind.geometry.attributes.position.array, col = this.wind.geometry.attributes.color.array;
+    const set = (o, q) => { arr[o] = q.x; arr[o + 1] = q.y; arr[o + 2] = q.z; };
+    for (let i = 0; i < W.N; i++) {
+      const ang = i / W.N * Math.PI * 2 + this.time * 2.2, ca = Math.cos(ang), sa = Math.sin(ang);
+      const rl = 0.75 + 0.25 * Math.sin(i * 2.7 + this.time * 9);   // 줄마다 길이 살짝 다르게 (펄럭임)
+      const ends = [0.06, len * rl].map((t, e) => {
+        const r = e ? W.R1 : W.R0;
+        return { x: p.x + d.x * t + (u.x * ca + w.x * sa) * r, y: p.y + d.y * t + (u.y * ca + w.y * sa) * r, z: p.z + d.z * t + (u.z * ca + w.z * sa) * r };
+      });
+      // 리본 폭 방향: 줄 방향 × 카메라 방향 → 항상 화면을 향함
+      const a = ends[0], b = ends[1], sx = b.x - a.x, sy = b.y - a.y, sz = b.z - a.z;
+      const cx = cam.x - a.x, cy = cam.y - a.y, cz = cam.z - a.z;
+      let nx = sy * cz - sz * cy, ny = sz * cx - sx * cz, nz = sx * cy - sy * cx; const nl = Math.hypot(nx, ny, nz) || 1;
+      nx /= nl; ny /= nl; nz /= nl;
+      const o = i * 12, w0 = W.W0, w1 = W.W1, br = W.A * k;
+      set(o, { x: a.x + nx * w0, y: a.y + ny * w0, z: a.z + nz * w0 }); set(o + 3, { x: a.x - nx * w0, y: a.y - ny * w0, z: a.z - nz * w0 });
+      set(o + 6, { x: b.x + nx * w1, y: b.y + ny * w1, z: b.z + nz * w1 }); set(o + 9, { x: b.x - nx * w1, y: b.y - ny * w1, z: b.z - nz * w1 });
+      for (let j = 0; j < 4; j++) { const c = j < 2 ? br : 0; col[o + j * 3] = c * 0.92; col[o + j * 3 + 1] = c * 0.97; col[o + j * 3 + 2] = c; }   // 셔틀 쪽 밝게 → 끝은 사라짐
+    }
+    this.wind.geometry.attributes.position.needsUpdate = true; this.wind.geometry.attributes.color.needsUpdate = true;
+    this.wind.visible = true;
   }
 
   buildHelpers() {
@@ -2929,6 +2974,7 @@ class CourtView3D {
     this.smashT = Math.max(0, (this.smashT || 0) - 0.016);
     if (this.smashT > 0 && sp > 9) { const g2 = 0.45 + 0.9 * Math.min(1, this.smashT); this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
     else this.trail.material.opacity = 0.85;
+    this.updateWind(p, v, sp, visible);
   }
   clearTrail() { this.trailPts = []; }
   setShadowOn(on) { this.shadowOn = on; }
@@ -3886,6 +3932,7 @@ class Game3D {
       if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
     }
     this.view.clearTrail();
+    this.view.setWind(/스매시|클리어/.test(plan.name));   // 세게 친 공에만 바람 꼬리
     // 보조 표시 (난이도별): 상대가 친 공의 궤적·낙하 지점·내가 설 위치
     const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp' || this.duo;   // 로컬 2인: 받는 사람 누구에게나 표시
     const recv = this.match.other(a.side);

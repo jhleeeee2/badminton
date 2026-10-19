@@ -188,6 +188,7 @@ class Game3D {
       if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
     }
     this.view.clearTrail();
+    this.view.setWind(/스매시|클리어/.test(plan.name));   // 세게 친 공에만 바람 꼬리
     // 보조 표시 (난이도별): 상대가 친 공의 궤적·낙하 지점·내가 설 위치
     const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp' || this.duo;   // 로컬 2인: 받는 사람 누구에게나 표시
     const recv = this.match.other(a.side);
