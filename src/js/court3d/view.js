@@ -36,8 +36,8 @@ class CourtView3D {
     // 왼쪽 뒤 높은 곳에서 오른쪽 앞을 비스듬히 [게임]. 화각은 매 프레임 '꼭 보여야 할 점'에 맞춰 자동 조절(fitFov)
     // 원근감 강화: 코트에 가깝게 (-2.0, 5.1, 13.4) → (-0.9, 4.2, 10.8) — 가까운 것은 크게, 먼 것은 작게 보여 셔틀 앞뒤 위치를 읽기 쉬움 [게임]
     //   (-1.3, 3.6, 10.6)에서 살짝 높이고 가운데로: 코트 바닥이 덜 눌려 보이게
-    this.camBase = new THREE.Vector3(-0.9, 4.2, 10.8);
-    this.camLook = new THREE.Vector3(0.3, 0.2, -0.2);
+    this.camBase = new THREE.Vector3(-1.5, 4.2, 10.8);
+    this.camLook = new THREE.Vector3(0.35, 0.2, -0.2);
     const H = C3.COURT.HALF_LEN, Wd = C3.COURT.HALF_W_D;
     this.mustSee = [   // 내 코트 맨 뒤(선수가 설 수 있는 곳까지) + 상대 베이스라인
       new THREE.Vector3(-Wd - 0.2, 0, H + 1.05), new THREE.Vector3(Wd + 0.2, 0, H + 1.05),
