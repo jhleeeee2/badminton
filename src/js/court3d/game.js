@@ -42,7 +42,7 @@ class Game3D {
     this.mode = mode === 'train' ? 'train' : mode === 'room' ? 'room' : 'ai';
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else this.trainer.stop();
-    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); this.hud.setSets(null); }
+    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -203,19 +203,41 @@ class Game3D {
   // AI 실수 배율: 속도 증가분의 2배 비율로 오차·과충전·오판 확률 증가 (속도 x1.4 → 실수 x1.8)
   aiErrMul() { return 1 + C3.RALLY_TEMPO.AI_ERR_K * (this.tempo().spd - 1); }
 
+  // ───── 보조 표시 (낙하 지점 L · 셔틀 그림자 G) ─────
+  //   친구 방에서는 '방 설정': 누가 바꾸든 두 사람 화면에 똑같이 적용 (공정하게)
+  //   내 브라우저에 기억하는 건 내가 직접 바꾼 값만 → 방을 나가면 내 설정으로 돌아옴
+  applyLand(on) {
+    this.showLand = on;
+    if (!on) { this.landPend = null; this.view.setLanding(null); }
+    this.hud.setLand(on);
+  }
+  applyShadow(on) { this.showShadow = on; this.view.setShadowOn(on); this.hud.setShadow(on); }
+  loadViewPrefs() {
+    let land = true, sh = true;
+    try { land = localStorage.getItem('badminton.c3.showLand') !== '0'; sh = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
+    this.applyLand(land); this.applyShadow(sh);
+  }
+  sendViewOpts() { if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow }); }
+  netOpt(m) {
+    const land = !!m.land, sh = !!m.shadow, txt = [];
+    if (land !== this.showLand) txt.push('낙하 표시 ' + (land ? '켬' : '끔'));
+    if (sh !== this.showShadow) txt.push('그림자 ' + (sh ? '켬' : '끔'));
+    this.applyLand(land); this.applyShadow(sh);
+    if (txt.length && !m.sync) this.hud.banner('상대가 ' + txt.join(' · ') + ' (둘 다 적용)', '#9FD8FF', 1.2);
+  }
+
   toggleShadow() {
-    this.showShadow = !this.showShadow;
+    this.applyShadow(!this.showShadow);
     try { localStorage.setItem('badminton.c3.shadow', this.showShadow ? '1' : '0'); } catch (e) { /* 무시 */ }
-    this.view.setShadowOn(this.showShadow); this.hud.setShadow(this.showShadow);
-    this.hud.banner(this.showShadow ? '셔틀 그림자 켬' : '셔틀 그림자 끔 — 인/아웃은 눈으로!', '#9FD8FF', 0.9);
+    this.sendViewOpts();
+    this.hud.banner((this.showShadow ? '셔틀 그림자 켬' : '셔틀 그림자 끔 — 인/아웃은 눈으로!') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.9);
   }
 
   toggleLand() {
-    this.showLand = !this.showLand;
+    this.applyLand(!this.showLand);
     try { localStorage.setItem('badminton.c3.showLand', this.showLand ? '1' : '0'); } catch (e) { /* 무시 */ }
-    if (!this.showLand) { this.landPend = null; this.view.setLanding(null); }
-    this.hud.setLand(this.showLand);
-    this.hud.banner(this.showLand ? '낙하 지점 표시 켬' : '낙하 지점 표시 끔', '#9FD8FF', 0.8);
+    this.sendViewOpts();
+    this.hud.banner((this.showLand ? '낙하 지점 표시 켬' : '낙하 지점 표시 끔') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.8);
   }
 
   // ───── 온라인 (Net3D가 호출) ─────
@@ -231,6 +253,7 @@ class Game3D {
       const m = this.match, R = this.roomRec;
       this.net.send({ t: 'resume', live: !!away.live, pts: m.opts, opts: m.pts, server: flip3(m.server), win: m.win,
         sets: { me: R.sets.opp, opp: R.sets.me }, end: this.myEnd ^ 1, mid: this.midSwapped, swapNext: this.swapNext });
+      this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true });
       this.hud.banner('상대방이 다시 참여했습니다', '#5BFFB0', 1.8);
       this.resumeAfterRejoin(away.live);
       return;
@@ -242,7 +265,7 @@ class Game3D {
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
-    if (this.net.host) setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600);   // 방장이 시작 신호
+    if (this.net.host) { this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true }); setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600); }   // 방장 설정으로 맞추고 시작 신호
     else this.hud.showMessage(escHtml(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');
   }
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서

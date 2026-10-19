@@ -93,6 +93,7 @@ class Net3D {
       }
       case 'resume': if (this.peer) g.netResume(m); else this.pendResume = m; return;
       case 'emo': g.netEmote(m); return;
+      case 'opt': g.netOpt(m); return;   // 낙하 표시·그림자: 방 전체 설정
       case 'st': this.snap = { x: -m.x, z: -m.z, y: m.y, vx: -m.vx, vz: -m.vz, e: m.e, dx: -m.dx, dz: -m.dz, ch: m.ch, at: performance.now() }; return;
       case 'sw': g.netSwing(m); return;
       case 'hit': g.netLaunch(m); return;
