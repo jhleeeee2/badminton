@@ -67,10 +67,9 @@ class App {
       g.match.diff = DIFFS[sel.diff];
       g.match.win = sel.win;
       g.match.diffId = sel.diff;   // 기록 저장용 난이도 id
-      g.hud.setConfigLabel(sel.mode === 'local2p' ? '로컬 2인 · ' + sel.win + '점' : sel.mode === 'room' ? '친구 1:1 · ' + sel.win + '점' : DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
+      g.hud.setConfigLabel(sel.mode === 'room' ? '친구 1:1 · ' + sel.win + '점' : DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
       this.show('classic');
       if (sel.mode === 'room') this.openClassicRoom(sel);
-      else if (sel.mode === 'local2p') { g.stop(); }   // 둘 다 준비되면 Space(또는 시작)로 시작
       else g.start();
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;

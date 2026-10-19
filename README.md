@@ -18,13 +18,13 @@ src/                         개발용 원본 (여기만 수정)
       systems/effects.js     Effects      — 배너, 타격 링, 낙하 표시
       systems/shots.js       ShotSystem   — 샷별 낙하점·비행시간, 삑사리 공, AI 반응
       entities/athlete.js    Athlete      — 선수 공통(점프, 스윙, 라켓 위치)
-      entities/player.js     Player       — 사람 선수(오른쪽 'R' / 왼쪽 'L'): 이동·대쉬·앉기·서브 게이지·타격·파워·삑사리
+      entities/player.js     Player       — 사람 선수(오른쪽 'R' / 왼쪽 'L' = 온라인 상대): 이동·대쉬·앉기·서브 게이지·타격·파워·삑사리
       entities/ai.js         AIOpponent   — 궤적 예측 이동/점프, 샷 선택
       view/hud.js            Hud          — HTML 점수판
       view/renderer.js       Renderer     — Canvas 그리기
       online.js              NetC         — 친구 1:1 방 (Supabase Realtime 채널 bmc-<코드>), 받는 쪽 판정
-      game.js                Game         — 모드(ai/local2p/room)·phase 전환, 메인 루프, 서브·득점, start/stop
-      ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만, 로컬 2인은 KEYMAP_2P)
+      game.js                Game         — 모드(ai/room)·phase 전환, 메인 루프, 서브·득점, start/stop
+      ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만)
       ui/tutorial.js         Tutorial     — 튜토리얼 팝업 + TUTORIAL_PAGES
     court3d/                 게임 종류 2: 3D 코트 (시험판, Three.js)
       config.js              C3 — 코트 규격[규격]·물리[근사]·슬로우/충전/샷/AI 수치[게임]
@@ -52,19 +52,10 @@ WASD 이동 · 마우스 좌우 방향 · Q 올리기 / E 찍기 / 좌클릭 직
 T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 서브: Q 꾹 (짧게 숏 서브, 길게 롱 서브) · 셔틀이 라켓 팔 어깨 근처로 오면 슬로우
 
-## 조작 (3D 코트 · 로컬 2인)
-P1(앞쪽): 위와 같음 · P2(안쪽): 방향키 이동(화면 기준) · I 올리기 · O 찍기 · P 직선 · K 점프 · J 런지
-P2 조준: ←/→를 누른 채 치면 그쪽 사이드라인, 안 누르면 P1이 없는 쪽 · 서브는 I 꾹 · 오른쪽 위에 P2 게이지
-
 ## 조작 (클래식)
 ←→ 이동 · ↑ 점프 · ↓ 앉기 · A 대쉬(Shift도 됨) · Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시
 (왼손: 새끼 Q · 약지 W · 중지 E · 검지 R · 엄지 Space · 새끼 한 칸 아래 A)
 서브: Space 길게(길수록 멀리, 너무 짧으면 네트·너무 길면 아웃) · Esc 메뉴
-
-## 조작 (클래식 · 로컬 2인)
-P2(왼쪽 코트, 키보드 왼쪽 사람): Q W E R 샷 · Space 스매시/서브 · A 대쉬 · F/H 이동 · T 점프 · G 앉기
-P1(오른쪽 코트, 키보드 오른쪽 사람): 방향키 · U I O P 샷 · ; 스매시/서브 · J 대쉬
-시작: Space(또는 ;)·시작 버튼
 
 ## 새 게임 종류 추가 방법
 1. js/<게임id>/ 폴더에 게임 코드 작성, index.html에 화면(div)과 script 추가

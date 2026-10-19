@@ -127,9 +127,9 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    const room = this.sel.mode === 'room', duo = this.sel.mode === 'local2p';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || duo) || !this.canStart();
-    this.diffBox.hidden = room || duo; this.aiHead.textContent = room ? '대전 설정' : duo ? '로컬 2인 설정 (한 키보드로 둘이 · 조작은 튜토리얼 참고)' : 'AI 대전 설정';
+    const room = this.sel.mode === 'room';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
+    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
