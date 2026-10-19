@@ -139,8 +139,15 @@ class Athlete3D {
 
   swing(type, c, sp, defaultCat) {
     const k = sp ? this.classify(sp) : { cat: defaultCat || 'side', hand: 'FH' };
-    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: C3.BODY.HIT_WINDOW, type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
+    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: Athlete3D.hitWindow(type, c), type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
     return this.swingS;
+  }
+  // 떼고 나서 맞을 수 있는 시간: 강하게 충전한 Q·E일수록 짧아짐 (C3.PERFECT)
+  static hitWindow(type, c) {
+    const P = C3.PERFECT, W = C3.BODY.HIT_WINDOW;
+    if (!P.TYPES.includes(type) || c <= P.FROM) return W;
+    const k = Math.min(1, (c - P.FROM) / (P.FULL - P.FROM));
+    return W + (P.WIN - W) * k;
   }
   canHitNow() { return this.swingS && !this.swingS.hit && this.swingS.t <= this.swingS.window; }
   onHit(sp) {

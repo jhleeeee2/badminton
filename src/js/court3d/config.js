@@ -11,7 +11,10 @@ const C3 = Object.freeze({
     LONG_SVC_D: 5.94,        // 복식 롱 서비스 라인 (베이스라인 0.76m 안쪽)
     NET_H_CENTER: 1.524,     // 네트 높이 (중앙)
     NET_H_POST: 1.55,        // 네트 높이 (기둥)
-    LINE_W: 0.04             // 라인 폭 40mm (라인은 안쪽으로 판정)
+    LINE_W: 0.04,            // 라인 폭 40mm (라인은 안쪽으로 판정)
+    // [규격] 셔틀이 라인에 조금이라도 닿으면 인 → 셔틀 '중심'이 아니라 코르크 가장자리로 판정
+    // [게임] 반지름은 화면에 그려지는 코르크 크기(실제 약 13mm × 화면 확대 3.4배 ≈ 4.4cm)에 맞춤 — 보이는 대로 판정되게
+    LINE_TOUCH: 0.044
   }),
   SERVE_MAX_H: 1.15,         // [규격] 서브 타점은 1.15m 아래
 
@@ -24,13 +27,18 @@ const C3 = Object.freeze({
 
   // 슬로우: 셔틀이 "라켓 든 팔의 어깨"에서 RADIUS 안으로 들어오면 게임 전체가 느려짐
   // (모든 선수에게 같은 규칙 → 온라인에서도 양쪽 화면에 동시에 같은 시점으로 적용 가능)
-  SLOW: Object.freeze({ RADIUS: 1.25, TRAIN_RADIUS: 0.8, SCALE: 0.25, IN_RATE: 18, OUT_RATE: 8, ON_AI: true }),   // 라켓 팔 바로 옆(리치 1.2m + 0.2m)에서만   // [게임]
+  SLOW: Object.freeze({ RADIUS: 1.25, TRAIN_RADIUS: 0.8, SCALE: 0.25, IN_RATE: 18, OUT_RATE: 8, ON_AI: true,   // 라켓 팔 바로 옆(리치 1.2m + 0.2m)에서만   // [게임]
+    // 네트 앞: 셔틀이 네트에 가까울수록 슬로우 범위 축소 (|z| ≤ NET_NEAR → ×NET_MUL, NET_FAR 이상 → ×1, 사이는 직선) [게임]
+    NET_NEAR: 0.6, NET_FAR: 2.2, NET_MUL: 0.7 }),
   // 랠리 템포: 랠리(타구 수)가 START를 넘으면 한 타마다 게임 속도 +SPEED_STEP (최대 SPEED_MAX),
   //           슬로우 범위는 −SLOW_STEP 비율씩 줄어듦 (최소 SLOW_MIN배). 훈련에는 적용 안 함   // [게임]
   RALLY_TEMPO: Object.freeze({ START: 3, SPEED_STEP: 0.03, SPEED_MAX: 1.4, SLOW_STEP: 0.04, SLOW_MIN: 0.55, AI_ERR_K: 2 }),   // AI_ERR_K: AI 실수 배율 = 1 + K×(속도배율−1)
 
   // 충전: 현실 시간 기준 (슬로우 중에도 같은 속도로 차오름)
   CHARGE: Object.freeze({ TIME: 0.65, MAX: 1.35, FAULT: 1.15, SERVE_NET: 0.1, SERVE_CYCLE: 0.85 }),   // SERVE_CYCLE: 서브 게이지 0→최대 한 번 가는 시간             // [게임]
+  // 정타 타이밍: Q·E를 FROM 이상 충전하면, 떼고 나서 맞을 수 있는 시간(HIT_WINDOW 0.32초)이 줄어듦
+  //   FROM에서 0.32초 → FULL(100%) 이상에서 WIN초. 미리 꽉 채워 두고 아무 때나 떼는 '필승법' 방지 [게임]
+  PERFECT: Object.freeze({ FROM: 0.8, FULL: 1.0, WIN: 0.06, TYPES: ['lift', 'down'] }),
 
   BODY: Object.freeze({                  // [게임] (사람 체격·라켓 길이는 실제와 비슷하게)
     SHOULDER_H: 1.38, SHOULDER_X: 0.19,  // 어깨 높이·옆 거리 (몸 모델과 맞춤)

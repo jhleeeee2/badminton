@@ -1,5 +1,6 @@
 // court3d/input.js — 3D 조작: WASD 이동 · 마우스 좌우 = 치는 방향 · Q/E/좌클릭 꾹 = 충전, 떼면 스윙
 //                    Space 점프 · Shift 팔 뻗기 · Enter 재시작(경기 끝났을 때)
+//                    T 꾹 = 감정표현 원판(마우스로 고르고 떼면 보냄) · G 셔틀 그림자 · L 낙하 표시 · M 소리
 
 class Input3D {
   constructor(game, canvasBox) {
@@ -13,6 +14,8 @@ class Input3D {
       const c = e.code;
       if (c === 'KeyM' && !e.repeat) { game.hud.setMute(Sound3.toggleMute()); return; }
       if (c === 'KeyL' && !e.repeat) { game.toggleLand(); return; }
+      if (c === 'KeyG' && !e.repeat) { game.toggleShadow(); return; }
+      if (c === 'KeyT') { e.preventDefault(); if (!e.repeat && !game.emote.isOpen) game.emote.open(this.mx, this.my); return; }
       if ([...moveKeys, K.lift, K.smash, K.jump, ...K.ext].includes(c)) e.preventDefault();
       if (e.repeat) return;
       if (moveKeys.includes(c)) { this.keys[c] = true; this.applyMove(); }
@@ -27,12 +30,15 @@ class Input3D {
       if (moveKeys.includes(c)) { this.keys[c] = false; this.applyMove(); }
       else if (c === K.lift) game.release('lift');
       else if (c === K.smash) game.release('down');
+      else if (c === 'KeyT') game.emote.release();
     });
-    window.addEventListener('blur', () => { this.keys = {}; this.applyMove(); game.release('lift'); game.release('down'); game.release('flat'); });
+    window.addEventListener('blur', () => { game.emote.close(); this.keys = {}; this.applyMove(); game.release('lift'); game.release('down'); game.release('flat'); });
 
     // 마우스: 화면 가로 위치 → 조준 각도
     document.addEventListener('mousemove', e => {
+      this.mx = e.clientX; this.my = e.clientY;
       if (!game.inputOn) return;
+      if (game.emote.isOpen) { game.emote.move(e.clientX, e.clientY); return; }   // 원판이 열려 있는 동안엔 조준 고정
       const r = canvasBox.getBoundingClientRect();
       const u = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2));
       game.serveU = u;                                                             // 서브: 좌우만

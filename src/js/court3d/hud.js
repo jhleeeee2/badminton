@@ -63,6 +63,12 @@ class Hud3D {
     const el = document.getElementById('c3room'); if (!el) return;
     el.hidden = !code; if (code) document.getElementById('c3roomCode').textContent = code;
   }
+  setShadow(on) { const b = document.getElementById('c3shadowBtn'); if (b) { b.textContent = on ? '🌑 그림자 켬' : '🌑 그림자 끔'; b.classList.toggle('off', !on); } }
+  // 친구 방 세트 스코어 (null이면 숨김)
+  setSets(st) {
+    const el = document.getElementById('c3bSets'); if (!el) return;
+    el.hidden = !st; if (st) el.innerHTML = `<b>${st.opp}</b><span>세트</span><b>${st.me}</b>`;   // 위 점수판과 같은 순서 (왼쪽 상대 · 오른쪽 나)
+  }
   setMute(m) { const b = document.getElementById('c3muteBtn'); if (b) b.textContent = m ? '🔇 소리' : '🔊 소리'; }
   setSlow(k) { this.el.vig.style.opacity = Math.max(0, Math.min(1, k)) * 0.85; }
 

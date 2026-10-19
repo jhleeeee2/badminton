@@ -11,6 +11,12 @@ const ARENA = Object.freeze({   // [게임] 색 구성
   LED: ['#FF4FD8', '#3DD9FF', '#FFD23F', '#7CFF6B', '#FF7A45', '#9B7BFF'],
   RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF
 });
+// 코트 양쪽 끝(엔드) 배경 [게임]: 내 맞은편(화면 안쪽) 관중석·배경이 엔드마다 살짝 다름.
+//   친구 대전에선 두 사람이 서로 다른 엔드를 보게 되고, 코트 체인지 때 서로 바뀜
+const ENDS = Object.freeze([
+  { name: 'A', BG_TOP: '#1B1640', BG_BOTTOM: '#060A18', STAND: 0x1A1E44, LED: 0xB8B8B8, RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF, FLAG: '#FF4FD8' },
+  { name: 'B', BG_TOP: '#10303A', BG_BOTTOM: '#04120F', STAND: 0x1E5A55, LED: 0x8FE3C6, RIM_A: 0xFFB13B, RIM_B: 0x5BFFB0, FLAG: '#5BFFB0' }
+]);
 
 class CourtView3D {
   constructor(container) {
@@ -40,7 +46,9 @@ class CourtView3D {
     this.lookCur = this.camLook.clone();
     this.shakeA = 0; this.fovKick = 0; this.time = 0; this.cheerT = 0; this.cheerA = 0; this.netT = 0; this.ledBoost = 0;
 
-    this.buildLights(); this.buildArena(); this.buildCourt(); this.buildNet(); this.buildShuttle(); this.buildHelpers(); this.buildFx();
+    this.shadowOn = true; this.ump = null;
+    this.buildLights(); this.buildArena(); this.buildCourt(); this.buildNet(); this.buildUmpire(); this.buildShuttle(); this.buildHelpers(); this.buildFx();
+    this.setEnd(1);
     this.resize();
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
@@ -79,6 +87,7 @@ class CourtView3D {
     // 컬러 측면 조명 (보라·하늘)
     const a = new THREE.PointLight(ARENA.RIM_A, 0.8, 26); a.position.set(-9, 5, -4); this.scene.add(a);
     const b = new THREE.PointLight(ARENA.RIM_B, 0.6, 26); b.position.set(9, 5, -4); this.scene.add(b);
+    this.rimA = a; this.rimB = b;
   }
 
   buildArena() {
@@ -100,21 +109,29 @@ class CourtView3D {
     const ledMat = new THREE.MeshBasicMaterial({ map: this.ledTex, color: ARENA.LED_DIM });
     const board = (w, x0, z0, ry) => {
       const t = this.ledTex.clone(); t.needsUpdate = true; t.wrapS = THREE.RepeatWrapping; t.repeat.set(w / 8, 1);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.8, 0.12), [ledMat, ledMat, ledMat, ledMat, new THREE.MeshBasicMaterial({ map: t, color: ARENA.LED_DIM }), new THREE.MeshBasicMaterial({ map: t, color: ARENA.LED_DIM })]);
+      const face = new THREE.MeshBasicMaterial({ map: t, color: ARENA.LED_DIM });
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.8, 0.12), [ledMat, ledMat, ledMat, ledMat, face, face]);
       m.position.set(x0, 0.4, z0); m.rotation.y = ry; S.add(m); this.boards.push(t);
+      return face;
     };
     this.boards = [];
-    board(13, 0, -9.3, 0); board(18, -5.8, 0, Math.PI / 2); board(18, 5.8, 0, -Math.PI / 2);
+    this.farLed = board(13, 0, -9.3, 0); board(18, -5.8, 0, Math.PI / 2); board(18, 5.8, 0, -Math.PI / 2);
+    // 맞은편 벽의 엔드 깃발 (엔드마다 색·글자가 다름)
+    const fc = document.createElement('canvas'); fc.width = 512; fc.height = 128; this.flagCv = fc;
+    this.flagTex = new THREE.CanvasTexture(fc);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: this.flagTex, transparent: true, depthWrite: false }));
+    flag.position.set(0, 1.25, -9.36); S.add(flag);   // 맞은편 LED판 바로 위
 
     // 관중석: 계단식 좌석 + 여러 색 관중 (InstancedMesh)
     const stand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });
+    this.farStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });   // 맞은편 관중석 (엔드마다 색이 다름)
     const tiers = [];
     for (let r = 0; r < 5; r++) {
       const y = 0.6 + r * 0.5;
       tiers.push({ x0: -10, x1: 10, z: -10.8 - r * 0.8, y, ax: 'x' });
       tiers.push({ x0: -9, x1: 3, z: -8.2 - r * 0.8, y, ax: 'zL' });
       tiers.push({ x0: -9, x1: 3, z: 8.2 + r * 0.8, y, ax: 'zR' });
-      const st = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 0.8), stand); st.position.set(0, y - 0.28, -10.8 - r * 0.8); S.add(st);
+      const st = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 0.8), this.farStand); st.position.set(0, y - 0.28, -10.8 - r * 0.8); S.add(st);
       const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s2.position.set(-8.2 - r * 0.8, y - 0.28, -3); S.add(s2);
       const s3 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s3.position.set(8.2 + r * 0.8, y - 0.28, -3); S.add(s3);
     }
@@ -184,14 +201,17 @@ class CourtView3D {
   }
 
   buildShuttle() {
-    // 실제 셔틀은 약 7cm — 중계 시점에선 안 보여서 화면용으로 2.8배 키움 [게임]
-    const g = new THREE.Group(), K = 2.8;
-    const cork = new THREE.Mesh(new THREE.SphereGeometry(0.013 * K, 12, 10), new THREE.MeshStandardMaterial({ color: 0xFFB13B, emissive: 0x552200 }));
-    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K, 0.06 * K, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: 0x333333, side: THREE.DoubleSide, roughness: 0.6 }));
+    // 실제 셔틀은 약 7cm — 중계 시점에선 안 보여서 화면용으로 3.4배 키움 (2.8 → 3.4) [게임]
+    // 가시성: 코르크·깃털을 더 밝게 + 어두운 테두리(배경과 대비) + 멀리 있을수록 조금 더 크게(setShuttle)
+    const g = new THREE.Group(), K = 3.4;
+    const cork = new THREE.Mesh(new THREE.SphereGeometry(0.013 * K, 14, 12), new THREE.MeshStandardMaterial({ color: 0xFFB13B, emissive: 0xA04800 }));
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K, 0.06 * K, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: 0x9A9A9A, side: THREE.DoubleSide, roughness: 0.5 }));
     skirt.rotation.x = Math.PI / 2; skirt.position.z = -0.03 * K;   // lookAt은 +z를 진행 방향으로 → 코르크가 앞
-    g.add(cork, skirt); this.scene.add(g); this.shuttle = g;
-    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.radialTex([[0, 'rgba(255,245,210,0.95)'], [0.35, 'rgba(255,215,120,0.4)'], [1, 'rgba(255,215,120,0)']]), depthWrite: false, transparent: true }));
-    this.glow.scale.set(0.45, 0.45, 1); this.scene.add(this.glow);
+    const rim = new THREE.Mesh(new THREE.ConeGeometry(0.033 * K * 1.18, 0.06 * K * 1.12, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0x0A0C18, side: THREE.BackSide, transparent: true, opacity: 0.75 }));
+    rim.rotation.x = Math.PI / 2; rim.position.z = -0.03 * K;   // 바깥 어두운 테두리 (밝은 바닥·조명 위에서도 윤곽이 보이게)
+    g.add(cork, skirt, rim); this.scene.add(g); this.shuttle = g;
+    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.radialTex([[0, 'rgba(255,250,225,1)'], [0.3, 'rgba(255,225,140,0.55)'], [1, 'rgba(255,215,120,0)']]), depthWrite: false, transparent: true, blending: THREE.AdditiveBlending }));
+    this.glow.scale.set(0.62, 0.62, 1); this.scene.add(this.glow);
     this.drop = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, -1, 0)]), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.4 }));
     this.drop.frustumCulled = false; this.scene.add(this.drop);
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.radialTex([[0, 'rgba(0,0,0,0.85)'], [0.5, 'rgba(0,0,0,0.45)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
@@ -223,8 +243,6 @@ class CourtView3D {
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.pathN * 3), 3));
     this.path = new THREE.Line(pg, new THREE.LineDashedMaterial({ color: 0xFFE3A3, dashSize: 0.18, gapSize: 0.14, transparent: true, opacity: 0.6 }));
     this.path.frustumCulled = false; this.path.visible = false; this.scene.add(this.path);
-    this.standRing = new THREE.Mesh(new THREE.RingGeometry(0.26, 0.34, 32), new THREE.MeshBasicMaterial({ color: 0xFF7A45, transparent: true, opacity: 0.65, side: THREE.DoubleSide }));
-    this.standRing.rotation.x = -Math.PI / 2; this.standRing.position.y = 0.009; this.standRing.visible = false; this.scene.add(this.standRing);
     // 선수 발밑 표시 (내 선수 = 주황, 상대 = 보라)
     const mk = col => { const m = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 36), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.007; this.scene.add(m); return m; };
     this.meRing = mk(C3.COLORS.me); this.oppRing = mk(C3.COLORS.opp);
@@ -235,6 +253,66 @@ class CourtView3D {
     tg.add(fill, edge); tg.rotation.x = -Math.PI / 2; tg.position.y = 0.011; tg.visible = false; this.scene.add(tg); this.target = tg; this.targetFill = fill;
     // 런지 리치 표시: 런지 중 늘어난 팔 범위
     this.reachRing = mk(0xFFE08A); this.reachRing.material.opacity = 0; this.reachRing.scale.set(2.2, 2.2, 1);
+  }
+
+  // ───── 심판: 네트 옆 높은 의자 [게임 연출 — 실제 주심 자리(네트 연장선 코트 옆)를 참고] ─────
+  buildUmpire() {
+    const g = new THREE.Group(), C = C3.COURT;
+    const metal = new THREE.MeshStandardMaterial({ color: 0xC9CED8, roughness: 0.35, metalness: 0.6 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x2C3150, roughness: 0.7 });
+    const SEAT = 1.55;
+    for (const [dx, dz] of [[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]]) {   // 다리
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, SEAT, 8), metal); l.position.set(dx, SEAT / 2, dz); l.castShadow = true; g.add(l);
+    }
+    for (const y of [0.45, 1.0]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.03, 0.05), metal); r.position.set(0.28, y, 0); r.rotation.y = Math.PI / 2; g.add(r); }   // 발판
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.07, 0.7), wood); seat.position.y = SEAT; g.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.62), wood); back.position.set(0.33, SEAT + 0.3, 0); g.add(back);
+    const desk = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.7), wood); desk.position.set(-0.36, SEAT - 0.05, 0); g.add(desk);
+    // 사람 (코트 쪽 = -x 를 봄)
+    const shirt = new THREE.MeshStandardMaterial({ color: 0x1F2B4A, roughness: 0.7 }), skin = new THREE.MeshStandardMaterial({ color: 0xE8B894, roughness: 0.8 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.42, 4, 10), shirt); body.position.set(0.08, SEAT + 0.42, 0); body.castShadow = true; g.add(body);
+    const head = new THREE.Group(); head.position.set(0.06, SEAT + 0.92, 0); g.add(head);
+    head.add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 12), skin));
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.125, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2A2A2A })); hair.position.y = 0.01; head.add(hair);
+    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.32), new THREE.MeshStandardMaterial({ color: 0x23232E })); legs.position.set(-0.1, SEAT + 0.1, 0); g.add(legs);
+    // 팔: 어깨에서 회전 (+z쪽 = 내 코트 방향 팔, -z쪽 = 상대 코트 방향 팔)
+    const arm = side => {
+      const a = new THREE.Group(); a.position.set(0.08, SEAT + 0.6, side * 0.22);
+      const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.42, 3, 8), shirt); m.position.y = -0.26; a.add(m);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), skin); hand.position.y = -0.52; a.add(hand);
+      g.add(a); return a;
+    };
+    this.ump = { g, head, armMe: arm(1), armOpp: arm(-1), side: null, t: 0 };
+    g.position.set(C.HALF_W_D + 1.25, 0, 0);
+    this.scene.add(g);
+  }
+  // 득점한 쪽 코트를 향해 팔을 번쩍 들고 고개를 돌림
+  umpireSignal(winner) { if (this.ump) { this.ump.side = winner; this.ump.t = 1.5; } }
+  updateUmpire(dt) {
+    const u = this.ump; if (!u) return;
+    u.t = Math.max(0, u.t - dt);
+    const up = u.t > 0 ? Math.min(1, (1.5 - u.t) / 0.15, u.t / 0.3) : 0;
+    const tgtMe = u.side === 'me' ? up : 0, tgtOpp = u.side === 'opp' ? up : 0;
+    // 팔을 옆·위로: x축 회전(앞뒤 = z 방향)으로 들어 올림
+    u.armMe.rotation.x = -tgtMe * 2.5 + Math.sin(this.time * 1.3) * 0.02;
+    u.armOpp.rotation.x = tgtOpp * 2.5 - Math.sin(this.time * 1.3) * 0.02;
+    const look = u.t > 0 ? (u.side === 'me' ? 0.6 : -0.6) * Math.min(1, u.t / 0.3) : Math.sin(this.time * 0.6) * 0.15;
+    u.head.rotation.y += (Math.PI / 2 - look - u.head.rotation.y) * Math.min(1, dt * 8);
+  }
+
+  // 화면 안쪽(맞은편) 엔드 배경: 0 = A, 1 = B
+  setEnd(far) {
+    const E = ENDS[far] || ENDS[1];
+    this.farEnd = far;
+    this.scene.background = this.gradientTex(E.BG_TOP, E.BG_BOTTOM);
+    this.farStand.color.setHex(E.STAND); this.farLed.color.setHex(E.LED);
+    this.rimA.color.setHex(E.RIM_A); this.rimB.color.setHex(E.RIM_B);
+    const x = this.flagCv.getContext('2d'); x.clearRect(0, 0, 512, 128);
+    x.fillStyle = 'rgba(10,12,30,0.7)'; x.fillRect(0, 14, 512, 100);
+    x.fillStyle = E.FLAG; x.fillRect(0, 14, 512, 8); x.fillRect(0, 106, 512, 8);
+    x.font = 'bold 58px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = E.FLAG;
+    x.fillText('END ' + E.name, 256, 66);
+    this.flagTex.needsUpdate = true;
   }
 
   // ───── 이펙트 ─────
@@ -311,6 +389,7 @@ class CourtView3D {
       const sc = 0.1 + o.max * k; o.m.scale.set(sc, sc, 1); o.m.material.opacity = 0.9 * (1 - k);
     }
     if (this.target.visible) this.targetFill.material.opacity = 0.16 + 0.1 * Math.sin(this.time * 6);
+    this.updateUmpire(dt);
     // 네트 흔들림
     if (this.netT > 0) { this.netT -= dt; this.netGroup.position.z = Math.sin(this.netT * 40) * 0.05 * Math.max(0, this.netT / 0.6); }
     // LED 흐름 (득점 직후 빨라짐)
@@ -333,11 +412,15 @@ class CourtView3D {
     s.position.set(p.x, p.y, p.z);
     const sp = Math.hypot(v.x, v.y, v.z);
     if (sp > 0.3) s.lookAt(p.x + v.x, p.y + v.y, p.z + v.z);
+    // 멀리 있을수록 크게: 카메라에서 11m 넘으면 거리에 비례 (최대 1.9배) → 상대 코트 끝에서도 점처럼 작아지지 않게 [게임]
+    const dist = this.camera.position.distanceTo(s.position), dk = Math.min(1.9, Math.max(1, dist / 11));
+    s.scale.setScalar(dk);
     const h = Math.max(0, p.y), sc = 0.22 + h * 0.05;
     this.glow.visible = visible; this.glow.position.set(p.x, p.y, p.z);
-    const gs = 0.45 + Math.min(0.5, sp / 60); this.glow.scale.set(gs, gs, 1);
-    this.drop.visible = visible && h > 0.05; this.drop.position.set(p.x, p.y, p.z); this.drop.scale.set(1, h, 1);
-    this.shadow.visible = visible;
+    const gs = (0.62 + Math.min(0.5, sp / 60)) * dk; this.glow.scale.set(gs, gs, 1);
+    // 그림자·수직선은 끌 수 있음 (G) — 끄면 인/아웃을 눈으로 판단해야 함
+    this.drop.visible = visible && this.shadowOn && h > 0.05; this.drop.position.set(p.x, p.y, p.z); this.drop.scale.set(1, h, 1);
+    this.shadow.visible = visible && this.shadowOn;
     this.shadow.position.set(p.x, 0.006, p.z); this.shadow.scale.set(sc, sc, 1);
     this.shadow.material.opacity = Math.max(0.45, 1 - h * 0.07);
     // 잔상
@@ -352,10 +435,11 @@ class CourtView3D {
     this.trail.visible = visible && sp > 9;
     // 스매시 직후: 셔틀 빛을 크게, 꼬리를 하얗게
     this.smashT = Math.max(0, (this.smashT || 0) - 0.016);
-    if (this.smashT > 0 && sp > 9) { const g2 = 0.45 + 0.9 * Math.min(1, this.smashT); this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
+    if (this.smashT > 0 && sp > 9) { const g2 = (0.62 + 0.9 * Math.min(1, this.smashT)) * dk; this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
     else this.trail.material.opacity = 0.85;
   }
   clearTrail() { this.trailPts = []; }
+  setShadowOn(on) { this.shadowOn = on; }
   smashTrail(t) { this.smashT = t; }
   setTarget(t) { this.target.visible = !!t; if (t) { this.target.position.set(t.x, 0.011, t.z); this.target.scale.set(t.w, t.h, 1); } }
 
@@ -381,7 +465,6 @@ class CourtView3D {
     for (let i = 0; i < n; i++) { const q = pts[Math.min(pts.length - 1, i * step)]; arr[i * 3] = q.x; arr[i * 3 + 1] = Math.max(0.01, q.y); arr[i * 3 + 2] = q.z; }
     this.path.geometry.attributes.position.needsUpdate = true; this.path.computeLineDistances();
   }
-  setStand(p) { this.standRing.visible = !!p; if (p) this.standRing.position.set(p.x, 0.009, p.z); }
   setLanding(p, color, alpha = 0.7, size = 1) {
     this.landRing.visible = !!p;
     if (p) { this.landRing.position.set(p.x, 0.008, p.z); this.landRing.material.color.setHex(color); this.landRing.material.opacity = alpha; this.landRing.scale.set(size, size, 1); }

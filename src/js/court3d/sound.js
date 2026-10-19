@@ -47,6 +47,11 @@ const Sound3 = {
     this._noiseBurst(t, 4200, 0.9, 0.35 + 0.25 * k, 0.12);
     this._noiseBurst(t + 0.02, 1500, 0.7, 0.18 + 0.15 * k, 0.3, 0.35);
   },
+  blip(mine) {   // 감정표현 알림 '뿅'
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime, f = mine ? 660 : 880;
+    this._tone(t, f, f * 1.5, 'sine', 0.18, 0.09); this._tone(t + 0.07, f * 1.5, f * 2, 'sine', 0.14, 0.08);
+  },
   whoosh() { if (!this.ctx || this.muted) return; const t = this.ctx.currentTime; this._noiseBurst(t, 900, 0.8, 0.12, 0.16, 0.2); },
   net() { if (!this.ctx || this.muted) return; const t = this.ctx.currentTime; this._noiseBurst(t, 500, 2, 0.4, 0.22); this._tone(t, 220, 90, 'sine', 0.2, 0.2); },
   land() { if (!this.ctx || this.muted) return; const t = this.ctx.currentTime; this._noiseBurst(t, 700, 1.2, 0.25, 0.08); },

@@ -22,8 +22,11 @@ class Match3D {
     const plus = (court === 'right') === rightIsPlusX;
     return { xMin: plus ? 0 : -C.HALF_W_S, xMax: plus ? C.HALF_W_S : 0, zMin: Math.min(z0, z1), zMax: Math.max(z0, z1) };
   }
-  inBox(b, x, z) { return x >= b.xMin && x <= b.xMax && z >= b.zMin && z <= b.zMax; }
-  inSingles(x, z) { return Math.abs(x) <= C3.COURT.HALF_W_S && Math.abs(z) <= C3.COURT.HALF_LEN; }
+  // 라인에 닿기만 해도 인: 코르크 반지름(LINE_TOUCH)만큼 경계를 넓혀 판정
+  inBox(b, x, z) { const T = C3.COURT.LINE_TOUCH; return x >= b.xMin - T && x <= b.xMax + T && z >= b.zMin - T && z <= b.zMax + T; }
+  inSingles(x, z) { const T = C3.COURT.LINE_TOUCH; return Math.abs(x) <= C3.COURT.HALF_W_S + T && Math.abs(z) <= C3.COURT.HALF_LEN + T; }
+  // 코트 체인지 점수: 15점 이상 경기에서 한쪽이 절반(15→8, 21→11)에 먼저 닿을 때 (21점은 실제 3게임 규칙과 같음)
+  midPoint() { return this.win >= 15 ? Math.ceil(this.win / 2) : 0; }
 
   winner() {
     const cap = this.win + 9;

@@ -115,6 +115,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       <button id="c3landBtn" title="L">📍 낙하 표시 켬</button>
+      <button id="c3shadowBtn" title="G">🌑 그림자 켬</button>
       <button id="c3muteBtn" title="M">🔊 소리</button>
       <button id="c3tutBtn">튜토리얼</button>
       <button id="c3startBtn">다시 시작</button>
@@ -126,6 +127,7 @@
     <div class="c3board" id="c3board">
       <div class="side opp"><span class="nm">상대</span><span class="sc" id="c3bOpp">0</span></div>
       <div class="side me"><span class="nm">나</span><span class="sc" id="c3bMe">0</span></div>
+      <div class="sets" id="c3bSets" hidden></div>
       <div class="tag" id="c3bTag"></div>
     </div>
     <div class="c3banner" id="c3banner"></div>
@@ -138,9 +140,9 @@
         <div class="c3glbl" id="c3glbl"></div>
       </div>
     </div>
-    <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)</div>
+    <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)<br>T 꾹 = 감정표현 (마우스로 고르고 떼기)</div>
   </div>
-  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
+  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기, G = 셔틀 그림자 켜기/끄기, T 꾹 = 감정표현 원판. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
 </div>
 <div id="tut">
   <div class="tutbox">
@@ -202,6 +204,7 @@
 <script src="js/court3d/progress.js"></script>
 <script src="js/court3d/train.js"></script>
 <script src="js/court3d/online.js"></script>
+<script src="js/court3d/emote.js"></script>
 <script src="js/court3d/game.js"></script>
 <script src="js/court3d/input.js"></script>
 <script src="js/court3d/tutorial.js"></script>

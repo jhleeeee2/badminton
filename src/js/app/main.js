@@ -22,6 +22,7 @@ class App {
     $('c3tutBtn').addEventListener('click', () => this.openTutorial('court3d'));
     $('c3startBtn').addEventListener('click', () => this.court3d && this.court3d.start());
     $('c3landBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleLand(); e.currentTarget.blur(); });
+    $('c3shadowBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleShadow(); e.currentTarget.blur(); });
     $('c3room').addEventListener('click', () => { const c = $('c3roomCode').textContent; try { navigator.clipboard.writeText(c); this.court3d.hud.banner('방 코드 복사됨: ' + c, '#5BFFB0', 0.9); } catch (e) { /* 무시 */ } });
     $('c3muteBtn').addEventListener('click', () => { Sound3.unlock(); this.court3d && this.court3d.hud.setMute(Sound3.toggleMute()); });
     $('tutBtn').addEventListener('click', () => this.openTutorial('classic'), true);

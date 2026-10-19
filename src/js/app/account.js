@@ -82,12 +82,13 @@ const Account = {
   writeList(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* 저장 막힘 → 무시 */ } },
 
   // r = { game_type, difficulty, target_score, player_score, ai_score, won }
-  recordMatch(r) {
+  // 친구 대전(difficulty 'room', opponent·sets 추가)은 opt.localOnly — 서버 matches 표에는 그 칸이 없어서 이 브라우저에만 저장
+  recordMatch(r, opt) {
     const row = { ...r, played_at: new Date().toISOString() };
     const hist = this.readList(this.HIST_KEY);
     hist.unshift(row);
     this.writeList(this.HIST_KEY, hist.slice(0, this.HIST_MAX));
-    if (!this.loggedIn) return;
+    if (!this.loggedIn || (opt && opt.localOnly)) return;
     const pend = this.readList(this.PEND_KEY);
     pend.push({ ...row, user_id: this.user.id });
     this.writeList(this.PEND_KEY, pend);
@@ -122,8 +123,13 @@ const Account = {
       if (!err) return { source: 'server', wins: w.count || 0, losses: l.count || 0, recent: rec.data || [] };
       console.warn(err);
     }
-    const hist = this.readList(this.HIST_KEY);
+    const hist = this.readList(this.HIST_KEY).filter(x => x.difficulty !== 'room');
     return { source: 'local', wins: hist.filter(x => x.won).length, losses: hist.filter(x => !x.won).length, recent: hist.slice(0, 10) };
+  },
+  // 친구 1:1 대전 기록 (이 브라우저)
+  roomStats() {
+    const h = this.readList(this.HIST_KEY).filter(x => x.difficulty === 'room');
+    return { wins: h.filter(x => x.won).length, losses: h.filter(x => !x.won).length, recent: h.slice(0, 10) };
   },
 
   // ───── 훈련 레벨 동기화 ─────
@@ -259,9 +265,25 @@ const AccountUI = {
     head.innerHTML = `<span><b>${total}</b>전</span><span style="color:var(--ok)"><b>${s.wins}</b>승</span><span style="color:var(--bad)"><b>${s.losses}</b>패</span><span>승률 <b>${total ? Math.round(100 * s.wins / total) : 0}</b>%</span>`;
     box.appendChild(head);
     const src = document.createElement('div'); src.className = 'rsrc';
-    src.textContent = s.source === 'server' ? '계정에 저장된 기록 (AI 대전만 · 최근 10경기)' : '이 브라우저에 저장된 기록 (최근 50경기 중 10경기 표시)';
+    src.textContent = s.source === 'server' ? '계정에 저장된 기록 (AI 대전만 · 최근 10경기)' : '이 브라우저에 저장된 AI 대전 기록 (최근 10경기 표시)';
     box.appendChild(src);
-    if (!s.recent.length) { const e = document.createElement('div'); e.className = 'rsrc'; e.textContent = '아직 기록이 없어요. AI 대전을 끝까지 해보세요!'; box.appendChild(e); return; }
+    const roomBlock = () => {   // 친구 1:1 대전 기록
+      const rs = Account.roomStats(); if (!rs.recent.length) return;
+      const h = document.createElement('div'); h.className = 'rsrc'; h.style.marginTop = '14px';
+      h.innerHTML = `<b style="color:var(--text)">친구 1:1 대전</b> · ${rs.wins}승 ${rs.losses}패 (이 브라우저 · 최근 10경기)`;
+      box.appendChild(h);
+      const l = document.createElement('div'); l.className = 'rlist';
+      for (const r of rs.recent) {
+        const row = document.createElement('div'); row.className = 'rrow ' + (r.won ? 'w' : 'l');
+        const d = new Date(r.played_at);
+        for (const c of [(d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+          'vs ' + (r.opponent || '친구') + ' · ' + r.target_score + '점' + (r.sets ? ' · 세트 ' + r.sets : ''),
+          r.player_score + ' : ' + r.ai_score, r.won ? '승' : '패']) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); }
+        l.appendChild(row);
+      }
+      box.appendChild(l);
+    };
+    if (!s.recent.length) { const e = document.createElement('div'); e.className = 'rsrc'; e.textContent = '아직 AI 대전 기록이 없어요. AI 대전을 끝까지 해보세요!'; box.appendChild(e); roomBlock(); return; }
     const list = document.createElement('div'); list.className = 'rlist';
     for (const r of s.recent) {
       const row = document.createElement('div'); row.className = 'rrow ' + (r.won ? 'w' : 'l');
@@ -276,6 +298,7 @@ const AccountUI = {
       list.appendChild(row);
     }
     box.appendChild(list);
+    roomBlock();
   }
 };
 

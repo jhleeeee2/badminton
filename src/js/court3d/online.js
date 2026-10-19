@@ -6,10 +6,20 @@
 //   · 판정 권한은 "받는 쪽": 셔틀을 받아야 하는 사람의 컴퓨터가 타격/낙하/득점을 결정하고 알려줌
 //     (친 쪽 화면에서는 셔틀이 바닥에 닿아도 상대 판정이 올 때까지 기다림)
 //   · 네트 지연은 ping으로 재서, 받은 셔틀을 그만큼 앞으로 감아(최대 MAX_FF초) 맞춤
+//   · 상대가 나가면 경기를 멈추고(남은 쪽이 방장이 됨), 같은 브라우저(cid)가 같은 코드로 다시 들어오면
+//     남은 쪽이 점수·서브·세트 스코어·엔드를 보내 이어서 진행 ('resume')
+//   · 감정표현은 'emo' {id}
 
 const NET3 = Object.freeze({ SNAP_HZ: 15, MAX_FF: 0.25, PING_EVERY: 2, JOIN_WAIT: 5 });
 const mir3 = p => ({ x: -p.x, y: p.y, z: -p.z });
 const flip3 = s => s === 'me' ? 'opp' : s === 'opp' ? 'me' : s;
+// 이 브라우저의 고정 id (다시 들어온 사람이 '같은 사람'인지 확인용 — 세트 스코어·이어하기)
+const NET3_CID = (() => {
+  let c = null;
+  try { c = localStorage.getItem('badminton.cid'); } catch (e) { /* 무시 */ }
+  if (!c) { c = Math.random().toString(36).slice(2, 12); try { localStorage.setItem('badminton.cid', c); } catch (e) { /* 무시 */ } }
+  return c;
+})();
 
 class Net3D {
   constructor() {
@@ -46,12 +56,12 @@ class Net3D {
     this.helloTimer = setInterval(() => { if (this.ch && !this.peer) this.sayHello(false); }, 1500);   // 먼저 들어온 쪽이 놓쳤을 수 있으니 반복
   }
   close() {
-    const ch = this.ch; this.ch = null; this.peer = null; this.snap = null;
+    const ch = this.ch; this.ch = null; this.peer = null; this.snap = null; this.pendResume = null;
     if (this.helloTimer) { clearInterval(this.helloTimer); this.helloTimer = null; }
     if (ch) { try { ch.unsubscribe(); Account.sb.removeChannel(ch); } catch (e) { /* 무시 */ } }
   }
   send(m) { if (this.ch) { m.from = this.id; this.ch.send({ type: 'broadcast', event: 'm', payload: m }).catch(() => {}); } }
-  sayHello(reply) { this.send({ t: 'hello', host: this.host, hand: this.info.hand, name: this.info.name, win: this.info.win, reply }); }
+  sayHello(reply) { this.send({ t: 'hello', host: this.host, hand: this.info.hand, name: this.info.name, win: this.info.win, cid: NET3_CID, reply }); }
 
   onPresence() {
     if (!this.ch) return;
@@ -62,7 +72,11 @@ class Net3D {
       if (!first2.includes(this.id)) { this.close(); this.game.netError('방이 꽉 찼어요 (1:1 방).'); return; }
     }
     if (this.peer && keys.includes(this.peer.id)) this.peer.seen = true;   // 접속 목록에 한 번 보인 뒤 사라져야 '나감'
-    else if (this.peer && this.peer.seen) { this.peer = null; this.game.netPeerLeft(); }
+    else if (this.peer && this.peer.seen) {
+      const gone = this.peer; this.peer = null; this.snap = null;
+      this.host = true; this.info.win = this.game.match.win;   // 남은 사람이 방장 → 누가 같은 코드로 들어와도 연결됨
+      this.game.netPeerLeft(gone);
+    }
   }
 
   recv(m) {
@@ -71,11 +85,14 @@ class Net3D {
       case 'hello': {
         if (this.peer) return;
         if (m.host === this.host) { this.game.netError(this.host ? '같은 코드의 방이 이미 있어요. 다시 만들어 주세요.' : '상대도 입장하는 쪽이에요. 한 명은 방 만들기를 눌러야 해요.'); this.close(); return; }
-        this.peer = { id: m.from, hand: m.hand === 'L' ? 'L' : 'R', name: String(m.name || '친구').slice(0, 16) };
+        this.peer = { id: m.from, cid: String(m.cid || m.from).slice(0, 16), hand: m.hand === 'L' ? 'L' : 'R', name: String(m.name || '친구').slice(0, 16) };
         if (!m.reply) this.sayHello(true);
         g.netPeerJoined(this.peer, this.host ? this.info.win : m.win);
+        if (this.pendResume) { const r = this.pendResume; this.pendResume = null; g.netResume(r); }
         return;
       }
+      case 'resume': if (this.peer) g.netResume(m); else this.pendResume = m; return;
+      case 'emo': g.netEmote(m); return;
       case 'st': this.snap = { x: -m.x, z: -m.z, y: m.y, vx: -m.vx, vz: -m.vz, e: m.e, dx: -m.dx, dz: -m.dz, ch: m.ch, at: performance.now() }; return;
       case 'sw': g.netSwing(m); return;
       case 'hit': g.netLaunch(m); return;

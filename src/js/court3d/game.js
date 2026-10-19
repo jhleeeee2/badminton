@@ -1,5 +1,6 @@
 // court3d/game.js — 3D 게임 본체: 고정 간격 시뮬레이션, 슬로우, 타격 판정, 서브·득점 흐름
 // phase: 'idle' → 'serve'(서버가 셔틀을 들고 대기) → 'rally' → 'point'(잠시 멈춤) → 'serve' … → 'over'
+//        'pause' = 친구 대전 중 상대가 나감 (점수 그대로 멈춤, 같은 사람이 다시 들어오면 이어서)
 
 const HAND_NAMES = { FH: '포핸드', BH: '백핸드', RTH: '라운드 더 헤드' };
 const CAT_NAMES = { over: '머리 위', side: '옆', low: '아래' };
@@ -18,6 +19,16 @@ class Game3D {
     this.showLand = true;
     try { this.showLand = localStorage.getItem('badminton.c3.showLand') !== '0'; } catch (e) { /* 무시 */ }
     this.hud.setLand(this.showLand);
+    // 셔틀 그림자·수직선 켜기/끄기 (G) — 끄면 인/아웃 판단이 어려워짐
+    this.showShadow = true;
+    try { this.showShadow = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
+    this.view.setShadowOn(this.showShadow); this.hud.setShadow(this.showShadow);
+    // 엔드(코트 끝): myEnd = 내가 서 있는 엔드(0=A, 1=B). 화면 안쪽에는 반대 엔드 배경이 보임
+    this.myEnd = 0; this.midSwapped = false; this.swapNext = false;
+    // 친구 방: 같은 상대와 계속 하면 세트 스코어 유지
+    this.roomRec = { cid: null, name: '', sets: { me: 0, opp: 0 } };
+    this.awayPeer = null;
+    this.emote = new Emote3D(this, container);
     this.sh = { p: { x: 0, y: 1, z: 2 }, v: { x: 0, y: 0, z: 0 }, live: false, held: null, lastHitter: null, serve: false, netted: false, pred: null };
     this.phase = 'idle'; this.timeScale = 1; this.acc = 0; this.yaw = 0; this.serveU = 0; this.aimNdc = null; this.aimPt = { x: 0, z: -4.5 };
     this.running = false; this.inputOn = false; this.lastTs = 0; this.pointT = 0; this.hitStop = 0;
@@ -31,7 +42,7 @@ class Game3D {
     this.mode = mode === 'train' ? 'train' : mode === 'room' ? 'room' : 'ai';
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else this.trainer.stop();
-    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); }
+    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); this.hud.setSets(null); }
     else this.diffId = 'normal';
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -46,8 +57,13 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset();
+    this.match.reset(); this.awayPeer = null;
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
+    // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친구 방 첫 경기는 방장 A·친구 B
+    if (this.swapNext) this.myEnd ^= 1;
+    else if (this.mode !== 'room') this.myEnd = 0;
+    this.swapNext = false; this.midSwapped = false; this.view.setEnd(this.myEnd ^ 1);
+    if (this.mode === 'room') this.hud.setSets(this.roomRec.sets);
     this.hud.hideMessage(); this.hud.setScore(0, 0, this.match.server, null); this.hud.setShot('-'); this.hud.setRally(0);
     if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
     if (this.mode === 'room' && this.net.peer) this.setOppName(this.net.peer.name);
@@ -56,7 +72,7 @@ class Game3D {
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
-    this.net.close();
+    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false;
     this.phase = 'idle'; this.me.charge = null; this.timeScale = 1;
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -76,7 +92,7 @@ class Game3D {
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
-    this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+    this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
     this.ai.reset(); this.ai.serveT = this.trainer.active ? 0.9 : 1.1;
     if (this.trainer.active) {
       this.me.bounds = this.halfBounds('me'); this.view.setTarget(null);
@@ -173,10 +189,9 @@ class Game3D {
     // 판단력 레벨: 가끔 낙하 지점 힌트(하늘색)를 일찍 보여줌 (경기에서만)
     if (land && toMe && this.showLand && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
       this.landPend = { p: land, at: land.t * 0.35, col: 0x5BC8FF, a: 0.6, s: 1 };
-    const full = (toMe && (A.path || A.stand)) ? Phys3.simulate(p0, plan.v0, { path: true, coarse: 2 }) : null;
-    this.view.setPath(toMe && A.path ? full.path : null);
-    const st = toMe && A.stand && !full.net ? planIntercept(this.me, full, C3.BODY.SPEED, true) : null;
-    this.view.setStand(st && !st.hopeless ? st.stand : null);
+    // (칠 위치 주황 원은 삭제 — 낙하 지점 원만 표시)
+    const full = (toMe && A.path) ? Phys3.simulate(p0, plan.v0, { path: true, coarse: 2 }) : null;
+    this.view.setPath(full ? full.path : null);
   }
 
   // 랠리 템포: 랠리가 길어질수록 게임 속도↑, 슬로우 범위↓ (훈련 제외)
@@ -187,6 +202,13 @@ class Game3D {
 
   // AI 실수 배율: 속도 증가분의 2배 비율로 오차·과충전·오판 확률 증가 (속도 x1.4 → 실수 x1.8)
   aiErrMul() { return 1 + C3.RALLY_TEMPO.AI_ERR_K * (this.tempo().spd - 1); }
+
+  toggleShadow() {
+    this.showShadow = !this.showShadow;
+    try { localStorage.setItem('badminton.c3.shadow', this.showShadow ? '1' : '0'); } catch (e) { /* 무시 */ }
+    this.view.setShadowOn(this.showShadow); this.hud.setShadow(this.showShadow);
+    this.hud.banner(this.showShadow ? '셔틀 그림자 켬' : '셔틀 그림자 끔 — 인/아웃은 눈으로!', '#9FD8FF', 0.9);
+  }
 
   toggleLand() {
     this.showLand = !this.showLand;
@@ -202,21 +224,71 @@ class Game3D {
     if (b) b.textContent = n; if (c) c.textContent = n;
   }
   netPeerJoined(peer, win) {
-    this.opp.setHand(peer.hand); this.setOppName(peer.name);
+    this.opp.setHand(peer.hand);
+    const away = this.awayPeer;
+    if (away && peer.cid && peer.cid === away.cid) {   // 나갔던 그 사람이 다시 들어옴 → 이어서
+      this.awayPeer = null; this.setOppName(peer.name); this.roomRec.name = peer.name;
+      const m = this.match, R = this.roomRec;
+      this.net.send({ t: 'resume', live: !!away.live, pts: m.opts, opts: m.pts, server: flip3(m.server), win: m.win,
+        sets: { me: R.sets.opp, opp: R.sets.me }, end: this.myEnd ^ 1, mid: this.midSwapped, swapNext: this.swapNext });
+      this.hud.banner('상대방이 다시 참여했습니다', '#5BFFB0', 1.8);
+      this.resumeAfterRejoin(away.live);
+      return;
+    }
+    // 새 상대 (또는 처음): 다른 사람이면 세트 스코어 새로
+    if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
+    this.roomRec.name = peer.name; this.awayPeer = null;
     this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room' });
-    this.setOppName(peer.name);
+    this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
+    this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
-    if (this.net.host) setTimeout(() => this.start(), 600);   // 방장이 시작 신호
-    else this.hud.showMessage(peer.name + '의 방에 들어왔어요<br>곧 시작합니다…');
+    if (this.net.host) setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600);   // 방장이 시작 신호
+    else this.hud.showMessage(escHtml(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');
   }
-  netPeerLeft() {
-    this.phase = 'idle'; this.me.charge = null; this.hud.setGauge(null);
-    this.hud.showMessage('상대가 방에서 나갔어요.<br>Esc = 메뉴');
+  // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
+  netResume(m) {
+    const M = this.match;
+    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room' });
+    M.pts = m.pts | 0; M.opts = m.opts | 0; M.server = m.server === 'opp' ? 'opp' : 'me'; M.rally = 0;
+    this.roomRec.sets = { me: (m.sets && m.sets.me) | 0, opp: (m.sets && m.sets.opp) | 0 };
+    this.myEnd = m.end ? 1 : 0; this.midSwapped = !!m.mid; this.swapNext = !!m.swapNext; this.view.setEnd(this.myEnd ^ 1);
+    this.hud.setSets(this.roomRec.sets);
+    if (this.net.peer) this.setOppName(this.net.peer.name);
+    this.hud.banner('경기에 다시 참여했습니다', '#5BFFB0', 1.8);
+    this.resumeAfterRejoin(m.live);
   }
+  resumeAfterRejoin(live) {
+    const m = this.match;
+    if (live) {   // 중단된 랠리는 무효 → 같은 점수로 다시 서브
+      this.hud.hideMessage(); this.hud.setRally(0); this.hud.setShot('-');
+      this.setupPoint();
+      this.lastTs = 0;
+      if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
+    } else {
+      this.phase = 'over';
+      this.hud.setScore(m.pts, m.opts, m.server, null);
+      this.hud.showMessage(`세트 스코어 ${this.roomRec.sets.me} : ${this.roomRec.sets.opp}<br>Enter 또는 다시 시작 = 다음 경기 (둘 중 누가 눌러도 함께 시작) · Esc = 메뉴`);
+    }
+  }
+  netPeerLeft(peer) {
+    const live = ['serve', 'rally', 'point', 'pause'].includes(this.phase) && !this.match.winner();
+    this.awayPeer = { cid: peer && peer.cid, name: peer && peer.name, live };
+    const s = this.sh;
+    s.live = false; s.held = null; s.waitNet = false;
+    this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
+    this.me.charge = null; this.me.swingS = null; this.hud.setGauge(null); this.hud.setHint(''); this.timeScale = 1;
+    this.phase = live ? 'pause' : (this.phase === 'over' ? 'over' : 'idle');
+    if (live && !this.running) { this.running = true; this.lastTs = 0; requestAnimationFrame(this.loop); }
+    this.hud.banner('상대방이 나갔습니다', '#FF6B6B', 2);
+    this.hud.showMessage('상대방이 나갔습니다' + (live ? ` — 점수 ${this.match.pts} : ${this.match.opts}에서 멈춤` : '')
+      + `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`);
+  }
+  netEmote(m) { this.emote.show('opp', String(m.id || '')); }
   netError(msg) {
     this.phase = 'idle'; this.hud.showMessage(msg + '<br>Esc = 메뉴');
   }
   netRestart(m) {
+    if (this.phase === 'pause') return;
     if ([11, 15, 21].includes(m.win)) this.match.win = m.win;
     this.start(true);
   }
@@ -253,7 +325,7 @@ class Game3D {
     if (this.phase === 'idle' || this.phase === 'over') return;
     const s = this.sh;
     if (s.live) {   // 내 화면의 셔틀 정리 (낙하 표시)
-      s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+      s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
       this.view.ripple({ x: s.p.x, y: 0, z: s.p.z }, 0xFFFFFF, 1.0);
     }
     this.point(flip3(m.w), String(m.r || ''), { pts: m.pts | 0, opts: m.opts | 0 });
@@ -263,7 +335,7 @@ class Game3D {
   landed() {
     const s = this.sh, m = this.match, hitter = s.lastHitter, other = m.other(hitter);
     const landSide = s.p.z > 0 ? 'me' : 'opp';
-    s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+    s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
     const inside = m.inSingles(s.p.x, s.p.z);
     this.view.ripple(s.p, inside ? 0xFFFFFF : 0xFF4D4D, 1.2); this.view.burst({ x: s.p.x, y: 0.03, z: s.p.z }, inside ? 0xFFFFFF : 0xFF4D4D, 0.15); Sound3.land();
     if (this.trainer.active) {   // 훈련 판정 → 잠깐 멈춘 뒤 다음 피딩
@@ -287,6 +359,7 @@ class Game3D {
     else if (this.online) this.net.send({ t: 'pt', w: winner, r: reason, pts: m.opts, opts: m.pts });   // w는 내 기준(받는 쪽이 뒤집음), 점수는 상대 기준으로 바꿔 보냄
     const meWon = winner === 'me';
     this.me.react(meWon ? 'win' : 'lose'); this.opp.react(meWon ? 'lose' : 'win');
+    this.view.umpireSignal(winner);   // 심판이 득점한 쪽으로 팔을 듦
     this.view.cheer(meWon ? 1 : 0.55); Sound3.cheer(meWon ? 1 : 0.5); Sound3.chime(meWon);
     this.hud.setScore(m.pts, m.opts, m.server, m.winner() ? null : m.matchPoint()); this.hud.setRally(0);
     const mine = winner === 'me';
@@ -295,9 +368,24 @@ class Game3D {
     this.phase = 'point'; this.pointT = 1.4; this.me.charge = null;
     const w = m.winner();
     if (w) {
-      this.phase = 'over';
-      if (!this.trainer.active && this.mode !== 'room' && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
-      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      this.phase = 'over'; this.swapNext = true;   // 다음 경기는 엔드 교대
+      let setTxt = '';
+      if (this.mode === 'room') {
+        const R = this.roomRec; R.sets[w]++; this.hud.setSets(R.sets);
+        setTxt = `<br>세트 스코어 <b>${R.sets.me} : ${R.sets.opp}</b> (vs ${escHtml(R.name || '친구')})`;
+        if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
+      } else if (!this.trainer.active && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
+      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+    } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
+      // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
+      this.midSwapped = true; this.myEnd ^= 1;
+      this.pointT = 2.6;
+      const at = m.pts + ' : ' + m.opts;
+      setTimeout(() => {
+        if (this.phase === 'idle') return;
+        this.view.setEnd(this.myEnd ^ 1); this.view.cheer(0.5);
+        this.hud.banner('코트 체인지! ' + at, '#FFD23F', 1.6); this.hud.flash('#FFFFFF', 0.6);
+      }, 1100);
     } else {
       const mp = m.matchPoint();
       if (mp) { this.hud.banner(mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
@@ -323,7 +411,8 @@ class Game3D {
       for (const a of [this.me, this.opp]) {
         if (a.side === s.lastHitter || (a.side === 'opp' && (!C3.SLOW.ON_AI || this.trainer.active))) continue;   // 훈련: AI 쪽 슬로우 없음
         // 순발력 레벨만큼 내 슬로우 범위 증가 · 훈련 중엔 슬로우를 덜 걸리게(작은 범위, 레벨 보너스 없음)
-        const sh = a.shoulder(), R = this.trainer.active ? C3.SLOW.TRAIN_RADIUS : (C3.SLOW.RADIUS + (a.side === 'me' ? Progress3.slowBonus() : 0)) * tp.slow;   // 랠리가 길수록 슬로우 범위 축소
+        const S = C3.SLOW, nz = Math.abs(s.p.z), netK = nz <= S.NET_NEAR ? S.NET_MUL : nz >= S.NET_FAR ? 1 : S.NET_MUL + (1 - S.NET_MUL) * (nz - S.NET_NEAR) / (S.NET_FAR - S.NET_NEAR);   // 네트 앞일수록 좁게
+        const sh = a.shoulder(), R = (this.trainer.active ? S.TRAIN_RADIUS : (S.RADIUS + (a.side === 'me' ? Progress3.slowBonus() : 0)) * tp.slow) * netK;   // 랠리가 길수록 슬로우 범위 축소
         if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < R) slow = true;
       }
     }
@@ -345,13 +434,18 @@ class Game3D {
       if (this.mode === 'room') this.net.applyRemote(sim, this.simRate || C3.GAME_SPEED);
       if (this.pointT <= 0) this.setupPoint();
     }
+    else if (this.phase === 'pause') {   // 상대가 나간 동안: 내 선수만 걸어 다닐 수 있음 (서브·타격 불가)
+      this.opp.moveDir = { x: 0, z: 0 };
+      for (const a of [this.me, this.opp]) a.update(real * C3.GAME_SPEED);
+    }
     if (this.sh.live && this.phase === 'point') this.sh.live = false;
+    this.emote.update(real);
 
     // 화면
     if (s.held) s.p = this.heldPos(s.held);
     this.me.animate(sim || 0.016, s.p, s.live && s.lastHitter !== 'me');
     this.opp.animate(sim || 0.016, s.p, s.live && s.lastHitter !== 'opp');
-    this.view.setShuttle(s.p, s.live ? s.v : { x: 0, y: 0, z: 0 }, this.phase !== 'idle' || true);
+    this.view.setShuttle(s.p, s.live ? s.v : { x: 0, y: 0, z: 0 }, this.phase !== 'pause');
     // 조준: 커서 아래 바닥 점을 구해 그쪽 방향으로 (3D에서도 조준선이 커서를 지나가게)
     if (this.aimNdc) { const q = this.view.floorPoint(this.aimNdc.x, this.aimNdc.y); if (q) this.aimPt = q; }
     const mySrv = this.phase === 'serve' && this.match.server === 'me';
@@ -378,7 +472,7 @@ class Game3D {
       const nh = Phys3.netHit(prev, s.p);
       if (nh) {   // 네트에 걸림 → 친 쪽 코트로 떨어짐
         s.netted = true; s.p.x = nh.x; s.p.y = nh.y; s.p.z = s.lastHitter === 'me' ? 0.06 : -0.06; s.v = { x: 0, y: -0.5, z: 0 };
-        this.landPend = null; this.view.setLanding(null); this.view.setPath(null); this.view.setStand(null);
+        this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
         this.view.netWobble(); Sound3.net();
         return;
       }
@@ -393,6 +487,13 @@ class Game3D {
     if (!s.netted && s.lastHitter !== 'me' && a.canHitNow() && s.p.z > -0.02) {
       const sh = a.shoulder();
       if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) <= a.reach()) this.hit(a, a.swingS);
+    }
+    // 강하게 충전한 샷을 정타 타이밍 밖에서 뗐을 때 알려줌
+    const sw = a.swingS;
+    if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.window < C3.BODY.HIT_WINDOW - 0.01 && s.lastHitter !== 'me' && !s.netted) {
+      sw.told = true;
+      const sh = a.shoulder();
+      if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < a.reach() * 2.2) this.hud.banner('헛스윙! 풀차징은 정확한 타이밍에만', '#FFB13B', 0.9);
     }
   }
 
@@ -428,6 +529,10 @@ class Game3D {
     return Math.max(-M, Math.min(M, Math.atan2(dx, dz)));
   }
   jump() { if (this.phase === 'rally' || this.phase === 'serve') this.me.jump(); }
+  sendEmote(id) {
+    if (!this.emote.show('me', id)) return;
+    if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'emo', id });
+  }
   // Shift 런지: 이동키 방향 우선, 없으면 셔틀이 내 라켓 팔에 가장 가깝게 지나갈 지점 쪽으로
   extend() {
     if (this.phase !== 'rally') return;
@@ -445,3 +550,5 @@ class Game3D {
     if (me.extend(target)) { Sound3.whoosh(); this.view.dust(me.pos, me.extDir); }
   }
 }
+
+function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
