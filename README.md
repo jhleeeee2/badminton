@@ -8,7 +8,7 @@ src/                         개발용 원본 (여기만 수정)
   js/
     app/                     공용: 대기화면·화면 전환
       catalog.js             게임 종류(GAME_TYPES)·대전 모드(MODES) 목록 — 새 게임/모드는 여기에 등록
-      lobby.js               Lobby — 게임 종류·모드·난이도·목표 점수 선택, 마지막 선택 기억
+      lobby.js               Lobby — 게임 종류·모드·난이도·목표 점수 선택, 마지막 선택 기억, 친구 1:1 닉네임(기억)
       main.js                App — 대기화면 ↔ 게임 전환, Enter 시작 / Esc 메뉴 (전역 app)
       account.js             Account/AccountUI — Supabase 로그인·회원가입, 경기 기록(로컬+서버), 훈련 레벨 동기화
     classic/                 게임 종류 1: 클래식 랠리 (옆에서 보는 2D)
@@ -18,12 +18,13 @@ src/                         개발용 원본 (여기만 수정)
       systems/effects.js     Effects      — 배너, 타격 링, 낙하 표시
       systems/shots.js       ShotSystem   — 샷별 낙하점·비행시간, 삑사리 공, AI 반응
       entities/athlete.js    Athlete      — 선수 공통(점프, 스윙, 라켓 위치)
-      entities/player.js     Player       — 이동·대쉬·앉기·서브 게이지·타격·파워·삑사리
+      entities/player.js     Player       — 사람 선수(오른쪽 'R' / 왼쪽 'L'): 이동·대쉬·앉기·서브 게이지·타격·파워·삑사리
       entities/ai.js         AIOpponent   — 궤적 예측 이동/점프, 샷 선택
       view/hud.js            Hud          — HTML 점수판
       view/renderer.js       Renderer     — Canvas 그리기
-      game.js                Game         — phase 전환, 메인 루프, 서브·득점, start/stop
-      ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만)
+      online.js              NetC         — 친구 1:1 방 (Supabase Realtime 채널 bmc-<코드>), 받는 쪽 판정
+      game.js                Game         — 모드(ai/local2p/room)·phase 전환, 메인 루프, 서브·득점, start/stop
+      ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만, 로컬 2인은 KEYMAP_2P)
       ui/tutorial.js         Tutorial     — 튜토리얼 팝업 + TUTORIAL_PAGES
     court3d/                 게임 종류 2: 3D 코트 (시험판, Three.js)
       config.js              C3 — 코트 규격[규격]·물리[근사]·슬로우/충전/샷/AI 수치[게임]
@@ -51,9 +52,19 @@ WASD 이동 · 마우스 좌우 방향 · Q 올리기 / E 찍기 / 좌클릭 직
 T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 서브: Q 꾹 (짧게 숏 서브, 길게 롱 서브) · 셔틀이 라켓 팔 어깨 근처로 오면 슬로우
 
+## 조작 (3D 코트 · 로컬 2인)
+P1(앞쪽): 위와 같음 · P2(안쪽): 방향키 이동(화면 기준) · I 올리기 · O 찍기 · P 직선 · K 점프 · J 런지
+P2 조준: ←/→를 누른 채 치면 그쪽 사이드라인, 안 누르면 P1이 없는 쪽 · 서브는 I 꾹 · 오른쪽 위에 P2 게이지
+
 ## 조작 (클래식)
-←→ 이동 · ↑ 점프 · ↓ 앉기 · Shift 대쉬 · A 클리어 · S 드라이브 · D 드롭 · F 헤어핀 · Space 스매시
+←→ 이동 · ↑ 점프 · ↓ 앉기 · A 대쉬(Shift도 됨) · Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시
+(왼손: 새끼 Q · 약지 W · 중지 E · 검지 R · 엄지 Space · 새끼 한 칸 아래 A)
 서브: Space 길게(길수록 멀리, 너무 짧으면 네트·너무 길면 아웃) · Esc 메뉴
+
+## 조작 (클래식 · 로컬 2인)
+P2(왼쪽 코트, 키보드 왼쪽 사람): Q W E R 샷 · Space 스매시/서브 · A 대쉬 · F/H 이동 · T 점프 · G 앉기
+P1(오른쪽 코트, 키보드 오른쪽 사람): 방향키 · U I O P 샷 · ; 스매시/서브 · J 대쉬
+시작: Space(또는 ;)·시작 버튼
 
 ## 새 게임 종류 추가 방법
 1. js/<게임id>/ 폴더에 게임 코드 작성, index.html에 화면(div)과 script 추가
@@ -70,6 +81,16 @@ T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 - 훈련 레벨은 로그인 시 progress 테이블과 합침(종목별 높은 값).
 - 테이블: profiles(닉네임) · matches(경기 기록) · progress(훈련 레벨), 모두 RLS로 본인 것만 쓰기.
 - account.js의 키는 publishable(공개용). secret/service_role 키는 절대 넣지 말 것.
+
+## 친구 1:1 방 (클래식, 온라인)
+- 대기화면 → 클래식 랠리 → 친구 1:1 방. 닉네임을 적고 방 만들기/입장 (3D 방과 채널이 달라서 둘 다 클래식을 골라야 함).
+- 채널 `bmc-<코드>`: 각자 내 선수 상태를 초당 20번 보냄 · 칠 때는 셔틀 출발점·도착점·비행시간만 보냄(클래식 궤적은 이 세 값으로 결정)
+  · 받는 쪽 컴퓨터가 낙하/네트를 판정해 'pt'로 점수를 알림 · 내 화면에선 항상 내가 오른쪽(상대 x는 W − x로 뒤집음).
+- 첫 서브·목표 점수는 방장 기준. 상대가 나가면 경기 중단, 같은 코드로 다시 들어오면 새 경기(세트 스코어는 유지). 기록은 이 브라우저에만.
+
+## 닉네임 (친구 1:1 공용)
+- 대기화면 친구 1:1 방 설정의 닉네임 칸. 비어 있으면 입장 불가. 입력할 때마다 localStorage `badminton.nick`에 저장되어
+  메뉴로 돌아오거나, 다른 판·새로고침 후에도 그대로 채워져 있음. 처음엔 로그인 닉네임으로 채움.
 
 ## 친구 1:1 방 (3D 코트, 온라인)
 - 대기화면 → 3D 코트 → 친구 1:1 방 → 한 명이 '방 만들기'(5자리 코드), 친구는 코드 입력 후 '입장'. 인터넷 필요, 로그인 불필요.

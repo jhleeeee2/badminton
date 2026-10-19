@@ -6,12 +6,12 @@ const GAME_TYPES = [
   {
     id: 'classic', name: '클래식 랠리',
     desc: '옆에서 보는 2D 코트. 키보드로 샷을 골라 치는 원래 게임.',
-    modes: ['ai'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
+    modes: ['ai', 'local2p', 'room'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
   },
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트·단식 규칙 · WASD 이동 · 마우스 방향 · Q 올리기 / E 찍기 / 클릭 직선 · 슬로우 타이밍.',
-    modes: ['ai', 'train', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'train', 'local2p', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
   }
 ];
 

@@ -11,12 +11,19 @@ class Hud3D {
     };
     this.introMsg = this.el.msg.innerHTML;
     this.bannerT = 0;
+    // 로컬 2인 P2 게이지 (오른쪽 위) — 게이지 요소 묶음을 따로 둬서 setGauge를 같이 씀
+    this.g2 = { gauge: $('c3gauge2'), fill: $('c3fill2'), glbl: $('c3glbl2'), zoneLo: $('c3zoneLo2'), zoneHi: $('c3zoneHi2'), tick: $('c3tick2') };
+    this.p2Box = $('c3p2');
     const M = C3.CHARGE.MAX;
-    this.el.zoneHi.style.left = (C3.CHARGE.FAULT / M * 100) + '%';
-    this.el.zoneHi.style.width = ((M - C3.CHARGE.FAULT) / M * 100) + '%';
-    this.el.zoneLo.style.width = (C3.CHARGE.SERVE_NET / M * 100) + '%';
-    this.el.tick.style.left = (1 / M * 100) + '%';
+    for (const e of [this.el, this.g2]) {
+      if (!e.zoneHi) continue;
+      e.zoneHi.style.left = (C3.CHARGE.FAULT / M * 100) + '%';
+      e.zoneHi.style.width = ((M - C3.CHARGE.FAULT) / M * 100) + '%';
+      e.zoneLo.style.width = (C3.CHARGE.SERVE_NET / M * 100) + '%';
+      e.tick.style.left = (1 / M * 100) + '%';
+    }
   }
+  setDuo(on) { if (this.p2Box) this.p2Box.hidden = !on; if (!on) this.setGauge(null, '', this.g2); }
 
   setScore(p, o, server, mp) {
     this.el.pts.textContent = p; this.el.opts.textContent = o;
@@ -72,19 +79,25 @@ class Hud3D {
   setMute(m) { const b = document.getElementById('c3muteBtn'); if (b) b.textContent = m ? '🔇 소리' : '🔊 소리'; }
   setSlow(k) { this.el.vig.style.opacity = Math.max(0, Math.min(1, k)) * 0.85; }
 
-  setGauge(ch, name) {
-    const g = this.el.gauge;
+  setGauge(ch, name, E) {
+    E = E || this.el;
+    const g = E.gauge; if (!g) return;
     if (!ch) { g.hidden = true; return; }
     g.hidden = false;
     const M = C3.CHARGE.MAX, c = ch.c;
     const bad = c > C3.CHARGE.FAULT || (ch.type === 'serve' && c < C3.CHARGE.SERVE_NET);
-    this.el.fill.style.width = (c / M * 100) + '%';
-    this.el.fill.style.background = bad ? 'var(--bad)' : c > 0.66 ? 'var(--me)' : c > 0.33 ? 'var(--warn)' : 'var(--ok)';
-    this.el.zoneLo.hidden = ch.type !== 'serve';
-    this.el.glbl.textContent = `${SHOT3_NAMES[ch.type]} · ${name} ${Math.round(c * 100)}%` + (c > C3.CHARGE.FAULT ? (ch.type === 'down' ? ' — 네트!' : ' — 아웃!') : '');
+    E.fill.style.width = (c / M * 100) + '%';
+    E.fill.style.background = bad ? 'var(--bad)' : c > 0.66 ? 'var(--me)' : c > 0.33 ? 'var(--warn)' : 'var(--ok)';
+    E.zoneLo.hidden = ch.type !== 'serve';
+    E.glbl.textContent = (E === this.g2 ? 'P2 ' : '') + `${SHOT3_NAMES[ch.type]} · ${name} ${Math.round(c * 100)}%` + (c > C3.CHARGE.FAULT ? (ch.type === 'down' ? ' — 네트!' : ' — 아웃!') : '');
   }
 
-  update(real, me, s) {
+  update(real, me, s, p2) {
+    if (p2) {   // 로컬 2인: P2 게이지
+      const c2 = p2.charge;
+      if (c2) this.setGauge(c2, Shots3.name({ type: c2.type, p0: s.live ? s.p : { x: p2.pos.x, y: 1, z: p2.pos.z }, jumping: !p2.onGround() }, Math.min(1, c2.c)), this.g2);
+      else this.setGauge(null, '', this.g2);
+    }
     if (this.bannerT > 0) { this.bannerT -= real; this.el.banner.style.opacity = Math.min(1, this.bannerT * 2); }
     const ch = me.charge;
     if (ch) {

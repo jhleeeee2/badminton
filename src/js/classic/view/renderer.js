@@ -7,7 +7,7 @@ class Renderer {
   }
 
   draw() {
-    const cx = this.cx, g = this.game, p = g.player, ai = g.ai, s = g.shuttle, fx = g.fx;
+    const cx = this.cx, g = this.game, p = g.player, s = g.shuttle, fx = g.fx;
     const { W, H, GY, NET, NETTOP, BL_L, BL_R, STANDY } = COURT;
     cx.clearRect(0, 0, W, H);
 
@@ -22,35 +22,39 @@ class Renderer {
     cx.lineWidth = 1;
     for (let i = 0; i < 4; i++) { cx.beginPath(); cx.moveTo(NET - 13, NETTOP + i * 15); cx.lineTo(NET + 13, NETTOP + i * 15); cx.stroke(); }
 
-    // 선수
-    this.drawAthlete(ai);
+    // 선수 (왼쪽 = AI 또는 P2/온라인 상대)
+    const L = g.left;
+    this.drawAthlete(L);
     this.drawAthlete(p);
-    if (p.dashT > 0) {
+    for (const a of [p, L]) if (a.dashT > 0) {
       cx.strokeStyle = COLORS.warn; cx.globalAlpha = 0.5; cx.lineWidth = 3;
-      cx.beginPath(); cx.moveTo(p.x - p.dashDir * 30, GY - 40); cx.lineTo(p.x - p.dashDir * 12, GY - 40); cx.stroke();
+      cx.beginPath(); cx.moveTo(a.x - a.dashDir * 30, GY - 40); cx.lineTo(a.x - a.dashDir * 12, GY - 40); cx.stroke();
       cx.globalAlpha = 1;
     }
 
-    // 서브 게이지
-    if (g.phase === 'pserve') {
-      const gp = p.gauge.p;
+    // 서브 게이지 (서브하는 사람 위) — 온라인 상대가 모으는 중이면 받은 게이지를 그대로 보여줌
+    const srv = g.phase === 'pserve' ? g.serverPlayer() : g.phase === 'oserve' ? L : null;
+    if (srv) {
+      const gp = srv.gauge.p, sx = srv.x, right = srv.side !== 'L';
       cx.fillStyle = COLORS.text;
       cx.font = '13px sans-serif'; cx.textAlign = 'center';
-      cx.fillText('내 서브 — Space를 길게 누를수록 멀리', p.x, GY - 118);
+      const key = g.mode === 'local2p' ? (right ? ';' : 'Space') : 'Space';
+      const who = g.mode === 'local2p' ? (right ? 'P1' : 'P2') + ' 서브' : g.phase === 'oserve' ? '상대 서브' : '내 서브';
+      cx.fillText(g.phase === 'oserve' ? who + ' 기다리는 중…' : who + ' — ' + key + '를 길게 누를수록 멀리', Math.max(150, Math.min(W - 150, sx)), GY - 118);
       cx.textAlign = 'left';
       // 게이지 막대 = 0 ~ P_MAX. 양 끝 빨간 구간: 왼쪽 = 네트(너무 짧음), 오른쪽 = 아웃(너무 김)
-      const S = SERVE, bx = p.x - 31, bw = 62, k = bw / S.P_MAX;
+      const S = SERVE, bx = sx - 31, bw = 62, k = bw / S.P_MAX;
       cx.globalAlpha = 0.28; cx.fillStyle = COLORS.bad;
       cx.fillRect(bx, GY - 107, S.NET_FAULT_P * k, 7);
       cx.fillRect(bx + S.OUT_P * k, GY - 107, (S.P_MAX - S.OUT_P) * k, 7);
       cx.globalAlpha = 1;
-      const danger = p.gauge.on && (gp < S.NET_FAULT_P || gp > S.OUT_P);
+      const danger = srv.gauge.on && (gp < S.NET_FAULT_P || gp > S.OUT_P);
       cx.fillStyle = danger ? COLORS.bad : gp > 0.66 ? COLORS.me : gp > 0.33 ? COLORS.warn : COLORS.ok;
       cx.fillRect(bx, GY - 107, gp * k, 7);
       cx.strokeStyle = COLORS.court; cx.lineWidth = 1;
-      cx.strokeRect(p.x - 32, GY - 108, 64, 9);
+      cx.strokeRect(sx - 32, GY - 108, 64, 9);
       cx.beginPath(); cx.moveTo(bx + k, GY - 110); cx.lineTo(bx + k, GY - 97); cx.stroke(); // 100% 눈금
-      this.drawShuttle(p.x - 20, STANDY + 8);
+      this.drawShuttle(sx + (right ? -20 : 20), STANDY + 8);
     }
 
     // 셔틀
@@ -76,7 +80,7 @@ class Renderer {
           }
         }
       }
-    } else if (fx.missPos && g.phase !== 'idle' && g.phase !== 'pserve') {
+    } else if (fx.missPos && g.phase !== 'idle' && g.phase !== 'pserve' && g.phase !== 'oserve') {
       this.drawShuttle(fx.missPos[0], fx.missPos[1]);
     }
 

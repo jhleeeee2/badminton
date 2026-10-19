@@ -232,6 +232,12 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .roomor{font-size:12px;color:var(--text3);}
 .roomcode{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:16px;font-family:inherit;letter-spacing:.2em;text-transform:uppercase;width:150px;}
 .roomcode:focus{outline:none;border-color:var(--ok);}
+.nickrow{margin-bottom:8px;}
+.nicklbl{font-size:13px;color:var(--text2);}
+.roomnick{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px;font-family:inherit;width:200px;}
+.roomnick:focus{outline:none;border-color:var(--ok);}
+.roomnick.need{border-color:var(--bad);}
+.nickhint{font-size:12px;color:var(--text3);}
 .c3code{display:inline-block;font-size:38px;font-weight:700;letter-spacing:.25em;padding:6px 18px;margin:6px 0;border:2px dashed var(--ok);border-radius:12px;color:var(--ok);}
 
 /* 게임 중 방 코드 (상단 작게) */
@@ -263,3 +269,9 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3emo.me{right:16px;bottom:calc(4% + 70px);background:rgba(255,107,61,.5);border:2px solid rgba(255,192,138,.85);border-bottom-right-radius:4px;}
 .c3emo.pop{animation:pop .4s cubic-bezier(.2,1.6,.4,1);}
 @media (max-width:640px){.c3emo{font-size:15px;}.c3emo.big{font-size:38px;}}
+
+/* 3D 로컬 2인: 오른쪽 위 P2 조작 안내 + P2 충전 게이지 */
+.c3p2{position:absolute;right:14px;top:14px;width:min(300px,42%);display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none;}
+.c3p2keys{font-size:12px;color:var(--text2);background:rgba(14,10,40,.55);border-radius:10px;padding:4px 10px;text-align:right;line-height:1.5;}
+.c3p2keys b{color:#C9B8FF;}
+.c3p2 .c3gauge{width:100%;}

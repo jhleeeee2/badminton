@@ -86,6 +86,7 @@ class Net3D {
         if (this.peer) return;
         if (m.host === this.host) { this.game.netError(this.host ? '같은 코드의 방이 이미 있어요. 다시 만들어 주세요.' : '상대도 입장하는 쪽이에요. 한 명은 방 만들기를 눌러야 해요.'); this.close(); return; }
         this.peer = { id: m.from, cid: String(m.cid || m.from).slice(0, 16), hand: m.hand === 'L' ? 'L' : 'R', name: String(m.name || '친구').slice(0, 16) };
+        try { if (this.ch.presenceState()[m.from]) this.peer.seen = true; } catch (e) { /* 무시 */ }   // 접속 목록에 이미 있으면 바로 '본 적 있음' (나감 감지가 빠지지 않게)
         if (!m.reply) this.sayHello(true);
         g.netPeerJoined(this.peer, this.host ? this.info.win : m.win);
         if (this.pendResume) { const r = this.pendResume; this.pendResume = null; g.netResume(r); }

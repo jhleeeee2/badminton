@@ -96,12 +96,31 @@ const DIFFS = Object.freeze({
   imp:    { spd: 335, react: 0.045, reactR: 0.035, err: 4,  errP: 18,  mis: 0.012, jfail: 0.015, safe: 0.97, smash: 0.82, rT: 2.25, rK: 0.18, rC: 0.035, mh: 0.01, hp: 0.05, sharp: true }
 });
 
-// 키 배치 (KeyboardEvent.code = 물리 키 위치라 한/영 상태와 무관). 동작마다 여러 키 가능.
-// 오른손: 방향키 / 왼손: A S D F 홈 포지션 + 엄지 Space + 새끼 Shift
-// 샷 배열은 낙하 지점 순서: 왼쪽(A)=가장 깊게 … 오른쪽(F)=네트 바로 앞
+// 키 배치 (KeyboardEvent.code = 물리 키 위치라 한/영 상태와 무관). 동작마다 여러 키 가능. [게임 설계]
+// 1인: 오른손 = 방향키 / 왼손 = 네 손가락을 Q W E R 위에 (새끼 Q · 약지 W · 중지 E · 검지 R) + 엄지 Space
+//      대쉬는 새끼손가락을 한 칸 내린 A (Shift도 그대로 됨)
+// 샷 배열은 낙하 지점 순서: 왼쪽(Q)=가장 깊게 … 오른쪽(R)=네트 바로 앞
 const KEYMAP = Object.freeze({
   left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], crouch: ['ArrowDown'],
-  clear: ['KeyA'], drive: ['KeyS'], drop: ['KeyD'], hairpin: ['KeyF'],
+  clear: ['KeyQ'], drive: ['KeyW'], drop: ['KeyE'], hairpin: ['KeyR'],
   smash: ['Space'],                    // 랠리 중 스매시 · 내 서브 때 길게 눌러 게이지 · 대기/게임오버 때 시작
-  dash: ['ShiftLeft', 'ShiftRight']    // 이동키와 함께
+  dash: ['KeyA', 'ShiftLeft', 'ShiftRight']    // 이동키와 함께
+});
+
+// 로컬 2인 (한 키보드에 둘이 나란히 앉음) [게임 설계]
+//   P2 = 왼쪽 코트 · 키보드 왼쪽 사람: 왼손은 1인용과 같은 Q W E R + Space(엄지) + A 대쉬,
+//        오른손은 T F G H 묶음(T 점프 · F ← · H → · G 앉기 — WASD 모양을 오른쪽으로 옮긴 것)
+//   P1 = 오른쪽 코트 · 키보드 오른쪽 사람: 오른손은 방향키, 왼손은 U I O P(새끼 U · 약지 I · 중지 O · 검지 P)
+//        스매시·서브는 검지를 한 칸 내린 ; · 대쉬는 새끼를 한 칸 내린 J
+const KEYMAP_2P = Object.freeze({
+  L: Object.freeze({
+    left: ['KeyF'], right: ['KeyH'], jump: ['KeyT'], crouch: ['KeyG'],
+    clear: ['KeyQ'], drive: ['KeyW'], drop: ['KeyE'], hairpin: ['KeyR'],
+    smash: ['Space'], dash: ['KeyA']
+  }),
+  R: Object.freeze({
+    left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], crouch: ['ArrowDown'],
+    clear: ['KeyU'], drive: ['KeyI'], drop: ['KeyO'], hairpin: ['KeyP'],
+    smash: ['Semicolon'], dash: ['KeyJ']
+  })
 });

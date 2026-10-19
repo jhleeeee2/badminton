@@ -11,6 +11,17 @@ class Hud {
   }
 
   resetMessage() { this.showMessage(this.initialMsg); }
+  setIntro(html) { this.initialMsg = html; }   // 모드별 조작 안내
+  // 점수 카드 이름 (왼쪽 = 상대·P2, 오른쪽 = 나·P1)
+  setNames(left, right) {
+    this.optsEl.previousElementSibling.textContent = left;
+    this.ptsEl.previousElementSibling.textContent = right;
+  }
+  setRoom(code) {   // 친구 방 코드 (null이면 숨김)
+    const el = document.getElementById('clRoom'); if (!el) return;
+    el.hidden = !code; if (code) document.getElementById('clRoomCode').textContent = code;
+  }
+  setDashVisible(on) { this.dashEl.parentElement.style.display = on ? '' : 'none'; }
   setConfigLabel(text) { this.cfgEl.textContent = text; }
 
   setRally(n) { this.rallyEl.textContent = n; }

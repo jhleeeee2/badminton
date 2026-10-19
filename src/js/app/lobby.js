@@ -1,6 +1,7 @@
 // app/lobby.js — 대기화면: 게임 종류·모드·난이도·목표 점수 선택 후 시작
 
 const LOBBY_STORE_KEY = 'badminton.lobby';
+const NICK_STORE_KEY = 'badminton.nick';   // 친구 1:1 닉네임 (두 게임 종류 공용, 이 브라우저에 기억)
 
 const COURT_ART = {   // 게임 종류 카드의 작은 그림
   side: '<svg viewBox="0 0 120 44" aria-hidden="true"><line x1="4" y1="38" x2="116" y2="38" stroke="currentColor" stroke-width="2"/><line x1="60" y1="38" x2="60" y2="20" stroke="currentColor" stroke-width="2"/><circle cx="26" cy="22" r="3" fill="var(--opp)"/><line x1="26" y1="25" x2="26" y2="38" stroke="var(--opp)" stroke-width="2"/><circle cx="94" cy="22" r="3" fill="var(--me)"/><line x1="94" y1="25" x2="94" y2="38" stroke="var(--me)" stroke-width="2"/><path d="M90 18 Q60 -4 34 20" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>',
@@ -55,6 +56,12 @@ class Lobby {
     });
     rc.addEventListener('input', clean);
     rc.addEventListener('compositionend', clean);
+    // 닉네임: 입력할 때마다 저장 → 메뉴로 돌아오거나 다음 판·새로고침 때도 그대로 채워져 있음
+    this.nick = $('roomNick'); this.nickHint = $('roomNickHint');
+    this.nick.value = this.loadNick();
+    this.nick.addEventListener('input', () => { this.nick.classList.remove('need'); this.saveNick(); });
+    this.nick.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); this.roomCode.focus(); } });
+    if (typeof Account !== 'undefined' && Account.on) Account.on(() => { if (!this.nick.value.trim() && Account.nickname) { this.nick.value = Account.nickname; this.saveNick(); } });
     this.refresh();
   }
 
@@ -105,9 +112,9 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    const room = this.sel.mode === 'room';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
-    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
+    const room = this.sel.mode === 'room', duo = this.sel.mode === 'local2p';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || duo) || !this.canStart();
+    this.diffBox.hidden = room || duo; this.aiHead.textContent = room ? '대전 설정' : duo ? '로컬 2인 설정 (한 키보드로 둘이 · 조작은 튜토리얼 참고)' : 'AI 대전 설정';
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
@@ -137,6 +144,9 @@ class Lobby {
     if (!this.canStart()) return;
     const sel = { ...this.sel };
     if (sel.mode === 'room') {   // 코드가 있으면 입장, 없으면 방 만들기
+      const nick = this.nick.value.trim().replace(/\s+/g, ' ');
+      if (!nick) { this.note.textContent = '입장 전에 닉네임을 적어 주세요.'; this.nick.classList.add('need'); this.nick.focus(); return; }
+      this.nick.value = nick; this.saveNick(); sel.nick = nick;
       const code = (this.roomCode.value || '').trim().toUpperCase();
       if (code && code.length !== 5) { this.note.textContent = '방 코드는 5자리예요.'; return; }
       sel.room = code ? { code, host: false } : { code: Net3D.makeCode(), host: true };
@@ -152,4 +162,11 @@ class Lobby {
     } catch (e) { /* 무시 */ }
   }
   save() { try { localStorage.setItem(LOBBY_STORE_KEY, JSON.stringify(this.sel)); } catch (e) { /* 무시 */ } }
+  loadNick() {
+    let v = '';
+    try { v = localStorage.getItem(NICK_STORE_KEY) || ''; } catch (e) { /* 무시 */ }
+    if (!v && typeof Account !== 'undefined' && Account.nickname) v = Account.nickname;   // 처음이면 로그인 닉네임
+    return v.slice(0, 12);
+  }
+  saveNick() { try { localStorage.setItem(NICK_STORE_KEY, this.nick.value.trim()); } catch (e) { /* 무시 */ } }
 }

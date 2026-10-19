@@ -96,7 +96,12 @@ const C3 = Object.freeze({
     opp: { shirt: 0x7B61FF, accent: 0x2EE6D6, shorts: 0x23234A, hair: 0x111111, shoe: 0x2EE6D6 }
   }),
   COLORS: Object.freeze({ me: 0xFF6B3D, opp: 0x8F7BFF, court: 0x2A7053, floor: 0x1B1E25, line: 0xF2F2F2, net: 0x111318, tape: 0xF5F5F5 }),
-  KEYS: Object.freeze({ up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', lift: 'KeyQ', smash: 'KeyE', jump: 'Space', ext: ['ShiftLeft', 'ShiftRight'] })
+  KEYS: Object.freeze({ up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', lift: 'KeyQ', smash: 'KeyE', jump: 'Space', ext: ['ShiftLeft', 'ShiftRight'] }),
+  // 로컬 2인 P2 (화면 안쪽 선수 · 키보드 오른쪽 사람) [게임 설계]
+  //   오른손 = 방향키(화면 기준: ↑ = 화면 안쪽, ← = 화면 왼쪽), 왼손 = U I O P 줄에 (약지 I 올리기 · 중지 O 찍기 · 검지 P 직선)
+  //   약지를 한 칸 내린 K 점프 · 새끼를 내린 J 런지 · 조준은 마우스 대신 ←/→ (안 누르면 P1이 없는 쪽)
+  //   L(낙하 표시)·M(소리)·G(그림자)·T(감정표현) 키와 겹치지 않게 고름
+  KEYS2: Object.freeze({ up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', lift: 'KeyI', smash: 'KeyO', flat: 'KeyP', jump: 'KeyK', ext: ['KeyJ'] })
 });
 
 const SHOT3_NAMES = { lift: '올리기', down: '찍기', flat: '직선', serve: '서브' };

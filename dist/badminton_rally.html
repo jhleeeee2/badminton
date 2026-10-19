@@ -239,6 +239,12 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .roomor{font-size:12px;color:var(--text3);}
 .roomcode{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:16px;font-family:inherit;letter-spacing:.2em;text-transform:uppercase;width:150px;}
 .roomcode:focus{outline:none;border-color:var(--ok);}
+.nickrow{margin-bottom:8px;}
+.nicklbl{font-size:13px;color:var(--text2);}
+.roomnick{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px;font-family:inherit;width:200px;}
+.roomnick:focus{outline:none;border-color:var(--ok);}
+.roomnick.need{border-color:var(--bad);}
+.nickhint{font-size:12px;color:var(--text3);}
 .c3code{display:inline-block;font-size:38px;font-weight:700;letter-spacing:.25em;padding:6px 18px;margin:6px 0;border:2px dashed var(--ok);border-radius:12px;color:var(--ok);}
 
 /* 게임 중 방 코드 (상단 작게) */
@@ -270,6 +276,12 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3emo.me{right:16px;bottom:calc(4% + 70px);background:rgba(255,107,61,.5);border:2px solid rgba(255,192,138,.85);border-bottom-right-radius:4px;}
 .c3emo.pop{animation:pop .4s cubic-bezier(.2,1.6,.4,1);}
 @media (max-width:640px){.c3emo{font-size:15px;}.c3emo.big{font-size:38px;}}
+
+/* 3D 로컬 2인: 오른쪽 위 P2 조작 안내 + P2 충전 게이지 */
+.c3p2{position:absolute;right:14px;top:14px;width:min(300px,42%);display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none;}
+.c3p2keys{font-size:12px;color:var(--text2);background:rgba(14,10,40,.55);border-radius:10px;padding:4px 10px;text-align:right;line-height:1.5;}
+.c3p2keys b{color:#C9B8FF;}
+.c3p2 .c3gauge{width:100%;}
 </style>
 </head>
 <body>
@@ -311,7 +323,12 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
     </div>
   </section>
   <section class="lsec" id="roomSettings" hidden>
-    <div class="lhead">친구 1:1 방 <span class="lsub">인터넷 필요 · 한 명이 방을 만들고, 친구는 그 코드로 입장 · 목표 점수는 방장 설정</span></div>
+    <div class="lhead">친구 1:1 방 <span class="lsub">인터넷 필요 · 한 명이 방을 만들고, 친구는 그 코드로 입장 · 둘 다 같은 게임 종류를 골라야 해요 · 목표 점수는 방장 설정</span></div>
+    <div class="cards roomrow nickrow">
+      <label class="nicklbl" for="roomNick">닉네임</label>
+      <input id="roomNick" class="roomnick" maxlength="12" placeholder="상대에게 보일 이름" autocomplete="nickname" spellcheck="false">
+      <span class="nickhint" id="roomNickHint">한 번 적으면 다음 판에도 그대로 남아 있어요</span>
+    </div>
     <div class="cards roomrow">
       <button id="roomCreate" class="roombtn">방 만들기</button>
       <span class="roomor">또는</span>
@@ -332,7 +349,7 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 
 <!-- ───────── 클래식 게임 화면 ───────── -->
 <div class="wrap" id="classic" hidden>
-  <h1><button id="menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">클래식</span></h1>
+  <h1><button id="menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">클래식</span> <span class="c3room" id="clRoom" hidden title="클릭하면 코드 복사">방 <b id="clRoomCode"></b></span></h1>
   <div class="hud">
     <div class="cards">
       <div class="card"><span class="lbl" style="color:var(--opp)">상대</span><span id="opts" class="val">0</span></div>
@@ -349,7 +366,7 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
   </div>
   <div class="stage">
     <canvas id="court" width="648" height="300"></canvas>
-    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>A 클리어 · S 드라이브 · D 드롭 · F 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · Shift 대쉬 · 서브는 Space를 길게</div>
+    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게</div>
   </div>
   <div class="row">
     <button id="bL" class="wide" aria-label="왼쪽 이동">←</button>
@@ -360,13 +377,13 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
     <button id="bSrv">서브<span class="key">␣</span></button>
   </div>
   <div class="row">
-    <button id="sC">클리어<span class="key">A</span></button>
-    <button id="sV">드라이브<span class="key">S</span></button>
-    <button id="sP">드롭<span class="key">D</span></button>
-    <button id="sH">헤어핀<span class="key">F</span></button>
+    <button id="sC">클리어<span class="key">Q</span></button>
+    <button id="sV">드라이브<span class="key">W</span></button>
+    <button id="sP">드롭<span class="key">E</span></button>
+    <button id="sH">헤어핀<span class="key">R</span></button>
     <button id="sS" style="font-weight:600;">스매시<span class="key">␣</span></button>
   </div>
-  <p class="foot"><b style="color:var(--text2)">Shift 대쉬</b>: 이동키를 누른 채 Shift — 그 방향으로 짧게 가속(랠리당 1회). 대쉬하며 앞으로 치면 파워 보너스. <b style="color:var(--text2)">↓ 앉기</b>: 리치가 늘고 삑사리 없이 안정적으로 받는 완전 수비 자세(리턴은 약해짐). 전진하며 치면 빠르고 길게, 후퇴하며 치면 느리고 짧게 갑니다. 모든 샷에 삑사리 확률이 있고(스매시가 가장 높음) 타점이 낮을수록 잘 납니다. 자세한 건 튜토리얼 버튼을 눌러보세요.</p>
+  <p class="foot"><b style="color:var(--text2)">A 대쉬</b>: 이동키를 누른 채 A(또는 Shift) — 그 방향으로 짧게 가속(랠리당 1회). 대쉬하며 앞으로 치면 파워 보너스. <b style="color:var(--text2)">↓ 앉기</b>: 리치가 늘고 삑사리 없이 안정적으로 받는 완전 수비 자세(리턴은 약해짐). 전진하며 치면 빠르고 길게, 후퇴하며 치면 느리고 짧게 갑니다. 모든 샷에 삑사리 확률이 있고(스매시가 가장 높음) 타점이 낮을수록 잘 납니다. 자세한 건 튜토리얼 버튼을 눌러보세요.</p>
 </div>
 <!-- ───────── 3D 코트 화면 ───────── -->
 <div class="wrap wide3d" id="court3d" hidden>
@@ -404,6 +421,13 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
       <div class="c3gauge" id="c3gauge" hidden>
         <div class="c3bar"><div class="c3zone" id="c3zoneLo"></div><div class="c3zone" id="c3zoneHi"></div><div class="c3fill" id="c3fill"></div><div class="c3tick" id="c3tick"></div></div>
         <div class="c3glbl" id="c3glbl"></div>
+      </div>
+    </div>
+    <div class="c3p2" id="c3p2" hidden>
+      <div class="c3p2keys"><b>P2</b> 방향키 이동 · <b>I</b> 올리기 · <b>O</b> 찍기 · <b>P</b> 직선 · <b>K</b> 점프 · <b>J</b> 런지 · 조준 ←→</div>
+      <div class="c3gauge" id="c3gauge2" hidden>
+        <div class="c3bar"><div class="c3zone" id="c3zoneLo2"></div><div class="c3zone" id="c3zoneHi2"></div><div class="c3fill" id="c3fill2"></div><div class="c3tick" id="c3tick2"></div></div>
+        <div class="c3glbl" id="c3glbl2"></div>
       </div>
     </div>
     <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)<br>T 꾹 = 감정표현 (마우스로 고르고 떼기)</div>
@@ -543,14 +567,33 @@ const DIFFS = Object.freeze({
   imp:    { spd: 335, react: 0.045, reactR: 0.035, err: 4,  errP: 18,  mis: 0.012, jfail: 0.015, safe: 0.97, smash: 0.82, rT: 2.25, rK: 0.18, rC: 0.035, mh: 0.01, hp: 0.05, sharp: true }
 });
 
-// 키 배치 (KeyboardEvent.code = 물리 키 위치라 한/영 상태와 무관). 동작마다 여러 키 가능.
-// 오른손: 방향키 / 왼손: A S D F 홈 포지션 + 엄지 Space + 새끼 Shift
-// 샷 배열은 낙하 지점 순서: 왼쪽(A)=가장 깊게 … 오른쪽(F)=네트 바로 앞
+// 키 배치 (KeyboardEvent.code = 물리 키 위치라 한/영 상태와 무관). 동작마다 여러 키 가능. [게임 설계]
+// 1인: 오른손 = 방향키 / 왼손 = 네 손가락을 Q W E R 위에 (새끼 Q · 약지 W · 중지 E · 검지 R) + 엄지 Space
+//      대쉬는 새끼손가락을 한 칸 내린 A (Shift도 그대로 됨)
+// 샷 배열은 낙하 지점 순서: 왼쪽(Q)=가장 깊게 … 오른쪽(R)=네트 바로 앞
 const KEYMAP = Object.freeze({
   left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], crouch: ['ArrowDown'],
-  clear: ['KeyA'], drive: ['KeyS'], drop: ['KeyD'], hairpin: ['KeyF'],
+  clear: ['KeyQ'], drive: ['KeyW'], drop: ['KeyE'], hairpin: ['KeyR'],
   smash: ['Space'],                    // 랠리 중 스매시 · 내 서브 때 길게 눌러 게이지 · 대기/게임오버 때 시작
-  dash: ['ShiftLeft', 'ShiftRight']    // 이동키와 함께
+  dash: ['KeyA', 'ShiftLeft', 'ShiftRight']    // 이동키와 함께
+});
+
+// 로컬 2인 (한 키보드에 둘이 나란히 앉음) [게임 설계]
+//   P2 = 왼쪽 코트 · 키보드 왼쪽 사람: 왼손은 1인용과 같은 Q W E R + Space(엄지) + A 대쉬,
+//        오른손은 T F G H 묶음(T 점프 · F ← · H → · G 앉기 — WASD 모양을 오른쪽으로 옮긴 것)
+//   P1 = 오른쪽 코트 · 키보드 오른쪽 사람: 오른손은 방향키, 왼손은 U I O P(새끼 U · 약지 I · 중지 O · 검지 P)
+//        스매시·서브는 검지를 한 칸 내린 ; · 대쉬는 새끼를 한 칸 내린 J
+const KEYMAP_2P = Object.freeze({
+  L: Object.freeze({
+    left: ['KeyF'], right: ['KeyH'], jump: ['KeyT'], crouch: ['KeyG'],
+    clear: ['KeyQ'], drive: ['KeyW'], drop: ['KeyE'], hairpin: ['KeyR'],
+    smash: ['Space'], dash: ['KeyA']
+  }),
+  R: Object.freeze({
+    left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['ArrowUp'], crouch: ['ArrowDown'],
+    clear: ['KeyU'], drive: ['KeyI'], drop: ['KeyO'], hairpin: ['KeyP'],
+    smash: ['Semicolon'], dash: ['KeyJ']
+  })
 });
 </script>
 <script>
@@ -708,14 +751,21 @@ class Athlete {
 }
 </script>
 <script>
-// entities/player.js — 플레이어(오른쪽): 이동, 대쉬, 앉기, 서브 게이지, 타격·파워·삑사리
+// entities/player.js — 사람이 조작하는 선수: 이동, 대쉬, 앉기, 서브 게이지, 타격·파워·삑사리
+//   side 'R' = 오른쪽 코트(1인·P1·온라인의 나), 'L' = 왼쪽 코트(로컬 2인의 P2, 온라인의 상대)
+//   remote = true면 키보드가 아니라 네트워크로 받은 상태대로 움직임(NetC가 x·점프·앉기를 넣어 줌)
 
 class Player extends Athlete {
-  constructor(game) {
-    super(game, HOME.player, -1, COLORS.me);
+  constructor(game, side) {
+    side = side === 'L' ? 'L' : 'R';
+    super(game, side === 'R' ? HOME.player : HOME.ai, side === 'R' ? -1 : +1, side === 'R' ? COLORS.me : COLORS.opp);
+    this.side = side;
+    this.fwd = side === 'R' ? -1 : 1;                // 네트 쪽 방향(x 부호)
     this.ctrl = { L: false, R: false, C: false };   // 입력 상태 (Input이 씀)
     this.dashT = 0; this.dashDir = 0; this.dashUsed = false;
     this.gauge = { on: false, p: 0 };                // 서브 게이지 (0~1)
+    this.remote = false;
+    this.label = '';                                 // 최근 샷 표시 앞에 붙는 이름 ('' = 나)
   }
 
   resetForMatch() {
@@ -723,15 +773,21 @@ class Player extends Athlete {
     this.dashT = 0; this.dashUsed = false;
     this.gauge.on = false; this.gauge.p = 0;
   }
+  releaseAll() { const c = this.ctrl; c.L = c.R = c.C = false; this.gauge.on = false; }
 
   get crouched() { return this.ctrl.C && this.jy === 0; }
 
+  // 공이 이 선수 쪽으로 오는 중인지 (Shuttle.dir: +1 = 오른쪽으로)
+  incoming(s) { return s.dir === (this.side === 'R' ? 1 : -1); }
+
   move(dt) {
+    if (this.remote) return;   // 온라인 상대: NetC.apply가 위치를 넣어 줌
     const ms = MOVE.SPEED * (this.crouched ? MOVE.CROUCH_SPEED : 1);
     if (this.ctrl.L) this.x -= ms * dt;
     if (this.ctrl.R) this.x += ms * dt;
     if (this.dashT > 0) { this.x += this.dashDir * MOVE.DASHV * dt; this.dashT -= dt; }
-    this.x = Math.max(COURT.NET + 24, Math.min(COURT.W - 20, this.x));
+    if (this.side === 'R') this.x = Math.max(COURT.NET + 24, Math.min(COURT.W - 20, this.x));
+    else this.x = Math.max(20, Math.min(COURT.NET - 24, this.x));
     this.updatePhysics(dt);
   }
 
@@ -749,17 +805,18 @@ class Player extends Athlete {
     g.p = Math.min(SERVE.P_MAX, g.p + dt / SERVE.CHARGE_TIME);
   }
 
-  // 전진(←)하며 치면 +, 후진(→)하며 치면 −
+  // 전진(네트 쪽)하며 치면 +, 후진하며 치면 −
   power(sy) {
-    const run = this.ctrl.L ? POWER.FORWARD : (this.ctrl.R ? POWER.BACKWARD : 0);
-    const db = this.dashT > 0 ? (this.dashDir === -1 ? POWER.DASH_FWD : POWER.DASH_BACK) : 0;
+    const toNet = this.fwd < 0 ? this.ctrl.L : this.ctrl.R, away = this.fwd < 0 ? this.ctrl.R : this.ctrl.L;
+    const run = toNet ? POWER.FORWARD : (away ? POWER.BACKWARD : 0);
+    const db = this.dashT > 0 ? (this.dashDir === this.fwd ? POWER.DASH_FWD : POWER.DASH_BACK) : 0;
     return Math.max(POWER.MIN, 1 + Math.max(0, COURT.BASE - sy) / POWER.HEIGHT_DIV + run + db);
   }
 
   hit(type) {
     const g = this.game, s = g.shuttle;
     this.swing();
-    if (s.dir !== 1) return;
+    if (!this.incoming(s)) return;
     const cr = this.crouched;
     const [sx, sy] = s.pos(), [rx, ry] = this.racket();
     const reach = MOVE.REACH + (cr ? MOVE.CROUCH_REACH : 0);
@@ -767,6 +824,7 @@ class Player extends Athlete {
 
     g.onContact(sx, sy);
     s.isServe = false;
+    const toRight = this.side === 'L', pre = this.label ? this.label + ' ' : '';
 
     let power;
     if (cr) {
@@ -777,15 +835,19 @@ class Player extends Athlete {
       const m = MISHIT_TBL[type];
       const pf = Math.min(m[2], m[0] + Math.max(0, 60 - h) / 60 * m[1]);
       if (Math.random() < pf) {
-        g.hud.setShot(SHOT_NAMES[type] + ' 삑사리');
-        g.fx.show('삑사리...', COLORS.warn, 0.9);
-        g.shots.mishit(false, sx, sy);
+        const lbl = SHOT_NAMES[type] + ' 삑사리';
+        g.hud.setShot(pre + lbl);
+        g.fx.show(pre + '삑사리...', COLORS.warn, 0.9);
+        g.shots.mishit(toRight, sx, sy);
+        g.sentShot(this, lbl, true);
         return;
       }
     }
-    g.hud.setShot(SHOT_NAMES[type] + (cr ? ' (수비)' : ' x' + power.toFixed(1)));
-    g.shots.launch(type, false, sx, sy, power, cr);
-    if (type === 'smash' && power > 1.7) g.fx.show('점프 스매시! x' + power.toFixed(1), COLORS.me, 0.9);
+    const lbl = SHOT_NAMES[type] + (cr ? ' (수비)' : ' x' + power.toFixed(1));
+    g.hud.setShot(pre + lbl);
+    g.shots.launch(type, toRight, sx, sy, power, cr);
+    if (type === 'smash' && power > 1.7) g.fx.show(pre + '점프 스매시! x' + power.toFixed(1), this.color, 0.9);
+    g.sentShot(this, lbl, false, type === 'smash' && power > 1.7 ? power : 0);
   }
 }
 </script>
@@ -931,7 +993,7 @@ class ShotSystem {
     } else { // smash
       const scat = (Math.random() - 0.5) * (16 + 90 * Math.max(0, power - 1.3));
       s.x1 = (toRight ? NET + 95 + R * (W - 160 - NET - 95) : 55 + R * (NET - 150)) + scat;
-      if (toRight && d.sharp && Math.random() < 0.7) {
+      if (toRight && g.mode === 'ai' && d.sharp && Math.random() < 0.7) {
         s.x1 = Math.random() < 0.5 ? BL_R - 18 - Math.random() * 32 : NET + 58 + Math.random() * 48;
       }
       s.dur = Math.max(0.34, 0.95 / (Math.pow(power, 1.6) * sm));
@@ -946,6 +1008,7 @@ class ShotSystem {
 
     ai.ignore = (!toRight) && (s.outPred || !!s.net);
     ai.frozen = false;
+    if (g.mode !== 'ai') return;   // 사람끼리(로컬 2인·친구 1:1): AI 반응 계산 없음
     if (!toRight && !ai.ignore) {
       // 반사신경 한계: 파워가 임계값을 넘으면 확률적으로 굳음
       const pf = Math.min(d.rC, Math.max(0, (power - d.rT) * d.rK));
@@ -965,8 +1028,131 @@ class ShotSystem {
     s.finalize();
     const ownSide = toRight ? s.x1 < NET : s.x1 > NET;
     ai.ignore = (!toRight) && (s.outPred || !!s.net || ownSide);
+    if (g.mode !== 'ai') return;
     if (!toRight && !ai.ignore) ai.plan = ai.makePlan(0.9);
     else if (toRight) ai.goHome();
+  }
+}
+</script>
+<script>
+// classic/online.js — 클래식 랠리 친구 1:1 (Supabase Realtime 방송 채널 + 방 코드, 별도 서버 없음)
+//   동기화 방식 [게임 설계] — 3D 코트(Net3D)와 같은 원칙
+//   · 각자 화면에서는 내가 오른쪽 선수. 상대가 보낸 x는 좌우를 뒤집어(x → W − x) 왼쪽 선수로 그림
+//   · 내 선수 상태(x·점프 높이·앉기·스윙·대쉬·서브 게이지)를 초당 SNAP_HZ번 보냄 → 상대 화면에서 보간
+//   · 칠 때는 셔틀의 출발점·도착점·비행시간만 보냄 → 클래식 궤적은 이 세 값으로 정해지므로 양쪽이 같은 공
+//   · 판정 권한은 "받는 쪽": 공이 날아가는 쪽 컴퓨터가 낙하·네트를 판정하고 점수를 알려줌
+//   · 채널 이름은 'bmc-<코드>' (3D 코트 방과 섞이지 않음)
+
+const NETC = Object.freeze({ SNAP_HZ: 20, PING_EVERY: 2 });
+
+class NetC {
+  constructor(game) {
+    this.game = game;
+    this.id = Math.random().toString(36).slice(2, 10);
+    this.ch = null; this.peer = null; this.snap = null; this.prevSnap = null;
+    this.lat = 0.06; this.sendT = 0; this.pingT = 0;
+  }
+  get active() { return !!this.ch; }
+  get connected() { return !!this.peer; }
+  cid() {
+    if (typeof NET3_CID !== 'undefined') return NET3_CID;   // 3D 코트와 같은 브라우저 id
+    return this.id;
+  }
+
+  async open(code, host, info) {
+    this.close();
+    const sb = typeof Account !== 'undefined' ? Account.sb : null;
+    if (!sb) throw new Error('온라인 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
+    Object.assign(this, { code, host, info, peer: null, snap: null, prevSnap: null, joinedAt: Date.now() });
+    const ch = sb.channel('bmc-' + code, { config: { broadcast: { self: false }, presence: { key: this.id } } });
+    this.ch = ch;
+    ch.on('broadcast', { event: 'm' }, ({ payload }) => { try { this.recv(payload); } catch (e) { console.error(e); } });
+    ch.on('presence', { event: 'sync' }, () => this.onPresence());
+    await new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error('연결 시간 초과')), 10000);
+      ch.subscribe(async st => {
+        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ host, at: this.joinedAt }); } catch (e) { /* 무시 */ } res(); }
+        else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { clearTimeout(to); rej(new Error('방 채널 연결 실패 (' + st + ')')); }
+      });
+    });
+    if (this.ch !== ch) return;   // 그사이 메뉴로 나감
+    this.sayHello(false);
+    this.helloTimer = setInterval(() => { if (this.ch && !this.peer) this.sayHello(false); }, 1500);
+  }
+  close() {
+    const ch = this.ch; this.ch = null; this.peer = null; this.snap = null; this.prevSnap = null;
+    if (this.helloTimer) { clearInterval(this.helloTimer); this.helloTimer = null; }
+    if (ch) { try { ch.unsubscribe(); Account.sb.removeChannel(ch); } catch (e) { /* 무시 */ } }
+  }
+  send(m) { if (this.ch) { m.from = this.id; this.ch.send({ type: 'broadcast', event: 'm', payload: m }).catch(() => {}); } }
+  sayHello(reply) { this.send({ t: 'hello', host: this.host, name: this.info.name, win: this.info.win, cid: this.cid(), reply }); }
+
+  onPresence() {
+    if (!this.ch) return;
+    const st = this.ch.presenceState(), keys = Object.keys(st);
+    if (keys.length > 2) {   // 셋째로 들어온 사람만 나감
+      const at = k => (st[k][0] && st[k][0].at) || 0;
+      const first2 = keys.sort((a, b) => at(a) - at(b)).slice(0, 2);
+      if (!first2.includes(this.id)) { this.close(); this.game.netError('방이 꽉 찼어요 (1:1 방).'); return; }
+    }
+    if (this.peer && keys.includes(this.peer.id)) this.peer.seen = true;   // 접속 목록에 한 번 보인 뒤 사라져야 '나감'
+    else if (this.peer && this.peer.seen) {
+      const gone = this.peer; this.peer = null; this.snap = null;
+      this.host = true; this.info.win = this.game.match.win;   // 남은 사람이 방장 → 누가 같은 코드로 들어와도 연결됨
+      this.game.netPeerLeft(gone);
+    }
+  }
+
+  recv(m) {
+    const g = this.game;
+    switch (m.t) {
+      case 'hello': {
+        if (this.peer) return;
+        if (m.host === this.host) { g.netError(this.host ? '같은 코드의 방이 이미 있어요. 다시 만들어 주세요.' : '상대도 입장하는 쪽이에요. 한 명은 방 만들기를 눌러야 해요.'); this.close(); return; }
+        this.peer = { id: m.from, cid: String(m.cid || m.from).slice(0, 16), name: String(m.name || '친구').slice(0, 16) };
+        try { if (this.ch.presenceState()[m.from]) this.peer.seen = true; } catch (e) { /* 무시 */ }   // 접속 목록에 이미 있으면 바로 '본 적 있음' (나감 감지가 빠지지 않게)
+        if (!m.reply) this.sayHello(true);
+        g.netPeerJoined(this.peer, this.host ? this.info.win : ([11, 15, 21].includes(m.win) ? m.win : 11));
+        return;
+      }
+      case 'st': this.prevSnap = this.snap; this.snap = { x: +m.x, jy: +m.jy || 0, c: !!m.c, sw: !!m.sw, d: m.d | 0, gp: m.gp == null ? -1 : +m.gp, at: performance.now() }; return;
+      case 'hit': g.netShot(m); return;
+      case 'pt': g.netPoint(m); return;
+      case 'restart': g.netRestart(m); return;
+      case 'ping': this.send({ t: 'pong', ts: m.ts }); return;
+      case 'pong': { const one = Math.min(0.5, (performance.now() - m.ts) / 2000); this.lat += (one - this.lat) * 0.3; return; }
+    }
+  }
+
+  // 매 화면 프레임: 내 상태 보내기 · 주기적 ping
+  tick(real) {
+    if (!this.ch || !this.peer) return;
+    const p = this.game.player;
+    this.sendT -= real;
+    if (this.sendT <= 0) {
+      this.sendT = 1 / NETC.SNAP_HZ;
+      this.send({ t: 'st', x: Math.round(p.x * 10) / 10, jy: Math.round(p.jy * 10) / 10, c: p.crouched ? 1 : 0, sw: p.swingT > 0 ? 1 : 0,
+        d: p.dashT > 0 ? p.dashDir : 0, gp: p.gauge.on ? Math.round(p.gauge.p * 100) / 100 : null });
+    }
+    this.pingT -= real;
+    if (this.pingT <= 0) { this.pingT = NETC.PING_EVERY; this.send({ t: 'ping', ts: performance.now() }); }
+  }
+
+  // 왼쪽 선수(상대)를 받은 상태 쪽으로 — 받은 뒤 흐른 시간만큼 이동 속도로 앞질러 예측
+  apply(dt) {
+    const L = this.game.p2, s = this.snap, W = COURT.W;
+    if (!s) return;
+    const ps = this.prevSnap, age = Math.min(0.2, (performance.now() - s.at) / 1000);
+    let vx = 0;
+    if (ps && s.at > ps.at) vx = Math.max(-700, Math.min(700, (s.x - ps.x) / ((s.at - ps.at) / 1000)));
+    const tx = W - (s.x + vx * age), k = Math.min(1, dt * 16);
+    L.x += (tx - L.x) * k;
+    L.x = Math.max(18, Math.min(COURT.NET - 20, L.x));
+    L.jy = s.jy; L.vy = 0; L.ctrl.C = s.c;
+    if (s.sw && !this.swWas && L.swingT <= 0) L.swing();
+    this.swWas = s.sw;
+    L.dashT = s.d ? 0.05 : 0; L.dashDir = -s.d;
+    L.gauge.on = s.gp >= 0; L.gauge.p = Math.max(0, s.gp);
   }
 }
 </script>
@@ -984,6 +1170,17 @@ class Hud {
   }
 
   resetMessage() { this.showMessage(this.initialMsg); }
+  setIntro(html) { this.initialMsg = html; }   // 모드별 조작 안내
+  // 점수 카드 이름 (왼쪽 = 상대·P2, 오른쪽 = 나·P1)
+  setNames(left, right) {
+    this.optsEl.previousElementSibling.textContent = left;
+    this.ptsEl.previousElementSibling.textContent = right;
+  }
+  setRoom(code) {   // 친구 방 코드 (null이면 숨김)
+    const el = document.getElementById('clRoom'); if (!el) return;
+    el.hidden = !code; if (code) document.getElementById('clRoomCode').textContent = code;
+  }
+  setDashVisible(on) { this.dashEl.parentElement.style.display = on ? '' : 'none'; }
   setConfigLabel(text) { this.cfgEl.textContent = text; }
 
   setRally(n) { this.rallyEl.textContent = n; }
@@ -1008,7 +1205,7 @@ class Renderer {
   }
 
   draw() {
-    const cx = this.cx, g = this.game, p = g.player, ai = g.ai, s = g.shuttle, fx = g.fx;
+    const cx = this.cx, g = this.game, p = g.player, s = g.shuttle, fx = g.fx;
     const { W, H, GY, NET, NETTOP, BL_L, BL_R, STANDY } = COURT;
     cx.clearRect(0, 0, W, H);
 
@@ -1023,35 +1220,39 @@ class Renderer {
     cx.lineWidth = 1;
     for (let i = 0; i < 4; i++) { cx.beginPath(); cx.moveTo(NET - 13, NETTOP + i * 15); cx.lineTo(NET + 13, NETTOP + i * 15); cx.stroke(); }
 
-    // 선수
-    this.drawAthlete(ai);
+    // 선수 (왼쪽 = AI 또는 P2/온라인 상대)
+    const L = g.left;
+    this.drawAthlete(L);
     this.drawAthlete(p);
-    if (p.dashT > 0) {
+    for (const a of [p, L]) if (a.dashT > 0) {
       cx.strokeStyle = COLORS.warn; cx.globalAlpha = 0.5; cx.lineWidth = 3;
-      cx.beginPath(); cx.moveTo(p.x - p.dashDir * 30, GY - 40); cx.lineTo(p.x - p.dashDir * 12, GY - 40); cx.stroke();
+      cx.beginPath(); cx.moveTo(a.x - a.dashDir * 30, GY - 40); cx.lineTo(a.x - a.dashDir * 12, GY - 40); cx.stroke();
       cx.globalAlpha = 1;
     }
 
-    // 서브 게이지
-    if (g.phase === 'pserve') {
-      const gp = p.gauge.p;
+    // 서브 게이지 (서브하는 사람 위) — 온라인 상대가 모으는 중이면 받은 게이지를 그대로 보여줌
+    const srv = g.phase === 'pserve' ? g.serverPlayer() : g.phase === 'oserve' ? L : null;
+    if (srv) {
+      const gp = srv.gauge.p, sx = srv.x, right = srv.side !== 'L';
       cx.fillStyle = COLORS.text;
       cx.font = '13px sans-serif'; cx.textAlign = 'center';
-      cx.fillText('내 서브 — Space를 길게 누를수록 멀리', p.x, GY - 118);
+      const key = g.mode === 'local2p' ? (right ? ';' : 'Space') : 'Space';
+      const who = g.mode === 'local2p' ? (right ? 'P1' : 'P2') + ' 서브' : g.phase === 'oserve' ? '상대 서브' : '내 서브';
+      cx.fillText(g.phase === 'oserve' ? who + ' 기다리는 중…' : who + ' — ' + key + '를 길게 누를수록 멀리', Math.max(150, Math.min(W - 150, sx)), GY - 118);
       cx.textAlign = 'left';
       // 게이지 막대 = 0 ~ P_MAX. 양 끝 빨간 구간: 왼쪽 = 네트(너무 짧음), 오른쪽 = 아웃(너무 김)
-      const S = SERVE, bx = p.x - 31, bw = 62, k = bw / S.P_MAX;
+      const S = SERVE, bx = sx - 31, bw = 62, k = bw / S.P_MAX;
       cx.globalAlpha = 0.28; cx.fillStyle = COLORS.bad;
       cx.fillRect(bx, GY - 107, S.NET_FAULT_P * k, 7);
       cx.fillRect(bx + S.OUT_P * k, GY - 107, (S.P_MAX - S.OUT_P) * k, 7);
       cx.globalAlpha = 1;
-      const danger = p.gauge.on && (gp < S.NET_FAULT_P || gp > S.OUT_P);
+      const danger = srv.gauge.on && (gp < S.NET_FAULT_P || gp > S.OUT_P);
       cx.fillStyle = danger ? COLORS.bad : gp > 0.66 ? COLORS.me : gp > 0.33 ? COLORS.warn : COLORS.ok;
       cx.fillRect(bx, GY - 107, gp * k, 7);
       cx.strokeStyle = COLORS.court; cx.lineWidth = 1;
-      cx.strokeRect(p.x - 32, GY - 108, 64, 9);
+      cx.strokeRect(sx - 32, GY - 108, 64, 9);
       cx.beginPath(); cx.moveTo(bx + k, GY - 110); cx.lineTo(bx + k, GY - 97); cx.stroke(); // 100% 눈금
-      this.drawShuttle(p.x - 20, STANDY + 8);
+      this.drawShuttle(sx + (right ? -20 : 20), STANDY + 8);
     }
 
     // 셔틀
@@ -1077,7 +1278,7 @@ class Renderer {
           }
         }
       }
-    } else if (fx.missPos && g.phase !== 'idle' && g.phase !== 'pserve') {
+    } else if (fx.missPos && g.phase !== 'idle' && g.phase !== 'pserve' && g.phase !== 'oserve') {
       this.drawShuttle(fx.missPos[0], fx.missPos[1]);
     }
 
@@ -1125,8 +1326,18 @@ class Renderer {
 <script>
 // game.js — 게임 전체를 묶는 객체: 상태(phase) 전환, 메인 루프, 서브, 득점 처리
 //
-// phase: 'idle'(시작 전) → 'serve'(서브 대기) → 'flying'(랠리) ↔ 'pserve'(내 서브 게이지)
-//        → 'gameover'
+// 모드: 'ai'(AI 대전) · 'local2p'(한 키보드 2인: 오른쪽 P1 · 왼쪽 P2) · 'room'(친구 1:1 온라인: 내 화면에선 내가 항상 오른쪽)
+// phase: 'idle'(시작 전) → 'serve'(서브 대기) → 'flying'(랠리) ↔ 'pserve'(사람 서브 게이지)
+//        ↔ 'oserve'(온라인: 상대가 서브 게이지를 모으는 중) → 'gameover'
+// 선수: player = 오른쪽(사람), left = 왼쪽 (AI 대전이면 ai, 아니면 p2)
+
+const INTRO_MSG = {
+  ai: '목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게',
+  local2p: '<b>로컬 2인</b> — 한 키보드로 둘이 (목표 점수 선점 + 2점 차)<br>'
+    + '<span style="color:var(--opp)">P2 왼쪽</span>: F H 이동 · T 점프 · G 앉기 · Q W E R 샷 · Space 스매시/서브 · A 대쉬<br>'
+    + '<span style="color:var(--me)">P1 오른쪽</span>: ←→ 이동 · ↑ 점프 · ↓ 앉기 · U I O P 샷 · ; 스매시/서브 · J 대쉬<br>Space 또는 시작 = 시작',
+  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다'
+};
 
 class Game {
   constructor(canvas, hud) {
@@ -1134,11 +1345,16 @@ class Game {
     this.match = new Match();
     this.shuttle = new Shuttle();
     this.fx = new Effects();
-    this.player = new Player(this);
+    this.player = new Player(this, 'R');
+    this.p2 = new Player(this, 'L');
     this.ai = new AIOpponent(this);
     this.shots = new ShotSystem(this);
+    this.net = new NetC(this);
     this.renderer = new Renderer(canvas, this);
 
+    this.mode = 'ai';
+    this.oppName = '상대';
+    this.roomRec = { cid: null, name: '', sets: { me: 0, opp: 0 } };   // 친구 방: 같은 상대와 계속하면 세트 스코어 유지
     this.phase = 'idle';
     this.serveWait = 0;
     this.lastTs = 0;
@@ -1147,52 +1363,80 @@ class Game {
     this.loop = this.loop.bind(this);
   }
 
-  get active() { return this.phase === 'flying' || this.phase === 'serve' || this.phase === 'pserve'; }
-  get canAct() { return this.phase === 'flying' || this.phase === 'pserve'; }
+  get left() { return this.mode === 'ai' ? this.ai : this.p2; }
+  get active() { return this.phase === 'flying' || this.phase === 'serve' || this.phase === 'pserve' || this.phase === 'oserve'; }
+  get canAct() { return this.phase === 'flying' || this.phase === 'pserve' || this.phase === 'oserve'; }
+  serverPlayer() { return this.match.server === 'player' ? this.player : this.left; }
+  // 이 화면이 판정하는가: 온라인에서는 공을 받는 쪽(공이 날아가는 쪽) 컴퓨터만 판정해서 알려줌
+  judgeHere() { return this.mode !== 'room' || this.shuttle.dir === 1; }
+
+  // 모드 설정 (App.launch / 친구 방에서 호출)
+  setMode(mode) {
+    this.mode = mode === 'local2p' || mode === 'room' ? mode : 'ai';
+    this.p2.remote = this.mode === 'room';
+    this.player.label = this.mode === 'local2p' ? 'P1' : '';
+    this.p2.label = this.mode === 'local2p' ? 'P2' : '상대';
+    if (this.mode !== 'room') { this.net.close(); this.oppName = '상대'; this.hud.setRoom(null); }
+    this.hud.setNames(this.mode === 'local2p' ? 'P2' : this.oppName, this.mode === 'local2p' ? 'P1' : '나');
+    this.hud.setIntro(INTRO_MSG[this.mode]);
+    this.hud.setDashVisible(true);
+  }
 
   // ───── 경기 흐름 ─────
-  start() {
+  start(fromNet) {
+    if (this.mode === 'room') {
+      if (!this.net.connected) return;   // 친구가 들어와야 시작
+      if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
+    }
     this.match.resetScore();
+    if (this.mode === 'room') this.match.server = this.net.host ? 'player' : 'opp';   // 첫 서브는 방장
     this.phase = 'serve'; this.serveWait = 0.6;
     this.hud.hideMessage(); this.hud.setStartLabel('다시 시작');
     this.hud.setRally(0); this.hud.setScore(0, 0); this.hud.setShot('-');
-    this.player.resetForMatch(); this.ai.resetBody();
+    this.player.resetForMatch(); this.p2.resetForMatch(); this.ai.resetBody();
     this.fx.reset(); this.lastTs = 0;
-    this.shuttle.netDrop = null; this.shuttle.isServe = false;
+    this.shuttle.netDrop = null; this.shuttle.isServe = false; this.shuttle.hold = false;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
 
   // 메뉴로 나갈 때: 경기 중단, 처음 화면 상태로
   stop() {
+    this.net.close();
     this.phase = 'idle';            // 다음 프레임에 루프가 스스로 멈춤
-    const c = this.player.ctrl; c.L = c.R = c.C = false;
-    this.player.resetForMatch(); this.ai.resetBody(); this.fx.reset();
+    this.player.releaseAll(); this.p2.releaseAll();
+    this.player.resetForMatch(); this.p2.resetForMatch(); this.ai.resetBody(); this.fx.reset();
     this.hud.resetMessage(); this.hud.setStartLabel('시작');
     this.renderer.draw();
   }
 
   serve() {
     if (this.match.server === 'opp') {
-      this.phase = 'flying'; this.shuttle.isServe = true;
-      this.shots.launch(Math.random() < 0.6 ? 'clear' : 'drop', true, this.ai.x, COURT.BASE, 1.02 + Math.random() * 0.18, true);
+      if (this.mode === 'ai') {
+        this.phase = 'flying'; this.shuttle.isServe = true;
+        this.shots.launch(Math.random() < 0.6 ? 'clear' : 'drop', true, this.ai.x, COURT.BASE, 1.02 + Math.random() * 0.18, true);
+      } else if (this.mode === 'local2p') {
+        this.phase = 'pserve'; this.p2.gauge.on = false; this.p2.gauge.p = 0;
+      } else this.phase = 'oserve';   // 온라인: 상대 컴퓨터에서 서브가 날아올 때까지
     } else {
       this.phase = 'pserve'; this.player.gauge.on = false; this.player.gauge.p = 0;
     }
-    this.player.dashUsed = false; this.ai.frozen = false; this.hud.setDash(true);
+    this.player.dashUsed = false; this.p2.dashUsed = false; this.ai.frozen = false; this.hud.setDash(true);
   }
 
-  // 플레이어 서브: 짧게 누름 → 네트 앞 낮은 숏서브, 길게 누름 → 깊고 높은 롱서브
-  doServe(p) {
-    const s = this.shuttle, ai = this.ai, S = SERVE;
-    this.phase = 'flying'; s.isServe = true;
-    s.launch(this.player.x - 16, COURT.STANDY + 8, false, 'norm');
+  // 사람 서브: 짧게 누름 → 네트 앞 낮은 숏서브, 길게 누름 → 깊고 높은 롱서브
+  //   오른쪽 선수 기준으로 계산하고, 왼쪽 선수(P2)면 좌우를 뒤집음 (x → W − x)
+  doServe(pl, p) {
+    const s = this.shuttle, ai = this.ai, S = SERVE, right = pl.side === 'R';
+    const mx = x => right ? x : COURT.W - x;
+    this.phase = 'flying'; s.isServe = true; s.hold = false;
+    s.launch(pl.x - 16 * (right ? 1 : -1), COURT.STANDY + 8, !right, 'norm');
     ai.newFlight();
     const tooShort = p < S.NET_FAULT_P, tooLong = p > S.OUT_P;
     const q = Math.min(p, 1);   // 정상 구간 기준 세기
     const shortX = COURT.NET - S.SHORT_X, longX = COURT.BL_L + S.LONG_X;
-    s.x1 = shortX + q * (longX - shortX) + (Math.random() - 0.5) * S.JITTER;
+    s.x1 = mx(shortX + q * (longX - shortX) + (Math.random() - 0.5) * S.JITTER);
     s.dur = S.DUR_SHORT + q * (S.DUR_LONG - S.DUR_SHORT);
-    if (tooLong) s.x1 = COURT.BL_L - S.OUT_OVER - (p - S.OUT_P) * S.OUT_SLOPE;  // 베이스라인 밖
+    if (tooLong) s.x1 = mx(COURT.BL_L - S.OUT_OVER - (p - S.OUT_P) * S.OUT_SLOPE);  // 베이스라인 밖
     if (tooShort) s.dur = S.DUR_FAULT;   // 힘없이 낮게 → 네트를 못 넘음
     else s.ensureClear();
     s.finalize();
@@ -1200,10 +1444,23 @@ class Game {
       const tN = s.netT();
       if (tN !== null) s.net = { t: tN, y: Math.max(COURT.NETTOP, Math.min(s.at(tN)[1], COURT.NETTOP + 26)) };
     }
-    ai.ignore = s.outPred || !!s.net;
-    ai.plan = ai.makePlan(S.AI_POWER_SHORT + q * (S.AI_POWER_LONG - S.AI_POWER_SHORT));
+    if (this.mode === 'ai') {
+      ai.ignore = s.outPred || !!s.net;
+      ai.plan = ai.makePlan(S.AI_POWER_SHORT + q * (S.AI_POWER_LONG - S.AI_POWER_SHORT));
+    }
     const pct = Math.round(p * 100) + '%';
-    this.hud.setShot(tooShort ? '서브 너무 짧음 ' + pct : tooLong ? '서브 너무 김 ' + pct : (p < 0.5 ? '숏서브 ' : '롱서브 ') + pct);
+    const lbl = tooShort ? '서브 너무 짧음 ' + pct : tooLong ? '서브 너무 김 ' + pct : (p < 0.5 ? '숏서브 ' : '롱서브 ') + pct;
+    this.hud.setShot((pl.label && this.mode === 'local2p' ? pl.label + ' ' : '') + lbl);
+    this.sentShot(pl, lbl, false, 0, true);
+  }
+
+  // 내가 친 공을 온라인 상대에게 알림 (궤적은 출발점·도착점·비행시간으로 정해지므로 그것만 보냄)
+  sentShot(pl, label, mishit, smashPow, serve) {
+    if (this.mode !== 'room' || pl !== this.player || !this.net.connected) return;
+    const s = this.shuttle, r = v => Math.round(v * 100) / 100;
+    this.net.send({ t: 'hit', x0: r(s.x0), y0: r(s.y0), x1: r(s.x1), y1: r(s.y1), d: Math.round(s.dur * 10000) / 10000, k: s.kind,
+      n: s.net ? { t: s.net.t, y: r(s.net.y) } : null, o: s.outPred ? 1 : 0, sv: serve ? 1 : 0, r: this.match.rally,
+      l: String(label).slice(0, 30), mh: mishit ? 1 : 0, sp: smashPow ? r(smashPow) : 0 });
   }
 
   onContact(sx, sy) {
@@ -1212,18 +1469,42 @@ class Game {
     this.fx.hit(sx, sy);
   }
 
-  scorePoint(mine, reason, landX) {
+  // 득점 문구: code = 'in'(코트 안) · 'out'(아웃) · 'net'(네트) · 'fault'(삑사리 공이 자기 코트) — 진 쪽이 낸 실수 기준
+  reasonText(rightWon, code) {
+    if (this.mode === 'local2p') {
+      const w = rightWon ? 'P1' : 'P2', l = rightWon ? 'P2' : 'P1';
+      return { in: w + ' 득점!', out: l + ' 아웃 → ' + w + ' 득점', net: l + ' 네트 → ' + w + ' 득점', fault: l + ' 범실 → ' + w + ' 득점' }[code] || w + ' 득점!';
+    }
+    if (rightWon) return { in: this.mode === 'ai' && this.ai.frozen ? '너무 빨라서 반응 못 함!' : '득점!', out: '아웃! 잘 봤어요', net: '네트! 득점', fault: '상대 범실!' }[code] || '득점!';
+    return { in: '실점...', out: '아웃...', net: '네트...', fault: '범실...' }[code] || '실점...';
+  }
+
+  // rightWon: 오른쪽(나·P1)이 득점. sync: 온라인에서 판정한 쪽이 보낸 점수 {pts, opts}
+  scorePoint(rightWon, code, landX, sync) {
     const m = this.match;
-    m.award(mine);
+    m.award(rightWon);
+    if (sync) { m.pts = sync.pts; m.opts = sync.opts; }
+    else if (this.mode === 'room') this.net.send({ t: 'pt', w: rightWon ? 'R' : 'L', c: code, x: Math.round(landX), pts: m.pts, opts: m.opts });   // R = 보내는 사람 자신
     this.hud.setScore(m.pts, m.opts);
-    this.fx.show(reason, mine ? COLORS.ok : COLORS.bad, 1.2);
+    const col = this.mode === 'local2p' ? (rightWon ? COLORS.me : COLORS.opp) : (rightWon ? COLORS.ok : COLORS.bad);
+    this.fx.show(this.reasonText(rightWon, code), col, 1.2);
     this.fx.missPos = [Math.max(10, Math.min(COURT.W - 10, landX)), COURT.GY - 8];
+    this.shuttle.hold = false;
     this.hud.setRally(0);
     const w = m.winner();
     if (w) {
       this.phase = 'gameover';
-      if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'classic', difficulty: m.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'player' });
-      this.hud.showMessage((w === 'player' ? '승리! ' : '패배... ') + m.pts + ' : ' + m.opts + '<br>Space 또는 다시 시작 = 재대결 · Esc = 메뉴');
+      const again = 'Space 또는 다시 시작 = 재대결' + (this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : '') + ' · Esc = 메뉴';
+      if (this.mode === 'local2p') {
+        this.hud.showMessage((w === 'player' ? '<span style="color:var(--me)">P1</span>' : '<span style="color:var(--opp)">P2</span>') + ' 승리! P1 ' + m.pts + ' : ' + m.opts + ' P2<br>' + again);
+      } else if (this.mode === 'room') {
+        const R = this.roomRec; R.sets[w === 'player' ? 'me' : 'opp']++;
+        if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'classic', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'player', opponent: this.oppName, sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
+        this.hud.showMessage((w === 'player' ? '승리! ' : '패배... ') + m.pts + ' : ' + m.opts + '<br>세트 스코어 <b>' + R.sets.me + ' : ' + R.sets.opp + '</b> (vs ' + escHtmlC(this.oppName) + ')<br>' + again);
+      } else {
+        if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'classic', difficulty: m.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'player' });
+        this.hud.showMessage((w === 'player' ? '승리! ' : '패배... ') + m.pts + ' : ' + m.opts + '<br>' + again);
+      }
     } else {
       if (m.isDeuce()) this.fx.show('듀스! ' + m.pts + ' : ' + m.opts, COLORS.warn, 1.4);
       this.phase = 'serve'; this.serveWait = 1.0;
@@ -1232,49 +1513,98 @@ class Game {
 
   landingScore() {
     const s = this.shuttle, inB = s.landsInside(), NET = COURT.NET;
-    if (s.dir === -1) {  // 내가 친 공이 AI 쪽에 떨어짐
-      if (s.x1 > NET) { this.scorePoint(false, '범실...', s.x1); return; }
-      if (inB) this.scorePoint(true, this.ai.frozen ? '너무 빨라서 반응 못 함!' : '득점!', s.x1);
-      else this.scorePoint(false, '아웃...', s.x1);
-    } else {             // AI가 친 공이 내 쪽에 떨어짐
-      if (s.x1 < NET) { this.scorePoint(true, '상대 범실!', s.x1); return; }
-      if (inB) this.scorePoint(false, '실점...', s.x1);
-      else this.scorePoint(true, '아웃! 잘 봤어요', s.x1);
+    if (s.dir === -1) {  // 오른쪽이 친 공이 왼쪽으로
+      if (s.x1 > NET) { this.scorePoint(false, 'fault', s.x1); return; }
+      if (inB) this.scorePoint(true, 'in', s.x1);
+      else this.scorePoint(false, 'out', s.x1);
+    } else {             // 왼쪽이 친 공이 오른쪽으로
+      if (s.x1 < NET) { this.scorePoint(true, 'fault', s.x1); return; }
+      if (inB) this.scorePoint(false, 'in', s.x1);
+      else this.scorePoint(true, 'out', s.x1);
     }
   }
 
-  // ───── 플레이어 명령 (Input이 호출) ─────
-  playerShot(type) {
-    if (this.phase !== 'flying' || this.shuttle.netDrop) return;
-    this.player.hit(type);
+  // ───── 사람 명령 (Input이 호출, pl = 누른 사람의 선수) ─────
+  playerShot(pl, type) {
+    if (this.phase !== 'flying' || this.shuttle.netDrop || pl.remote) return;
+    pl.hit(type);
   }
-  jump() { if (this.canAct) this.player.jump(); }
-  dash() { if (this.canAct && this.player.dash()) this.hud.setDash(false); }
-  chargeServe(down) {
-    if (this.phase !== 'pserve') return;
-    const gg = this.player.gauge;
+  jump(pl) { if (this.canAct && !pl.remote) pl.jump(); }
+  dash(pl) { if (this.canAct && !pl.remote && pl.dash() && pl === this.player) this.hud.setDash(false); }
+  chargeServe(pl, down) {
+    if (this.phase !== 'pserve' || this.serverPlayer() !== pl) return;
+    const gg = pl.gauge;
     if (down) { if (!gg.on) { gg.on = true; gg.p = 0; } }
-    else if (gg.on) { gg.on = false; this.doServe(gg.p); }
+    else if (gg.on) { gg.on = false; this.doServe(pl, gg.p); }
+  }
+
+  // ───── 친구 1:1 (NetC가 호출) ─────
+  netPeerJoined(peer, win) {
+    if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
+    this.oppName = peer.name; this.roomRec.name = peer.name;
+    this.match.win = win;
+    this.hud.setNames(peer.name, '나');
+    this.hud.setConfigLabel('친구 1:1 · ' + win + '점');
+    this.fx.show(peer.name + ' 입장!', COLORS.ok, 1.2);
+    if (this.net.host) setTimeout(() => { if (this.net.peer === peer && this.phase === 'idle') this.start(); }, 600);   // 방장이 시작 신호
+    else this.hud.showMessage(escHtmlC(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');
+  }
+  netPeerLeft(peer) {
+    const sc = this.active ? ` — ${this.match.pts} : ${this.match.opts}에서 중단` : '';
+    this.phase = 'idle'; this.shuttle.hold = false;
+    this.p2.releaseAll(); this.net.snap = null;
+    this.hud.showMessage(`${escHtmlC((peer && peer.name) || '상대방')}님이 나갔습니다${sc}<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 새 경기를 시작합니다<br><small>Esc = 메뉴</small>`);
+    this.renderer.draw();
+  }
+  netError(msg) { this.phase = 'idle'; this.hud.showMessage(msg + '<br>Esc = 메뉴'); this.renderer.draw(); }
+  netRestart(m) {
+    if ([11, 15, 21].includes(m.win)) this.match.win = m.win;
+    this.start(true);
+  }
+  // 상대가 친 공: 받은 출발점·도착점을 좌우로 뒤집어(x → W − x) 내 쪽으로 오는 공으로
+  netShot(m) {
+    if (!this.active) return;
+    const s = this.shuttle, W = COURT.W;
+    if (m.sv) { this.phase = 'flying'; this.player.dashUsed = false; this.hud.setDash(true); }
+    else if (this.phase !== 'flying') return;
+    s.launch(W - m.x0, m.y0, true, m.k === 'clear' ? 'clear' : 'norm');
+    s.x1 = W - m.x1; s.y1 = m.y1; s.dur = Math.max(0.2, +m.d || 1); s.isServe = !!m.sv; s.hold = false;
+    s.net = m.n ? { t: +m.n.t, y: +m.n.y } : null; s.outPred = !!m.o;
+    this.match.rally = m.r | 0; this.hud.setRally(this.match.rally);
+    this.fx.hit(W - m.x0, m.y0); this.p2.swing(); this.ai.newFlight();
+    this.hud.setShot('상대 ' + String(m.l || ''));
+    if (m.mh) this.fx.show('상대 삑사리!', COLORS.opp, 0.9);
+    else if (m.sp) this.fx.show('상대 스매시! x' + (+m.sp).toFixed(1), COLORS.opp, 0.8);
+    s.t = Math.min(0.85, this.net.lat / s.dur);   // 지연 보정: 상대가 친 뒤 흐른 시간만큼 앞으로
+  }
+  netPoint(m) {
+    if (!this.active) return;
+    const s = this.shuttle; s.hold = false; s.netDrop = null;
+    this.scorePoint(m.w === 'L', String(m.c || 'in'), COURT.W - (+m.x || COURT.NET), { pts: m.opts | 0, opts: m.pts | 0 });
   }
 
   // ───── 메인 루프 ─────
   loop(ts) {
-    if (!this.active) { this.running = false; return; }
+    if (!this.active) { this.running = false; this.renderer.draw(); return; }
     if (!this.lastTs) this.lastTs = ts;
-    const dt = Math.min((ts - this.lastTs) / 1000, 0.05); this.lastTs = ts;
-    this.update(dt);
+    const real = Math.min((ts - this.lastTs) / 1000, 0.05); this.lastTs = ts;
+    if (this.mode === 'room') this.net.tick(real);
+    this.update(real);
     this.renderer.draw();
     requestAnimationFrame(this.loop);
   }
 
   update(dt) {
-    const p = this.player, ai = this.ai, s = this.shuttle;
+    const p = this.player, L = this.left, ai = this.ai, s = this.shuttle;
     p.move(dt);
-    p.tickSwing(dt); ai.tickSwing(dt); this.fx.update(dt);
+    if (this.mode === 'local2p') L.move(dt);
+    else if (this.mode === 'room') this.net.apply(dt);
+    p.tickSwing(dt); L.tickSwing(dt); this.fx.update(dt);
 
-    if (this.phase === 'pserve') { p.updateGauge(dt); return; }
+    if (this.phase === 'pserve') { this.serverPlayer().updateGauge(dt); return; }
+    if (this.phase === 'oserve') return;
 
-    ai.move(dt);
+    if (this.mode === 'ai') ai.move(dt);
 
     if (this.phase === 'serve') {
       this.serveWait -= dt;
@@ -1287,70 +1617,91 @@ class Game {
       s.netDrop.y += 380 * dt;
       if (s.netDrop.y >= COURT.GY - 8) {
         s.netDrop.y = COURT.GY - 8;
-        if (s.dir === -1) this.scorePoint(false, '네트...', s.netDrop.x);
-        else this.scorePoint(true, '네트! 득점', s.netDrop.x);
+        if (!this.judgeHere()) return;   // 온라인: 받는 쪽 판정을 기다림
+        if (s.dir === -1) this.scorePoint(false, 'net', s.netDrop.x);
+        else this.scorePoint(true, 'net', s.netDrop.x);
       }
       return;
     }
 
-    ai.track(dt);
+    if (this.mode === 'ai') ai.track(dt);
+    if (s.hold) return;
     s.t += dt / s.dur;
     if (s.net && s.t >= s.net.t) {
       s.netDrop = { x: COURT.NET + (s.dir === 1 ? -8 : 8), y: s.net.y };
       s.net = null;
       return;
     }
-    if (s.t >= 1) this.landingScore();
+    if (s.t >= 1) {
+      if (!this.judgeHere()) { s.t = 1; s.hold = true; return; }   // 온라인: 내가 친 공은 상대 화면이 판정
+      this.landingScore();
+    }
   }
 }
+
+function escHtmlC(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 </script>
 <script>
 // ui/input.js — 키보드·터치 버튼·설정 버튼을 Game 명령으로 연결
+//   1인(AI 대전·친구 1:1): KEYMAP → 오른쪽 선수
+//   로컬 2인: KEYMAP_2P.L → 왼쪽 P2, KEYMAP_2P.R → 오른쪽 P1
 
 class Input {
   constructor(game) {
     this.game = game;
+    const table = (...pairs) => {   // 키 코드 → { who: 'R'|'L', a: 동작 이름 }
+      const t = {};
+      for (const [map, who] of pairs) for (const [a, codes] of Object.entries(map)) codes.forEach(c => { t[c] = { who, a }; });
+      return t;
+    };
+    this.single = table([KEYMAP, 'R']);
+    this.duo = table([KEYMAP_2P.L, 'L'], [KEYMAP_2P.R, 'R']);
     this.bindKeyboard();
     this.bindTouch();
   }
 
+  table() { return this.game.mode === 'local2p' ? this.duo : this.single; }
+  who(w) { return w === 'L' ? this.game.p2 : this.game.player; }
+
   bindKeyboard() {
-    const g = this.game, ctrl = g.player.ctrl;
-    const action = {};   // 키 코드 → 동작 이름
-    for (const [a, codes] of Object.entries(KEYMAP)) codes.forEach(c => { action[c] = a; });
+    const g = this.game;
     const SHOTS = ['clear', 'drive', 'drop', 'hairpin'];
 
     document.addEventListener('keydown', e => {
       if (!g.inputOn) return;                               // 대기화면 등 다른 화면일 땐 무시
-      const a = action[e.code];
-      if (!a) return;
+      const k = this.table()[e.code];
+      if (!k) return;
       e.preventDefault();                                   // 스크롤 등 브라우저 기본 동작 차단
+      const a = k.a, pl = this.who(k.who), ctrl = pl.ctrl;
       if (e.repeat && a !== 'left' && a !== 'right') return; // 꾹 누름 반복 입력 무시
       if (a === 'left') ctrl.L = true;
       else if (a === 'right') ctrl.R = true;
-      else if (a === 'jump') g.jump();
+      else if (a === 'jump') g.jump(pl);
       else if (a === 'crouch') ctrl.C = true;
-      else if (a === 'dash') g.dash();
-      else if (a === 'smash') this.mainKey(true);
-      else if (SHOTS.includes(a)) g.playerShot(a);
+      else if (a === 'dash') g.dash(pl);
+      else if (a === 'smash') this.mainKey(pl, true);
+      else if (SHOTS.includes(a)) g.playerShot(pl, a);
     });
 
     document.addEventListener('keyup', e => {
-      const a = action[e.code];
+      const k = this.table()[e.code];
+      if (!k) return;
+      const a = k.a, pl = this.who(k.who), ctrl = pl.ctrl;
       if (a === 'left') ctrl.L = false;
       else if (a === 'right') ctrl.R = false;
       else if (a === 'crouch') ctrl.C = false;
-      else if (a === 'smash') this.mainKey(false);
+      else if (a === 'smash') this.mainKey(pl, false);
     });
+    window.addEventListener('blur', () => { g.player.releaseAll(); g.p2.releaseAll(); });
   }
 
-  // Space(스매시 버튼): 내 서브 땐 누르는 동안 게이지 → 떼면 서브,
+  // Space(스매시 버튼, 2인 P1은 ;): 내 서브 땐 누르는 동안 게이지 → 떼면 서브,
   // 랠리 중엔 스매시, 대기·게임오버엔 시작
-  mainKey(down) {
+  mainKey(pl, down) {
     const g = this.game;
-    if (g.phase === 'pserve') { g.chargeServe(down); return; }
+    if (g.phase === 'pserve') { g.chargeServe(pl, down); return; }
     if (!down) return;
-    if (g.phase === 'flying') g.playerShot('smash');
+    if (g.phase === 'flying') g.playerShot(pl, 'smash');
     else if (g.phase === 'gameover' || g.phase === 'idle') g.start();
   }
 
@@ -1365,17 +1716,17 @@ class Input {
     hold('bL', () => ctrl.L = true, () => ctrl.L = false);
     hold('bR', () => ctrl.R = true, () => ctrl.R = false);
     hold('bC', () => ctrl.C = true, () => ctrl.C = false);
-    tap('bJ', () => g.jump());
-    tap('bD', () => g.dash());
+    tap('bJ', () => g.jump(g.player));
+    tap('bD', () => g.dash(g.player));
     const bSrv = $('bSrv');
-    bSrv.addEventListener('pointerdown', e => { e.preventDefault(); g.chargeServe(true); });
-    bSrv.addEventListener('pointerup', () => g.chargeServe(false));
-    bSrv.addEventListener('pointercancel', () => g.chargeServe(false));
-    tap('sC', () => g.playerShot('clear'));
-    tap('sV', () => g.playerShot('drive'));
-    tap('sH', () => g.playerShot('hairpin'));
-    tap('sP', () => g.playerShot('drop'));
-    hold('sS', () => this.mainKey(true), () => this.mainKey(false));
+    bSrv.addEventListener('pointerdown', e => { e.preventDefault(); g.chargeServe(g.player, true); });
+    bSrv.addEventListener('pointerup', () => g.chargeServe(g.player, false));
+    bSrv.addEventListener('pointercancel', () => g.chargeServe(g.player, false));
+    tap('sC', () => g.playerShot(g.player, 'clear'));
+    tap('sV', () => g.playerShot(g.player, 'drive'));
+    tap('sH', () => g.playerShot(g.player, 'hairpin'));
+    tap('sP', () => g.playerShot(g.player, 'drop'));
+    hold('sS', () => this.mainKey(g.player, true), () => this.mainKey(g.player, false));
     $('startBtn').addEventListener('click', () => g.start());
   }
 }
@@ -1384,12 +1735,13 @@ class Input {
 // ui/tutorial.js — 튜토리얼 팝업 (페이지 내용은 TUTORIAL_PAGES만 고치면 됨)
 
 const TUTORIAL_PAGES = [
-  { t: '1. 목표와 기본 조작', b: '목표 점수(11/15/21)를 먼저 따되 <b>2점 차</b>가 나야 이깁니다(듀스).<br><b>←→</b> 이동 · <b>↑</b> 점프 · <b>↓</b> 앉기(수비 자세) · <b>Shift</b> 대쉬(랠리당 1회, 이동키와 함께)<br>왼손은 <b>A S D F</b>에 올려 두고 엄지로 <b>Space</b>를 누르세요.' },
-  { t: '2. 다섯 가지 샷', b: '샷 키는 왼쪽일수록 깊게, 오른쪽일수록 네트 가까이 떨어집니다.<br><b>A 클리어</b> — 높고 깊게 띄워 시간 벌기. 빠르게 솟았다가 천천히 떨어집니다.<br><b>S 드라이브</b> — 네트를 스치는 빠른 직선.<br><b>D 드롭</b> — 높은 타점에서 전위에 뚝.<br><b>F 헤어핀</b> — 네트 바로 앞에 살짝. 상대가 뒤에 있을 때 치명적.<br><b>Space 스매시</b> — 최고 속도로 내리꽂기.' },
+  { t: '1. 목표와 기본 조작', b: '목표 점수(11/15/21)를 먼저 따되 <b>2점 차</b>가 나야 이깁니다(듀스).<br><b>←→</b> 이동 · <b>↑</b> 점프 · <b>↓</b> 앉기(수비 자세) · <b>A</b> 대쉬(랠리당 1회, 이동키와 함께 · Shift도 됨)<br>왼손 네 손가락을 <b>Q W E R</b>에 올려 두고(새끼 Q · 약지 W · 중지 E · 검지 R) 엄지로 <b>Space</b>, 새끼를 한 칸 내리면 <b>A</b> 대쉬.' },
+  { t: '2. 다섯 가지 샷', b: '샷 키는 왼쪽일수록 깊게, 오른쪽일수록 네트 가까이 떨어집니다.<br><b>Q 클리어</b> — 높고 깊게 띄워 시간 벌기. 빠르게 솟았다가 천천히 떨어집니다.<br><b>W 드라이브</b> — 네트를 스치는 빠른 직선.<br><b>E 드롭</b> — 높은 타점에서 전위에 뚝.<br><b>R 헤어핀</b> — 네트 바로 앞에 살짝. 상대가 뒤에 있을 때 치명적.<br><b>Space 스매시</b> — 최고 속도로 내리꽂기.' },
   { t: '3. 파워 시스템', b: '파워 = <b>타점 높이</b> + <b>전진하며 타격</b>(+0.45) + <b>대쉬 중 타격</b>(+0.25).<br>뒤로 물러나며 치면 오히려 약해집니다(−0.25).<br>파워가 충분히 세면 상대가 제자리에 있어도 반응하지 못합니다. 단, 낮은 타점의 스매시·드라이브는 네트에 박히고, 강한 샷일수록 아웃 위험이 커요.' },
   { t: '4. 서브', b: '내 서브 차례엔 위치를 잡고 <b>Space를 누르고 있으면</b> 게이지가 차오릅니다(약 0.9초에 가득).<br>짧게 누르고 떼면 네트 앞에 떨어지는 <b>낮은 숏서브</b>(상대가 받기 까다로움), 꽉 채워 떼면 뒤쪽 깊숙이 가는 <b>높은 롱서브</b>.<br>단, 게이지 양 끝의 <b>빨간 구간</b>은 실패! 툭 치듯 너무 짧으면 <b>네트</b>에 걸리고, 가득 찬 뒤에도 계속 누르고 있으면 <b>아웃</b>됩니다.' },
   { t: '5. 수비 — 앉기', b: '<b>↓를 누르고 있으면 앉은 자세</b>가 됩니다. 리치가 크게 늘고 삑사리가 안 나서 빠른 스매시도 안정적으로 받아냅니다.<br>대신 이동이 느려지고 리턴은 무조건 약한 수비 샷이 돼요 — 받아낸 다음 자세를 풀고 반격하세요.' },
-  { t: '6. 판정과 실수', b: '<b>네트</b> — 궤적이 네트를 못 넘으면 친 쪽 실점.<br><b>아웃</b> — 낙하점이 빨간 X면 아웃되는 공. 건드리지 말고 흘려보내면 득점!<br><b>삑사리</b> — 모든 샷에 소확률 존재(스매시>드라이브>헤어핀>드롭>클리어). 타점이 낮을수록 잘 납니다.<br><b>범실</b> — 삑사리 공이 자기 코트에 떨어지면 실점.' }
+  { t: '6. 판정과 실수', b: '<b>네트</b> — 궤적이 네트를 못 넘으면 친 쪽 실점.<br><b>아웃</b> — 낙하점이 빨간 X면 아웃되는 공. 건드리지 말고 흘려보내면 득점!<br><b>삑사리</b> — 모든 샷에 소확률 존재(스매시>드라이브>헤어핀>드롭>클리어). 타점이 낮을수록 잘 납니다.<br><b>범실</b> — 삑사리 공이 자기 코트에 떨어지면 실점.' },
+  { t: '7. 로컬 2인 · 친구 1:1', b: '<b>로컬 2인</b> — 한 키보드에 둘이 나란히 앉아서.<br><span style="color:var(--opp)">P2(왼쪽 코트)</span>: 왼손 <b>Q W E R</b> 샷 · 엄지 <b>Space</b> 스매시/서브 · <b>A</b> 대쉬 / 오른손 <b>F H</b> 이동 · <b>T</b> 점프 · <b>G</b> 앉기<br><span style="color:var(--me)">P1(오른쪽 코트)</span>: 오른손 <b>방향키</b> / 왼손 <b>U I O P</b> 샷 · <b>;</b> 스매시/서브 · <b>J</b> 대쉬<br><b>친구 1:1</b> — 대기화면에서 닉네임을 적고, 한 명이 방을 만들고 친구는 5자리 코드로 입장. 내 화면에선 항상 내가 오른쪽이고 조작은 1인용과 같아요.' }
 ];
 
 class Tutorial {
@@ -1526,7 +1878,12 @@ const C3 = Object.freeze({
     opp: { shirt: 0x7B61FF, accent: 0x2EE6D6, shorts: 0x23234A, hair: 0x111111, shoe: 0x2EE6D6 }
   }),
   COLORS: Object.freeze({ me: 0xFF6B3D, opp: 0x8F7BFF, court: 0x2A7053, floor: 0x1B1E25, line: 0xF2F2F2, net: 0x111318, tape: 0xF5F5F5 }),
-  KEYS: Object.freeze({ up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', lift: 'KeyQ', smash: 'KeyE', jump: 'Space', ext: ['ShiftLeft', 'ShiftRight'] })
+  KEYS: Object.freeze({ up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', lift: 'KeyQ', smash: 'KeyE', jump: 'Space', ext: ['ShiftLeft', 'ShiftRight'] }),
+  // 로컬 2인 P2 (화면 안쪽 선수 · 키보드 오른쪽 사람) [게임 설계]
+  //   오른손 = 방향키(화면 기준: ↑ = 화면 안쪽, ← = 화면 왼쪽), 왼손 = U I O P 줄에 (약지 I 올리기 · 중지 O 찍기 · 검지 P 직선)
+  //   약지를 한 칸 내린 K 점프 · 새끼를 내린 J 런지 · 조준은 마우스 대신 ←/→ (안 누르면 P1이 없는 쪽)
+  //   L(낙하 표시)·M(소리)·G(그림자)·T(감정표현) 키와 겹치지 않게 고름
+  KEYS2: Object.freeze({ up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', lift: 'KeyI', smash: 'KeyO', flat: 'KeyP', jump: 'KeyK', ext: ['KeyJ'] })
 });
 
 const SHOT3_NAMES = { lift: '올리기', down: '찍기', flat: '직선', serve: '서브' };
@@ -2128,11 +2485,12 @@ const ARENA = Object.freeze({   // [게임] 색 구성
   LED: ['#FF4FD8', '#3DD9FF', '#FFD23F', '#7CFF6B', '#FF7A45', '#9B7BFF'],
   RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF
 });
-// 코트 양쪽 끝(엔드) 배경 [게임]: 내 맞은편(화면 안쪽) 관중석·배경이 엔드마다 살짝 다름.
-//   친구 대전에선 두 사람이 서로 다른 엔드를 보게 되고, 코트 체인지 때 서로 바뀜
+// 코트 양쪽 끝(엔드) = 응원단 [게임]: END A = 빨강팀, END B = 파랑팀
+//   맞은편 관중석·양옆 관중석의 '맞은편 절반'은 맞은편 엔드 팀 색, 양옆의 '내 쪽 절반'은 내 엔드 팀 색
+//   친구 대전에선 두 사람이 서로 다른 엔드를 보고, 코트 체인지 때 서로 바뀜
 const ENDS = Object.freeze([
-  { name: 'A', BG_TOP: '#1B1640', BG_BOTTOM: '#060A18', STAND: 0x1A1E44, LED: 0xB8B8B8, RIM_A: 0xFF4FD8, RIM_B: 0x3DD9FF, FLAG: '#FF4FD8' },
-  { name: 'B', BG_TOP: '#10303A', BG_BOTTOM: '#04120F', STAND: 0x1E5A55, LED: 0x8FE3C6, RIM_A: 0xFFB13B, RIM_B: 0x5BFFB0, FLAG: '#5BFFB0' }
+  { name: 'RED', team: '빨강팀', BG_TOP: '#3A1230', BG_BOTTOM: '#0C0610', STAND: 0x5A1A24, LED: 0xFFB0A8, RIM_A: 0xFF4B4B, RIM_B: 0xFFB13B, FLAG: '#FF4B4B', HUE: 0.0 },
+  { name: 'BLUE', team: '파랑팀', BG_TOP: '#122A5A', BG_BOTTOM: '#050A18', STAND: 0x183068, LED: 0xA8C4FF, RIM_A: 0x3D8BFF, RIM_B: 0x3DD9FF, FLAG: '#4B8BFF', HUE: 0.6 }
 ]);
 
 class CourtView3D {
@@ -2150,7 +2508,8 @@ class CourtView3D {
     this.baseFov = 44;
     this.camera = new THREE.PerspectiveCamera(this.baseFov, 16 / 9, 0.1, 120);
     // 왼쪽 뒤 높은 곳에서 오른쪽 앞을 비스듬히 [게임]. 화각은 매 프레임 '꼭 보여야 할 점'에 맞춰 자동 조절(fitFov)
-    this.camBase = new THREE.Vector3(-2.0, 5.1, 13.4);   // 너무 위에서 내려다보지 않게, 살짝만 높임 (4.6 → 5.1m)
+    // 원근감 강화: 코트에 더 가깝고 낮게 (-2.0, 5.1, 13.4) → (-1.3, 3.6, 10.6) — 가까운 것은 크게, 먼 것은 작게 보여 셔틀 앞뒤 위치를 읽기 쉬움 [게임]
+    this.camBase = new THREE.Vector3(-1.3, 3.6, 10.6);
     this.camLook = new THREE.Vector3(0.3, 0.2, -0.2);
     const H = C3.COURT.HALF_LEN, Wd = C3.COURT.HALF_W_D;
     this.mustSee = [   // 내 코트 맨 뒤(선수가 설 수 있는 곳까지) + 상대 베이스라인
@@ -2240,17 +2599,19 @@ class CourtView3D {
     flag.position.set(0, 1.25, -9.36); S.add(flag);   // 맞은편 LED판 바로 위
 
     // 관중석: 계단식 좌석 + 여러 색 관중 (InstancedMesh)
-    const stand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });
-    this.farStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });   // 맞은편 관중석 (엔드마다 색이 다름)
+    this.farStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });    // 맞은편 엔드 쪽 관중석 (팀 색)
+    this.nearStand = new THREE.MeshStandardMaterial({ color: ARENA.STAND, roughness: 0.9 });   // 내 엔드 쪽 관중석 (팀 색)
     const tiers = [];
     for (let r = 0; r < 5; r++) {
       const y = 0.6 + r * 0.5;
       tiers.push({ x0: -10, x1: 10, z: -10.8 - r * 0.8, y, ax: 'x' });
-      tiers.push({ x0: -9, x1: 3, z: -8.2 - r * 0.8, y, ax: 'zL' });
-      tiers.push({ x0: -9, x1: 3, z: 8.2 + r * 0.8, y, ax: 'zR' });
+      tiers.push({ x0: -9, x1: 6, z: -8.2 - r * 0.8, y, ax: 'zL' });   // 양옆 관중석을 내 쪽으로 늘림 (3 → 6m)
+      tiers.push({ x0: -9, x1: 6, z: 8.2 + r * 0.8, y, ax: 'zR' });
       const st = new THREE.Mesh(new THREE.BoxGeometry(21, 0.5, 0.8), this.farStand); st.position.set(0, y - 0.28, -10.8 - r * 0.8); S.add(st);
-      const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s2.position.set(-8.2 - r * 0.8, y - 0.28, -3); S.add(s2);
-      const s3 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 12.4), stand); s3.position.set(8.2 + r * 0.8, y - 0.28, -3); S.add(s3);
+      for (const sx of [-1, 1]) {   // 양옆: z=-3 기준으로 맞은편 팀 / 내 팀 구역
+        const a = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 6.4), this.farStand); a.position.set(sx * (8.2 + r * 0.8), y - 0.28, -6.2); S.add(a);
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 9.4), this.nearStand); b.position.set(sx * (8.2 + r * 0.8), y - 0.28, 1.7); S.add(b);
+      }
     }
     const seats = [];
     for (const t of tiers) for (let u = t.x0; u <= t.x1; u += 0.62) {
@@ -2263,9 +2624,11 @@ class CourtView3D {
     const col = new THREE.Color(), m4 = new THREE.Matrix4();
     seats.forEach((s, i) => {
       m4.makeTranslation(s[0], s[1] + 0.26, s[2]); crowd.setMatrixAt(i, m4);
-      col.setHSL(Math.random(), ARENA.CROWD_S, ARENA.CROWD_L * (0.8 + Math.random() * 0.3)); crowd.setColorAt(i, col);
+      col.setHSL(Math.random(), ARENA.CROWD_S, ARENA.CROWD_L); crowd.setColorAt(i, col);
     });
     S.add(crowd); this.crowd = crowd; this.seats = seats; this.seatPhase = seats.map(() => Math.random() * 6.28);
+    // 응원단 색: 팀 색 ±흔들림, 열에 몇 명은 흰 옷 (setEnd에서 칠함)
+    this.seatJit = seats.map(() => ({ h: (Math.random() - 0.5) * 0.07, l: 0.38 + Math.random() * 0.2, w: Math.random() < 0.12 }));
   }
 
   buildCourt() {
@@ -2331,7 +2694,7 @@ class CourtView3D {
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.radialTex([[0, 'rgba(0,0,0,0.85)'], [0.5, 'rgba(0,0,0,0.45)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = 0.006; this.scene.add(this.shadow);
     // 잔상: 속도에 따라 노랑 → 주황 → 빨강
-    this.trailN = 22; this.trailPts = [];
+    this.trailN = 36; this.trailPts = [];   // 22 → 36프레임 (궤적 모양이 더 길게 보이게)
     const tg = new THREE.BufferGeometry();
     tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.trailN * 3), 3));
     tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.trailN * 3), 3));
@@ -2407,25 +2770,42 @@ class CourtView3D {
     u.t = Math.max(0, u.t - dt);
     const up = u.t > 0 ? Math.min(1, (1.5 - u.t) / 0.15, u.t / 0.3) : 0;
     const tgtMe = u.side === 'me' ? up : 0, tgtOpp = u.side === 'opp' ? up : 0;
+    // 심판이 반대쪽 옆에 앉으면(flip) 몸이 180° 돌아 있으므로 '내 코트 쪽 팔'이 바뀜
+    const aPlus = u.flip ? tgtOpp : tgtMe, aMinus = u.flip ? tgtMe : tgtOpp;
     // 팔을 옆·위로: x축 회전(앞뒤 = z 방향)으로 들어 올림
-    u.armMe.rotation.x = -tgtMe * 2.5 + Math.sin(this.time * 1.3) * 0.02;
-    u.armOpp.rotation.x = tgtOpp * 2.5 - Math.sin(this.time * 1.3) * 0.02;
-    const look = u.t > 0 ? (u.side === 'me' ? 0.6 : -0.6) * Math.min(1, u.t / 0.3) : Math.sin(this.time * 0.6) * 0.15;
+    u.armMe.rotation.x = -aPlus * 2.5 + Math.sin(this.time * 1.3) * 0.02;
+    u.armOpp.rotation.x = aMinus * 2.5 - Math.sin(this.time * 1.3) * 0.02;
+    const look = u.t > 0 ? (u.side === 'me' ? 0.6 : -0.6) * (u.flip ? -1 : 1) * Math.min(1, u.t / 0.3) : Math.sin(this.time * 0.6) * 0.15;
     u.head.rotation.y += (Math.PI / 2 - look - u.head.rotation.y) * Math.min(1, dt * 8);
   }
 
   // 화면 안쪽(맞은편) 엔드 배경: 0 = A, 1 = B
   setEnd(far) {
-    const E = ENDS[far] || ENDS[1];
+    far = far ? 1 : 0;
+    const E = ENDS[far], N = ENDS[far ^ 1];
     this.farEnd = far;
     this.scene.background = this.gradientTex(E.BG_TOP, E.BG_BOTTOM);
-    this.farStand.color.setHex(E.STAND); this.farLed.color.setHex(E.LED);
+    this.farStand.color.setHex(E.STAND); this.nearStand.color.setHex(N.STAND); this.farLed.color.setHex(E.LED);
+    // 관중: 맞은편 쪽은 맞은편 팀, 내 쪽은 내 팀 색
+    const col = new THREE.Color();
+    this.seats.forEach((st, i) => {
+      const T = st[2] < -3 ? E : N, j = this.seatJit[i];   // 경계는 네트보다 3m 맞은편 쪽 (내 팀 응원단도 화면에 보이게) [게임]
+      if (j.w) col.setHSL(T.HUE, 0.15, 0.85); else col.setHSL((T.HUE + j.h + 1) % 1, 0.85, j.l);
+      this.crowd.setColorAt(i, col);
+    });
+    this.crowd.instanceColor.needsUpdate = true;
+    // 심판: 실제 주심 의자는 그대로이고 선수가 엔드를 바꾸므로, 내 시점에서는 반대쪽 옆으로 보임
+    //   END A(빨강) 쪽 선수 시점 = 오른쪽, END B(파랑) 쪽 = 왼쪽 → 두 사람이 서로 반대편을 보는 느낌
+    if (this.ump) {
+      const myEnd = far ^ 1, sgn = myEnd === 0 ? 1 : -1;
+      this.ump.g.position.x = sgn * (C3.COURT.HALF_W_D + 1.25); this.ump.g.rotation.y = sgn > 0 ? 0 : Math.PI; this.ump.flip = sgn < 0;
+    }
     this.rimA.color.setHex(E.RIM_A); this.rimB.color.setHex(E.RIM_B);
     const x = this.flagCv.getContext('2d'); x.clearRect(0, 0, 512, 128);
     x.fillStyle = 'rgba(10,12,30,0.7)'; x.fillRect(0, 14, 512, 100);
     x.fillStyle = E.FLAG; x.fillRect(0, 14, 512, 8); x.fillRect(0, 106, 512, 8);
     x.font = 'bold 58px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = E.FLAG;
-    x.fillText('END ' + E.name, 256, 66);
+    x.fillText(E.name + ' TEAM', 256, 66);
     this.flagTex.needsUpdate = true;
   }
 
@@ -2543,7 +2923,7 @@ class CourtView3D {
       const f = 1 - i / this.trailN; col[i * 3] = c.r * f; col[i * 3 + 1] = c.g * f; col[i * 3 + 2] = c.b * f;
     }
     this.trail.geometry.attributes.position.needsUpdate = true; this.trail.geometry.attributes.color.needsUpdate = true;
-    this.trail.visible = visible && sp > 9;
+    this.trail.visible = visible && sp > 1.5;   // 느린 공도 꼬리를 남김 → 궤적 모양으로 앞뒤 위치를 읽기 쉽게
     // 스매시 직후: 셔틀 빛을 크게, 꼬리를 하얗게
     this.smashT = Math.max(0, (this.smashT || 0) - 0.016);
     if (this.smashT > 0 && sp > 9) { const g2 = 0.45 + 0.9 * Math.min(1, this.smashT); this.glow.scale.set(g2, g2, 1); this.trail.material.opacity = 1; }
@@ -2827,12 +3207,19 @@ class Hud3D {
     };
     this.introMsg = this.el.msg.innerHTML;
     this.bannerT = 0;
+    // 로컬 2인 P2 게이지 (오른쪽 위) — 게이지 요소 묶음을 따로 둬서 setGauge를 같이 씀
+    this.g2 = { gauge: $('c3gauge2'), fill: $('c3fill2'), glbl: $('c3glbl2'), zoneLo: $('c3zoneLo2'), zoneHi: $('c3zoneHi2'), tick: $('c3tick2') };
+    this.p2Box = $('c3p2');
     const M = C3.CHARGE.MAX;
-    this.el.zoneHi.style.left = (C3.CHARGE.FAULT / M * 100) + '%';
-    this.el.zoneHi.style.width = ((M - C3.CHARGE.FAULT) / M * 100) + '%';
-    this.el.zoneLo.style.width = (C3.CHARGE.SERVE_NET / M * 100) + '%';
-    this.el.tick.style.left = (1 / M * 100) + '%';
+    for (const e of [this.el, this.g2]) {
+      if (!e.zoneHi) continue;
+      e.zoneHi.style.left = (C3.CHARGE.FAULT / M * 100) + '%';
+      e.zoneHi.style.width = ((M - C3.CHARGE.FAULT) / M * 100) + '%';
+      e.zoneLo.style.width = (C3.CHARGE.SERVE_NET / M * 100) + '%';
+      e.tick.style.left = (1 / M * 100) + '%';
+    }
   }
+  setDuo(on) { if (this.p2Box) this.p2Box.hidden = !on; if (!on) this.setGauge(null, '', this.g2); }
 
   setScore(p, o, server, mp) {
     this.el.pts.textContent = p; this.el.opts.textContent = o;
@@ -2888,19 +3275,25 @@ class Hud3D {
   setMute(m) { const b = document.getElementById('c3muteBtn'); if (b) b.textContent = m ? '🔇 소리' : '🔊 소리'; }
   setSlow(k) { this.el.vig.style.opacity = Math.max(0, Math.min(1, k)) * 0.85; }
 
-  setGauge(ch, name) {
-    const g = this.el.gauge;
+  setGauge(ch, name, E) {
+    E = E || this.el;
+    const g = E.gauge; if (!g) return;
     if (!ch) { g.hidden = true; return; }
     g.hidden = false;
     const M = C3.CHARGE.MAX, c = ch.c;
     const bad = c > C3.CHARGE.FAULT || (ch.type === 'serve' && c < C3.CHARGE.SERVE_NET);
-    this.el.fill.style.width = (c / M * 100) + '%';
-    this.el.fill.style.background = bad ? 'var(--bad)' : c > 0.66 ? 'var(--me)' : c > 0.33 ? 'var(--warn)' : 'var(--ok)';
-    this.el.zoneLo.hidden = ch.type !== 'serve';
-    this.el.glbl.textContent = `${SHOT3_NAMES[ch.type]} · ${name} ${Math.round(c * 100)}%` + (c > C3.CHARGE.FAULT ? (ch.type === 'down' ? ' — 네트!' : ' — 아웃!') : '');
+    E.fill.style.width = (c / M * 100) + '%';
+    E.fill.style.background = bad ? 'var(--bad)' : c > 0.66 ? 'var(--me)' : c > 0.33 ? 'var(--warn)' : 'var(--ok)';
+    E.zoneLo.hidden = ch.type !== 'serve';
+    E.glbl.textContent = (E === this.g2 ? 'P2 ' : '') + `${SHOT3_NAMES[ch.type]} · ${name} ${Math.round(c * 100)}%` + (c > C3.CHARGE.FAULT ? (ch.type === 'down' ? ' — 네트!' : ' — 아웃!') : '');
   }
 
-  update(real, me, s) {
+  update(real, me, s, p2) {
+    if (p2) {   // 로컬 2인: P2 게이지
+      const c2 = p2.charge;
+      if (c2) this.setGauge(c2, Shots3.name({ type: c2.type, p0: s.live ? s.p : { x: p2.pos.x, y: 1, z: p2.pos.z }, jumping: !p2.onGround() }, Math.min(1, c2.c)), this.g2);
+      else this.setGauge(null, '', this.g2);
+    }
     if (this.bannerT > 0) { this.bannerT -= real; this.el.banner.style.opacity = Math.min(1, this.bannerT * 2); }
     const ch = me.charge;
     if (ch) {
@@ -3149,6 +3542,7 @@ class Net3D {
         if (this.peer) return;
         if (m.host === this.host) { this.game.netError(this.host ? '같은 코드의 방이 이미 있어요. 다시 만들어 주세요.' : '상대도 입장하는 쪽이에요. 한 명은 방 만들기를 눌러야 해요.'); this.close(); return; }
         this.peer = { id: m.from, cid: String(m.cid || m.from).slice(0, 16), hand: m.hand === 'L' ? 'L' : 'R', name: String(m.name || '친구').slice(0, 16) };
+        try { if (this.ch.presenceState()[m.from]) this.peer.seen = true; } catch (e) { /* 무시 */ }   // 접속 목록에 이미 있으면 바로 '본 적 있음' (나감 감지가 빠지지 않게)
         if (!m.reply) this.sayHello(true);
         g.netPeerJoined(this.peer, this.host ? this.info.win : m.win);
         if (this.pendResume) { const r = this.pendResume; this.pendResume = null; g.netResume(r); }
@@ -3342,18 +3736,23 @@ class Game3D {
 
   configure({ diff, win, hand, mode, train }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
-    this.mode = mode === 'train' ? 'train' : mode === 'room' ? 'room' : 'ai';
+    this.mode = ['train', 'room', 'local2p'].includes(mode) ? mode : 'ai';
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else this.trainer.stop();
-    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName('상대'); this.hud.setSets(null); this.loadViewPrefs(); }
+    if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
+    if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
+    this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
+    this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
+      : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn);
   }
 
   get online() { return this.mode === 'room' && this.net.connected; }
+  get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
     if (this.mode === 'room') {
@@ -3370,13 +3769,14 @@ class Game3D {
     this.hud.hideMessage(); this.hud.setScore(0, 0, this.match.server, null); this.hud.setShot('-'); this.hud.setRally(0);
     if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
     if (this.mode === 'room' && this.net.peer) this.setOppName(this.net.peer.name);
+    if (this.duo) { this.setOppName('P2'); this.setMeName('P1'); }
     this.setupPoint();
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false;
-    this.phase = 'idle'; this.me.charge = null; this.timeScale = 1;
+    this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
 
@@ -3402,7 +3802,9 @@ class Game3D {
       this.hud.setHint(this.trainer.hint()); return;
     }
     this.hud.setScore(m.pts, m.opts, server, m.matchPoint());
-    this.hud.setHint(server === 'me' ? `내 서브 (${court === 'right' ? '오른쪽' : '왼쪽'} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향` : '상대 서브');
+    const cn = court === 'right' ? '오른쪽' : '왼쪽';
+    if (this.duo) this.hud.setHint(server === 'me' ? `P1 서브 (${cn} 코트) — Q 꾹, 원하는 세기에서 떼기 · 마우스로 방향` : `P2 서브 (${cn} 코트) — I 꾹, 원하는 세기에서 떼기 · ←→로 방향`);
+    else this.hud.setHint(server === 'me' ? `내 서브 (${cn} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향` : '상대 서브');
   }
   placeForServe() { this.setupPoint(); this.phase = 'idle'; }
 
@@ -3429,11 +3831,12 @@ class Game3D {
     const s = this.sh, p0 = { ...s.p }, k = a.classify(p0);
     let yaw = sw.yaw, aimDepth = null;
     if (a.side === 'me') yaw = this.yawTo(p0);   // 내 샷: 타점에서 커서 아래 바닥 점 '방향' (거리는 충전량)
+    else if (this.duo) yaw = this.p2YawTo(p0);   // P2: 방향키(←→) 또는 자동으로 상대 반대쪽
     const plan = Shots3.plan({
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
-      errMul: a.side === 'opp' ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
-      strAng: a.side === 'me' ? Progress3.smashAngle() : 0
+      errMul: a.side === 'opp' && !this.duo ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
+      strAng: a.side === 'me' && !this.duo ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
     });
     a.onHit(p0);
     this.launch(a, p0, plan, false, k);
@@ -3470,27 +3873,29 @@ class Game3D {
     }
     Sound3.hit(plan.kmh);
     (a.side === 'me' ? this.opp : this.me).splitStep();
+    const who = this.duo ? (a.side === 'me' ? 'P1 ' : 'P2 ') : (a.side === 'me' ? '' : '상대 ');
     const r = this.match.rally;
     if (r >= 8 && r % 4 === 0) { { const sp = this.tempo().spd; this.hud.banner('랠리 ' + r + '!' + (sp > 1.001 ? ' 속도 x' + sp.toFixed(2) : ''), '#FFD23F', 0.9); } this.view.cheer(0.35); Sound3.cheer(0.2); }
     const handTxt = k ? HAND_NAMES[k.hand] + ' ' : '';
-    this.hud.setShot((a.side === 'me' ? '' : '상대 ') + handTxt + plan.name + ' · ' + plan.kmh + 'km/h');
-    if (a.side === 'me' && plan.kmh > 200 && /스매시/.test(plan.name)) this.hud.banner(plan.name + '! ' + plan.kmh + 'km/h', '#FF7A45', 0.9);
-    if (a.side === 'me') {
+    this.hud.setShot(who + handTxt + plan.name + ' · ' + plan.kmh + 'km/h');
+    if ((a.side === 'me' || this.duo) && plan.kmh > 200 && /스매시/.test(plan.name)) this.hud.banner(who + plan.name + '! ' + plan.kmh + 'km/h', a.side === 'me' ? '#FF7A45' : '#B9A8FF', 0.9);
+    if (a.side === 'me' && !this.duo) {
       const sm = /스매시/.test(plan.name);
       this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() : 0);
       if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
     }
     this.view.clearTrail();
     // 보조 표시 (난이도별): 상대가 친 공의 궤적·낙하 지점·내가 설 위치
-    const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp';
+    const A = this.trainer.kind === 'jud' ? C3.ASSIST.imp : C3.ASSIST[this.diffId], land = plan.sim.land, toMe = a.side === 'opp' || this.duo;   // 로컬 2인: 받는 사람 누구에게나 표시
+    const recv = this.match.other(a.side);
     // 낙하 지점: 난이도별로 늦게·흐리게·작게 표시 (쉬움=바로, 지옥=떨어지기 직전, 임파서블=없음)
     this.view.setLanding(null); this.landPend = null; this.flyT = 0;
     if (land && toMe && A.land && this.showLand) {
-      const inn = isServe ? this.match.inBox(this.match.box('me', this.match.serveCourt()), land.x, land.z) : this.match.inSingles(land.x, land.z);
+      const inn = isServe ? this.match.inBox(this.match.box(recv, this.match.serveCourt()), land.x, land.z) : this.match.inSingles(land.x, land.z);
       this.landPend = { p: land, at: land.t * A.landAt, col: A.inout ? (inn ? 0x34C08B : 0xE25B5A) : 0xFFFFFF, a: A.landA, s: A.landS };
     }
     // 판단력 레벨: 가끔 낙하 지점 힌트(하늘색)를 일찍 보여줌 (경기에서만)
-    if (land && toMe && this.showLand && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
+    if (land && toMe && !this.duo && this.showLand && !this.trainer.active && A.landAt > 0.35 && Math.random() < Progress3.hintChance())
       this.landPend = { p: land, at: land.t * 0.35, col: 0x5BC8FF, a: 0.6, s: 1 };
     // (칠 위치 주황 원은 삭제 — 낙하 지점 원만 표시)
     const full = (toMe && A.path) ? Phys3.simulate(p0, plan.v0, { path: true, coarse: 2 }) : null;
@@ -3546,6 +3951,10 @@ class Game3D {
   // ───── 온라인 (Net3D가 호출) ─────
   setOppName(n) {
     const b = document.querySelector('#c3board .opp .nm'), c = document.querySelector('.card.team.opp .lbl');
+    if (b) b.textContent = n; if (c) c.textContent = n;
+  }
+  setMeName(n) {
+    const b = document.querySelector('#c3board .me .nm'), c = document.querySelector('.card.team.me .lbl');
     if (b) b.textContent = n; if (c) c.textContent = n;
   }
   netPeerJoined(peer, win) {
@@ -3689,8 +4098,10 @@ class Game3D {
     this.view.cheer(meWon ? 1 : 0.55); Sound3.cheer(meWon ? 1 : 0.5); Sound3.chime(meWon);
     this.hud.setScore(m.pts, m.opts, m.server, m.winner() ? null : m.matchPoint()); this.hud.setRally(0);
     const mine = winner === 'me';
-    const txt = reason === '득점' ? (mine ? '득점!' : '실점') : (mine ? '득점! ' : '실점 · ') + reason;
-    this.hud.banner(txt, mine ? '#5BFFB0' : '#FF6B6B', 1.3);
+    const wn = mine ? 'P1' : 'P2';
+    const txt = this.duo ? (reason === '득점' ? wn + ' 득점!' : wn + ' 득점 · ' + reason)
+      : reason === '득점' ? (mine ? '득점!' : '실점') : (mine ? '득점! ' : '실점 · ') + reason;
+    this.hud.banner(txt, this.duo ? (mine ? '#FFB13B' : '#B9A8FF') : mine ? '#5BFFB0' : '#FF6B6B', 1.3);
     this.phase = 'point'; this.pointT = 1.4; this.me.charge = null;
     const w = m.winner();
     if (w) {
@@ -3700,8 +4111,9 @@ class Game3D {
         const R = this.roomRec; R.sets[w]++; this.hud.setSets(R.sets);
         setTxt = `<br>세트 스코어 <b>${R.sets.me} : ${R.sets.opp}</b> (vs ${escHtml(R.name || '친구')})`;
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
-      } else if (!this.trainer.active && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
-      this.hud.showMessage(`${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
+      const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
+      this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
       this.midSwapped = true; this.myEnd ^= 1;
@@ -3714,7 +4126,7 @@ class Game3D {
       }, 1100);
     } else {
       const mp = m.matchPoint();
-      if (mp) { this.hud.banner(mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
+      if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
   }
@@ -3738,7 +4150,7 @@ class Game3D {
         if (a.side === s.lastHitter || (a.side === 'opp' && (!C3.SLOW.ON_AI || this.trainer.active))) continue;   // 훈련: AI 쪽 슬로우 없음
         // 순발력 레벨만큼 내 슬로우 범위 증가 · 훈련 중엔 슬로우를 덜 걸리게(작은 범위, 레벨 보너스 없음)
         const S = C3.SLOW, nz = Math.abs(s.p.z), netK = nz <= S.NET_NEAR ? S.NET_MUL : nz >= S.NET_FAR ? 1 : S.NET_MUL + (1 - S.NET_MUL) * (nz - S.NET_NEAR) / (S.NET_FAR - S.NET_NEAR);   // 네트 앞일수록 좁게
-        const sh = a.shoulder(), R = (this.trainer.active ? S.TRAIN_RADIUS : (S.RADIUS + (a.side === 'me' ? Progress3.slowBonus() : 0)) * tp.slow) * netK;   // 랠리가 길수록 슬로우 범위 축소
+        const sh = a.shoulder(), R = (this.trainer.active ? S.TRAIN_RADIUS : (S.RADIUS + (a.side === 'me' && !this.duo ? Progress3.slowBonus() : 0)) * tp.slow) * netK;   // 랠리가 길수록 슬로우 범위 축소
         if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < R) slow = true;
       }
     }
@@ -3747,6 +4159,7 @@ class Game3D {
     this.hud.setSlow((1 - this.timeScale) / (1 - C3.SLOW.SCALE));
 
     this.me.updateCharge(real);
+    if (this.duo) this.opp.updateCharge(real);
     if (this.mode === 'room') this.net.tick(real);
     let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율
     this.simRate = this.timeScale * C3.GAME_SPEED * tp.spd;
@@ -3779,14 +4192,14 @@ class Game3D {
     this.view.setMarkers(this.me, this.opp, this.me.extT > 0 ? this.me.extPhase() : 0, this.me.extReady());
     this.view.updateFx(real || 0.016);
     this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
-    this.hud.update(real, this.me, s);
+    this.hud.update(real, this.me, s, this.duo ? this.opp : null);
     this.view.render();
   }
 
   step(dt) {
     const s = this.sh;
     this.me.update(dt); this.opp.update(dt);
-    if (this.mode === 'room') this.net.applyRemote(dt, this.simRate || C3.GAME_SPEED); else this.ai.update(dt);
+    if (this.mode === 'room') this.net.applyRemote(dt, this.simRate || C3.GAME_SPEED); else if (!this.duo) this.ai.update(dt);
     if (!s.live || s.waitNet) return;
     const prev = { ...s.p };
     this.flyT += dt;
@@ -3814,6 +4227,12 @@ class Game3D {
       const sh = a.shoulder();
       if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) <= a.reach()) this.hit(a, a.swingS);
     }
+    // 로컬 2인: P2도 같은 방식 (스윙 창 안 + 리치 안 + P2 코트 쪽)
+    const b = this.opp;
+    if (this.duo && s.live && !s.netted && s.lastHitter !== 'opp' && b.canHitNow() && s.p.z < 0.02) {
+      const sh = b.shoulder();
+      if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) <= b.reach()) this.hit(b, b.swingS);
+    }
     // 강하게 충전한 샷을 정타 타이밍 밖에서 뗐을 때 알려줌
     const sw = a.swingS;
     if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.window < C3.BODY.HIT_WINDOW - 0.01 && s.lastHitter !== 'me' && !s.netted) {
@@ -3823,22 +4242,36 @@ class Game3D {
     }
   }
 
-  // ───── 플레이어 명령 (Input3D가 호출) ─────
-  press(type) {
-    if (this.phase === 'serve' && this.match.server === 'me' && type === 'lift') this.me.startCharge('serve');
-    else if (this.phase === 'rally') this.me.startCharge(type);
+  // ───── 플레이어 명령 (Input3D가 호출) ─────  a = 누른 사람의 선수 (기본 me, 로컬 2인이면 opp = P2도)
+  press(type, a = this.me) {
+    if (a === this.opp && !this.duo) return;
+    if (this.phase === 'serve' && this.match.server === a.side && type === 'lift') a.startCharge('serve');
+    else if (this.phase === 'rally') a.startCharge(type);
   }
-  release(type) {
-    const ch = this.me.charge;
+  release(type, a = this.me) {
+    const ch = a.charge;
     if (!ch || (ch.type !== type && !(ch.type === 'serve' && type === 'lift'))) return;
-    this.me.takeCharge();
-    if (ch.type === 'serve') { this.serveBy(this.me, ch.c, this.aimYaw()); return; }
+    a.takeCharge();
+    if (ch.type === 'serve') { this.serveBy(a, ch.c, a === this.me ? this.aimYaw() : this.p2ServeYaw()); return; }
     const s = this.sh;
     const sp = s.live ? s.p : null;
     Sound3.whoosh();
-    const swp = sp && Math.hypot(sp.x - this.me.pos.x, sp.z - this.me.pos.z) < 3 ? sp : null, cat = { down: 'over', lift: 'low', flat: 'side' }[type];
-    this.me.swing(type, ch.c, swp, cat);
-    if (this.online) this.net.send({ t: 'sw', ty: type, c: Math.round(ch.c * 100) / 100, sp: swp ? { x: swp.x, y: swp.y, z: swp.z } : null, cat });
+    const swp = sp && Math.hypot(sp.x - a.pos.x, sp.z - a.pos.z) < 3 ? sp : null, cat = { down: 'over', lift: 'low', flat: 'side' }[type];
+    a.swing(type, ch.c, swp, cat);
+    if (this.online && a === this.me) this.net.send({ t: 'sw', ty: type, c: Math.round(ch.c * 100) / 100, sp: swp ? { x: swp.x, y: swp.y, z: swp.z } : null, cat });
+  }
+  // P2 조준 [게임 설계]: 마우스가 없으니 ←/→를 누르고 있으면 그쪽 사이드라인 가까이, 안 누르면 P1이 없는 쪽으로
+  //   (화면 기준 ← = 세계 −x. 각도는 Shots3 규칙대로 '치는 사람 기준 오른쪽 = +')
+  p2YawTo(o) {
+    const u = this.p2Aim || 0, me = this.me.pos;
+    const tx = u ? u * 2.3 : Math.max(-1.8, Math.min(1.8, -me.x * 0.9 + (Math.abs(me.x) < 0.3 ? (Math.random() < 0.5 ? -1.2 : 1.2) : 0)));
+    const tz = 4.6, M = C3.AIM_YAW_MAX;
+    return Math.max(-M, Math.min(M, Math.atan2(-(tx - o.x), tz - o.z)));
+  }
+  p2ServeYaw() {
+    const b = this.match.box('me', this.match.serveCourt()), p = this.heldPos(this.opp);
+    const y0 = Math.atan2(-((b.xMin + b.xMax) / 2 - p.x), (b.zMin + b.zMax) / 2 - p.z);
+    return y0 - (this.p2Aim || 0) * C3.AIM_MAX * 0.5;
   }
   // 조준 각도: 랠리 땐 마우스 그대로, 내 서브 땐 대각선 서비스 코트 중앙을 기준으로 마우스가 ±조정 [게임 보조]
   aimYaw() {
@@ -3854,21 +4287,21 @@ class Game3D {
     if (dz < 0.3) return Math.sign(dx || 1) * M;
     return Math.max(-M, Math.min(M, Math.atan2(dx, dz)));
   }
-  jump() { if (this.phase === 'rally' || this.phase === 'serve') this.me.jump(); }
+  jump(a = this.me) { if ((a === this.me || this.duo) && (this.phase === 'rally' || this.phase === 'serve')) a.jump(); }
   sendEmote(id) {
     if (!this.emote.show('me', id)) return;
     if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'emo', id });
   }
   // Shift 런지: 이동키 방향 우선, 없으면 셔틀이 내 라켓 팔에 가장 가깝게 지나갈 지점 쪽으로
-  extend() {
-    if (this.phase !== 'rally') return;
-    const me = this.me, s = this.sh;
+  extend(me = this.me) {
+    if (this.phase !== 'rally' || (me === this.opp && !this.duo)) return;
+    const s = this.sh, own = me.side === 'me' ? 1 : -1;
     let target = null;
-    if (s.live && s.lastHitter !== 'me' && !s.netted) {
+    if (s.live && s.lastHitter !== me.side && !s.netted) {
       const sim = Phys3.simulate(s.p, s.v, { path: true, coarse: 2 }), sh = me.shoulder();
       let best = 1e9;
       for (const q of sim.path) {
-        if (q.z < 0.2 || q.y < 0.15 || q.y > 2.9) continue;
+        if (q.z * own < 0.2 || q.y < 0.15 || q.y > 2.9) continue;
         const d = Math.hypot(q.x - sh.x, (q.y - sh.y) * 0.5, q.z - sh.z);
         if (d < best) { best = d; target = q; }
       }
@@ -3890,10 +4323,25 @@ class Input3D {
     const K = C3.KEYS;
     const moveKeys = [K.up, K.down, K.left, K.right];
 
+    const K2 = C3.KEYS2, move2 = [K2.up, K2.down, K2.left, K2.right], keys2 = [...move2, K2.lift, K2.smash, K2.flat, K2.jump, ...K2.ext];
+    this.keys2 = {};
     document.addEventListener('keydown', e => {
       if (!game.inputOn) return;
       Sound3.unlock();
       const c = e.code;
+      // 로컬 2인 P2
+      if (game.duo && keys2.includes(c)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        const b = game.opp;
+        if (move2.includes(c)) { this.keys2[c] = true; this.applyMove2(); }
+        else if (c === K2.lift) game.press('lift', b);
+        else if (c === K2.smash) game.press('down', b);
+        else if (c === K2.flat) game.press('flat', b);
+        else if (c === K2.jump) game.jump(b);
+        else if (K2.ext.includes(c)) game.extend(b);
+        return;
+      }
       if (c === 'KeyM' && !e.repeat) { game.hud.setMute(Sound3.toggleMute()); return; }
       if (c === 'KeyL' && !e.repeat) { game.toggleLand(); return; }
       if (c === 'KeyG' && !e.repeat) { game.toggleShadow(); return; }
@@ -3909,12 +4357,23 @@ class Input3D {
     });
     document.addEventListener('keyup', e => {
       const c = e.code;
+      if (keys2.includes(c)) {
+        const b = game.opp;
+        if (move2.includes(c)) { this.keys2[c] = false; this.applyMove2(); }
+        else if (c === K2.lift) game.release('lift', b);
+        else if (c === K2.smash) game.release('down', b);
+        else if (c === K2.flat) game.release('flat', b);
+        if (game.duo) return;
+      }
       if (moveKeys.includes(c)) { this.keys[c] = false; this.applyMove(); }
       else if (c === K.lift) game.release('lift');
       else if (c === K.smash) game.release('down');
       else if (c === 'KeyT') game.emote.release();
     });
-    window.addEventListener('blur', () => { game.emote.close(); this.keys = {}; this.applyMove(); game.release('lift'); game.release('down'); game.release('flat'); });
+    window.addEventListener('blur', () => {
+      game.emote.close(); this.keys = {}; this.applyMove(); game.release('lift'); game.release('down'); game.release('flat');
+      this.keys2 = {}; if (game.duo) { this.applyMove2(); game.release('lift', game.opp); game.release('down', game.opp); game.release('flat', game.opp); }
+    });
 
     // 마우스: 화면 가로 위치 → 조준 각도
     document.addEventListener('mousemove', e => {
@@ -3935,7 +4394,13 @@ class Input3D {
     const K = C3.KEYS, k = this.keys;
     this.g.me.moveDir = { x: (k[K.right] ? 1 : 0) - (k[K.left] ? 1 : 0), z: (k[K.down] ? 1 : 0) - (k[K.up] ? 1 : 0) };
   }
-  reset() { this.keys = {}; this.applyMove(); }
+  // P2 이동: 화면 기준(카메라는 P1 뒤) — ↑ = 화면 안쪽(−z), ← = 화면 왼쪽(−x). ←/→는 조준 방향도 겸함
+  applyMove2() {
+    const K = C3.KEYS2, k = this.keys2, x = (k[K.right] ? 1 : 0) - (k[K.left] ? 1 : 0);
+    this.g.opp.moveDir = { x, z: (k[K.down] ? 1 : 0) - (k[K.up] ? 1 : 0) };
+    this.g.p2Aim = x;
+  }
+  reset() { this.keys = {}; this.applyMove(); this.keys2 = {}; if (this.g.duo) this.applyMove2(); else this.g.p2Aim = 0; }
 }
 </script>
 <script>
@@ -3952,7 +4417,8 @@ const TUTORIAL_3D_PAGES = [
   { t: '7. Shift 런지', b: '<b>Shift</b>를 누르면 한 발 크게(약 1.1m) 내딛으며 팔을 뻗습니다. 리치도 0.45m 늘어나요.<br>방향: <b>이동키를 누르고 있으면 그 방향</b>, 아니면 <b>셔틀이 올 곳으로 자동</b>.<br><b>네트 앞 런지 + Q(헤어핀·리프트)나 좌클릭(푸시)</b>은 오히려 더 정확합니다 — 실제 선수들이 네트 앞 공을 받는 방식이에요.<br>뒤쪽 공을 런지로 치면 조금 덜 멀리 갑니다. 쓴 뒤 약 1초 후 다시 사용 가능(왼쪽 아래 표시).' },
   { t: '9. 친구 1:1 방 (온라인)', b: '대기화면에서 <b>3D 코트 → 친구 1:1 방</b>을 고르세요.<br>한 명이 <b>방 만들기</b> → 화면에 뜬 <b>5자리 코드</b>를 친구에게 알려주면, 친구는 코드를 입력하고 <b>입장</b>.<br>두 사람 모두 자기 쪽이 화면 앞(나)으로 보입니다. 첫 서브는 방장, 목표 점수는 방장 설정을 따릅니다.<br>인터넷이 필요하고, 지연이 크면 상대 움직임이 살짝 늦게 보일 수 있어요. 창을 내리면 내 쪽 게임이 멈추니 경기 중엔 화면을 켜 두세요.<br>경기 중 방 코드는 화면 위쪽 제목 옆에 작게 보입니다(클릭하면 복사).' },
   { t: '10. 낙하 지점 표시', b: '<b>L</b> 키 또는 위쪽 <b>📍 낙하 표시</b> 버튼으로 셔틀 낙하 지점 표시를 켜고 끌 수 있어요(브라우저에 기억됨).<br>끄면 난이도와 상관없이 낙하 지점과 하늘색 힌트가 나오지 않습니다. <b>친구 방에서는 누가 바꾸든 두 사람 모두에게 똑같이 적용</b>됩니다(셔틀 그림자 G도 같음). 방장 설정으로 시작해요. 궤적 미리보기(쉬움)는 그대로예요.' },
-  { t: '11. 감정표현 · 그림자 · 코트 체인지', b: '<b>T를 꾹</b> 누르면 원판이 뜹니다. <b>마우스를 움직인 쪽</b>이 골라지고(안쪽 = 표정, 바깥쪽 = 말), <b>T를 떼면</b> 보내요. 가운데에서 떼면 취소.<br>내 감정표현은 <b>오른쪽 아래</b>, 상대 것은 <b>왼쪽 위</b>에 뜹니다.<br><b>G</b> 또는 🌑 버튼 = 셔틀 그림자·수직선 끄기 (끄면 인/아웃을 눈으로 판단해야 해요).<br>15점 이상 경기는 한쪽이 절반(15점 → 8점, 21점 → 11점)에 닿으면 <b>코트 체인지</b> — 맞은편 배경(END A/B)이 바뀝니다. 경기가 끝나고 재대결해도 엔드가 바뀌어요.<br>친구 방에서 상대가 나가면 경기가 멈추고, <b>같은 브라우저로 같은 코드에 다시 들어오면 그 점수부터 이어집니다</b>. 같은 상대와 계속하면 점수판 아래에 <b>세트 스코어</b>가 쌓이고, 친구 대전 결과는 <b>내 기록</b>에 남아요.' }
+  { t: '11. 감정표현 · 그림자 · 코트 체인지', b: '<b>T를 꾹</b> 누르면 원판이 뜹니다. <b>마우스를 움직인 쪽</b>이 골라지고(안쪽 = 표정, 바깥쪽 = 말), <b>T를 떼면</b> 보내요. 가운데에서 떼면 취소.<br>내 감정표현은 <b>오른쪽 아래</b>, 상대 것은 <b>왼쪽 위</b>에 뜹니다.<br><b>G</b> 또는 🌑 버튼 = 셔틀 그림자·수직선 끄기 (끄면 인/아웃을 눈으로 판단해야 해요).<br>15점 이상 경기는 한쪽이 절반(15점 → 8점, 21점 → 11점)에 닿으면 <b>코트 체인지</b> — 관중석 응원단(<b style="color:#FF6B6B">빨강팀</b>/<b style="color:#6FA0FF">파랑팀</b>)과 심판 자리가 서로 바뀝니다. 친구 대전에선 두 사람이 서로 반대편 관중석·심판을 보게 돼요. 경기가 끝나고 재대결해도 엔드가 바뀌어요.<br>친구 방에서 상대가 나가면 경기가 멈추고, <b>같은 브라우저로 같은 코드에 다시 들어오면 그 점수부터 이어집니다</b>. 같은 상대와 계속하면 점수판 아래에 <b>세트 스코어</b>가 쌓이고, 친구 대전 결과는 <b>내 기록</b>에 남아요.' },
+  { t: '12. 로컬 2인 (한 키보드)', b: '대기화면에서 <b>3D 코트 → 로컬 2인</b>. 카메라는 P1(앞쪽) 뒤에 있고, P2는 화면 안쪽 선수예요.<br><span style="color:#FFB13B">P1</span>: 지금과 같음 — <b>WASD</b> 이동 · <b>마우스</b> 방향 · <b>Q</b> 올리기 · <b>E</b> 찍기 · <b>좌클릭</b> 직선 · <b>Space</b> 점프 · <b>Shift</b> 런지<br><span style="color:#C9B8FF">P2</span>: <b>방향키</b> 이동(화면 기준: ↑ = 화면 안쪽) · <b>I</b> 올리기 · <b>O</b> 찍기 · <b>P</b> 직선 · <b>K</b> 점프 · <b>J</b> 런지<br>P2는 마우스가 없어서 <b>←/→를 누른 채 치면 그쪽 사이드라인</b>으로, 안 누르면 <b>P1이 없는 쪽</b>으로 자동 조준돼요. 서브는 <b>I 꾹</b>. 오른쪽 위에 P2 게이지가 떠요.<br>로컬 2인은 훈련 레벨 효과 없이 공평하게 겨루고, 기록은 남기지 않아요.' }
 ];
 </script>
 <script>
@@ -3964,12 +4430,12 @@ const GAME_TYPES = [
   {
     id: 'classic', name: '클래식 랠리',
     desc: '옆에서 보는 2D 코트. 키보드로 샷을 골라 치는 원래 게임.',
-    modes: ['ai'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
+    modes: ['ai', 'local2p', 'room'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
   },
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트·단식 규칙 · WASD 이동 · 마우스 방향 · Q 올리기 / E 찍기 / 클릭 직선 · 슬로우 타이밍.',
-    modes: ['ai', 'train', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'train', 'local2p', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
   }
 ];
 
@@ -4307,6 +4773,7 @@ Account.init();
 // app/lobby.js — 대기화면: 게임 종류·모드·난이도·목표 점수 선택 후 시작
 
 const LOBBY_STORE_KEY = 'badminton.lobby';
+const NICK_STORE_KEY = 'badminton.nick';   // 친구 1:1 닉네임 (두 게임 종류 공용, 이 브라우저에 기억)
 
 const COURT_ART = {   // 게임 종류 카드의 작은 그림
   side: '<svg viewBox="0 0 120 44" aria-hidden="true"><line x1="4" y1="38" x2="116" y2="38" stroke="currentColor" stroke-width="2"/><line x1="60" y1="38" x2="60" y2="20" stroke="currentColor" stroke-width="2"/><circle cx="26" cy="22" r="3" fill="var(--opp)"/><line x1="26" y1="25" x2="26" y2="38" stroke="var(--opp)" stroke-width="2"/><circle cx="94" cy="22" r="3" fill="var(--me)"/><line x1="94" y1="25" x2="94" y2="38" stroke="var(--me)" stroke-width="2"/><path d="M90 18 Q60 -4 34 20" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>',
@@ -4361,6 +4828,12 @@ class Lobby {
     });
     rc.addEventListener('input', clean);
     rc.addEventListener('compositionend', clean);
+    // 닉네임: 입력할 때마다 저장 → 메뉴로 돌아오거나 다음 판·새로고침 때도 그대로 채워져 있음
+    this.nick = $('roomNick'); this.nickHint = $('roomNickHint');
+    this.nick.value = this.loadNick();
+    this.nick.addEventListener('input', () => { this.nick.classList.remove('need'); this.saveNick(); });
+    this.nick.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); this.roomCode.focus(); } });
+    if (typeof Account !== 'undefined' && Account.on) Account.on(() => { if (!this.nick.value.trim() && Account.nickname) { this.nick.value = Account.nickname; this.saveNick(); } });
     this.refresh();
   }
 
@@ -4411,9 +4884,9 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    const room = this.sel.mode === 'room';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
-    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
+    const room = this.sel.mode === 'room', duo = this.sel.mode === 'local2p';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || duo) || !this.canStart();
+    this.diffBox.hidden = room || duo; this.aiHead.textContent = room ? '대전 설정' : duo ? '로컬 2인 설정 (한 키보드로 둘이 · 조작은 튜토리얼 참고)' : 'AI 대전 설정';
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
@@ -4443,6 +4916,9 @@ class Lobby {
     if (!this.canStart()) return;
     const sel = { ...this.sel };
     if (sel.mode === 'room') {   // 코드가 있으면 입장, 없으면 방 만들기
+      const nick = this.nick.value.trim().replace(/\s+/g, ' ');
+      if (!nick) { this.note.textContent = '입장 전에 닉네임을 적어 주세요.'; this.nick.classList.add('need'); this.nick.focus(); return; }
+      this.nick.value = nick; this.saveNick(); sel.nick = nick;
       const code = (this.roomCode.value || '').trim().toUpperCase();
       if (code && code.length !== 5) { this.note.textContent = '방 코드는 5자리예요.'; return; }
       sel.room = code ? { code, host: false } : { code: Net3D.makeCode(), host: true };
@@ -4458,6 +4934,13 @@ class Lobby {
     } catch (e) { /* 무시 */ }
   }
   save() { try { localStorage.setItem(LOBBY_STORE_KEY, JSON.stringify(this.sel)); } catch (e) { /* 무시 */ } }
+  loadNick() {
+    let v = '';
+    try { v = localStorage.getItem(NICK_STORE_KEY) || ''; } catch (e) { /* 무시 */ }
+    if (!v && typeof Account !== 'undefined' && Account.nickname) v = Account.nickname;   // 처음이면 로그인 닉네임
+    return v.slice(0, 12);
+  }
+  saveNick() { try { localStorage.setItem(NICK_STORE_KEY, this.nick.value.trim()); } catch (e) { /* 무시 */ } }
 }
 </script>
 <script>
@@ -4486,6 +4969,7 @@ class App {
     $('c3startBtn').addEventListener('click', () => this.court3d && this.court3d.start());
     $('c3landBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleLand(); e.currentTarget.blur(); });
     $('c3shadowBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleShadow(); e.currentTarget.blur(); });
+    $('clRoom').addEventListener('click', () => { const c = $('clRoomCode').textContent; try { navigator.clipboard.writeText(c); this.classic.fx.show('방 코드 복사됨: ' + c, COLORS.ok, 0.9); this.classic.renderer.draw(); } catch (e) { /* 무시 */ } });
     $('c3room').addEventListener('click', () => { const c = $('c3roomCode').textContent; try { navigator.clipboard.writeText(c); this.court3d.hud.banner('방 코드 복사됨: ' + c, '#5BFFB0', 0.9); } catch (e) { /* 무시 */ } });
     $('c3muteBtn').addEventListener('click', () => { Sound3.unlock(); this.court3d && this.court3d.hud.setMute(Sound3.toggleMute()); });
     $('tutBtn').addEventListener('click', () => this.openTutorial('classic'), true);
@@ -4521,15 +5005,19 @@ class App {
   }
 
   launch(sel) {
-    if (sel.mode !== 'ai' && !((sel.mode === 'train' || sel.mode === 'room') && sel.type === 'court3d')) return;
+    const T = GAME_TYPES.find(t => t.id === sel.type);
+    if (!T || !T.modes.includes(sel.mode)) return;
     if (sel.type === 'classic') {
       const g = this.classic;
+      g.setMode(sel.mode);
       g.match.diff = DIFFS[sel.diff];
       g.match.win = sel.win;
       g.match.diffId = sel.diff;   // 기록 저장용 난이도 id
-      g.hud.setConfigLabel(DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
+      g.hud.setConfigLabel(sel.mode === 'local2p' ? '로컬 2인 · ' + sel.win + '점' : sel.mode === 'room' ? '친구 1:1 · ' + sel.win + '점' : DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
       this.show('classic');
-      g.start();
+      if (sel.mode === 'room') this.openClassicRoom(sel);
+      else if (sel.mode === 'local2p') { g.stop(); }   // 둘 다 준비되면 Space(또는 시작)로 시작
+      else g.start();
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;
       this.court3d.configure(sel);
@@ -4540,6 +5028,23 @@ class App {
     }
   }
 
+  nickOf(sel) { return (sel.nick || (typeof Account !== 'undefined' && Account.nickname) || '게스트').slice(0, 12); }
+
+  // 클래식 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
+  openClassicRoom(sel) {
+    const g = this.classic, r = sel.room;
+    g.stop(); g.oppName = '상대'; g.setMode('room'); g.hud.setRoom(r.code);
+    g.hud.showMessage(r.host ? '방을 만드는 중…' : `방 <b>${r.code}</b>에 들어가는 중…`);
+    g.net.open(r.code, r.host, { win: sel.win, name: this.nickOf(sel) })
+      .then(() => {
+        if (g.net.connected || this.screen !== 'classic' || g.mode !== 'room') return;
+        g.hud.showMessage(r.host
+          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>클래식 랠리 → 친구 1:1 방</b>을 골라야 해요</small>`
+          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(클래식)를 다시 확인해 주세요</small>`);
+      })
+      .catch(err => { if (this.screen === 'classic') g.netError(err.message || String(err)); });
+  }
+
   // 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
   openRoom(sel) {
     const g = this.court3d, r = sel.room;
@@ -4547,7 +5052,7 @@ class App {
     g.hud.showMessage(r.host
       ? `방을 만드는 중…`
       : `방 <b>${r.code}</b>에 들어가는 중…`);
-    const name = (typeof Account !== 'undefined' && Account.nickname) || '게스트';
+    const name = this.nickOf(sel);
     g.net.open(g, r.code, r.host, { hand: sel.hand, win: sel.win, name })
       .then(() => {
         if (g.net.connected || this.screen !== 'court3d') return;

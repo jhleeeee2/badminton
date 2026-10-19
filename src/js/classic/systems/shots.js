@@ -28,7 +28,7 @@ class ShotSystem {
     } else { // smash
       const scat = (Math.random() - 0.5) * (16 + 90 * Math.max(0, power - 1.3));
       s.x1 = (toRight ? NET + 95 + R * (W - 160 - NET - 95) : 55 + R * (NET - 150)) + scat;
-      if (toRight && d.sharp && Math.random() < 0.7) {
+      if (toRight && g.mode === 'ai' && d.sharp && Math.random() < 0.7) {
         s.x1 = Math.random() < 0.5 ? BL_R - 18 - Math.random() * 32 : NET + 58 + Math.random() * 48;
       }
       s.dur = Math.max(0.34, 0.95 / (Math.pow(power, 1.6) * sm));
@@ -43,6 +43,7 @@ class ShotSystem {
 
     ai.ignore = (!toRight) && (s.outPred || !!s.net);
     ai.frozen = false;
+    if (g.mode !== 'ai') return;   // 사람끼리(로컬 2인·친구 1:1): AI 반응 계산 없음
     if (!toRight && !ai.ignore) {
       // 반사신경 한계: 파워가 임계값을 넘으면 확률적으로 굳음
       const pf = Math.min(d.rC, Math.max(0, (power - d.rT) * d.rK));
@@ -62,6 +63,7 @@ class ShotSystem {
     s.finalize();
     const ownSide = toRight ? s.x1 < NET : s.x1 > NET;
     ai.ignore = (!toRight) && (s.outPred || !!s.net || ownSide);
+    if (g.mode !== 'ai') return;
     if (!toRight && !ai.ignore) ai.plan = ai.makePlan(0.9);
     else if (toRight) ai.goHome();
   }
