@@ -275,3 +275,72 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3p2keys{font-size:12px;color:var(--text2);background:rgba(14,10,40,.55);border-radius:10px;padding:4px 10px;text-align:right;line-height:1.5;}
 .c3p2keys b{color:#C9B8FF;}
 .c3p2 .c3gauge{width:100%;}
+
+/* ───────── 화면 버튼 배치 (PC: 코트 아래 버튼 줄 그대로 / 모바일 body.touch: 왼쪽 패드 · 코트 · 오른쪽 버튼) ───────── */
+.tlay{display:flex;flex-direction:column;}
+.tlay>.stage{order:0;}
+.tlay>.tside.L{order:1;}
+.tlay>.tside.R{order:2;}
+.dpad,.tnote,.tonly,.tsub,.aimseg{display:none;}
+#c3lay>.tside{display:none;}
+
+body.touch{padding:6px 8px;align-items:flex-start;overscroll-behavior:none;}
+body.touch .wrap{max-width:none;}
+body.touch .wrap.wide3d{max-width:none;}
+body.touch .foot,body.touch .key{display:none;}
+body.touch h1{font-size:15px;margin:0 0 6px;}
+body.touch h1 .back{padding:5px 9px;font-size:12px;}
+body.touch .hud{margin-bottom:6px;gap:6px;}
+body.touch .hud .cards{gap:5px;}
+body.touch .hud .card{padding:4px 8px;}
+body.touch .hud .card .val{font-size:15px;margin-left:5px;}
+body.touch .hud .card.team .val{font-size:16px;}
+body.touch .hud button{padding:6px 9px;font-size:12px;white-space:nowrap;}
+body.touch .tlay{flex-direction:row;align-items:center;gap:8px;}
+body.touch .tlay>.stage{order:1;flex:1 1 auto;min-width:0;}
+body.touch .tlay>.tside.L{order:0;}
+body.touch .tlay>.tside.R{order:2;}
+body.touch #c3lay>.tside,body.touch .tside{display:flex;}
+body.touch .tside{flex:0 0 auto;width:clamp(128px,19vw,200px);flex-direction:column;align-items:center;gap:8px;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+body.touch .tside .row.krow{display:none;}
+body.touch .dpad{display:block;position:relative;width:clamp(116px,17vw,176px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,#262A34 0 30%,#1F222A 31%);border:1px solid var(--line);touch-action:none;}
+body.touch .dpad.held{border-color:var(--ok);}
+.dpad .a{position:absolute;font-size:18px;color:var(--text3);transform:translate(-50%,-50%);transition:color .08s;pointer-events:none;}
+.dpad .a.u{left:50%;top:15%;} .dpad .a.d{left:50%;top:85%;}
+.dpad .a.l{left:15%;top:50%;} .dpad .a.r{left:85%;top:50%;}
+.dpad .a.on{color:var(--ok);}
+.dpad .knob{position:absolute;left:50%;top:50%;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);pointer-events:none;transition:transform .04s;}
+body.touch .tnote{display:block;font-size:11px;color:var(--text3);}
+body.touch .tside .row{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;}
+body.touch .tside .row button{min-height:44px;padding:6px 4px;font-size:13.5px;line-height:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+body.touch .tside .row button small{font-size:10px;color:var(--text3);font-weight:500;}
+body.touch .tside .row button.big{grid-column:span 2;min-height:54px;font-size:15px;font-weight:700;}
+body.touch .tside .row button.held,body.touch .tside button:active{background:#363B48;transform:scale(.96);}
+body.touch #sS.big{border-color:var(--me);color:var(--me);}
+body.touch .tsub{display:inline;font-size:12px;font-weight:500;}
+body.touch .tonly{display:grid;}
+body.touch .tonly .tdash{grid-column:span 2;color:var(--warn);border-color:rgba(242,169,59,.5);}
+body.touch #clStage canvas{width:auto;max-width:100%;max-height:calc(100vh - 96px);margin:0 auto;}
+body.touch #clStage{display:flex;justify-content:center;}
+/* 3D 오른쪽 버튼 */
+body.touch .aimseg{display:flex;align-items:center;gap:4px;width:100%;}
+.aimseg .albl{font-size:11px;color:var(--text3);margin-right:2px;}
+.aimseg button{flex:1;padding:7px 0;font-size:14px;border-radius:9px;color:var(--text2);}
+.aimseg button.active{background:#2E3340;color:#FFD23F;border-color:#FFD23F;}
+body.touch #t3lift{border-color:#9FE6C6;color:#9FE6C6;}
+body.touch #t3down{border-color:#FF7A45;color:#FF7A45;}
+body.touch #t3emo{font-size:20px;}
+body.touch .stage3d{border-radius:10px;}
+body.touch .c3ext .k{display:none;}
+.c3wheel{transform-origin:50% 50%;}
+/* 세로 화면: 코트를 위에 크게, 버튼은 아래 양쪽 */
+@media (orientation:portrait){
+  body.touch .tlay{flex-wrap:wrap;justify-content:space-between;align-items:flex-start;row-gap:10px;}
+  body.touch .tlay>.stage{order:0;flex:1 1 100%;}
+  body.touch .tlay>.tside.L{order:1;} body.touch .tlay>.tside.R{order:2;}
+  body.touch .tside{width:46%;}
+  body.touch #clStage canvas{max-height:none;width:100%;}
+}

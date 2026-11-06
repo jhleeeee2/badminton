@@ -61,28 +61,36 @@ class Input {
     else if (g.phase === 'gameover' || g.phase === 'idle') g.start();
   }
 
+  // 화면 버튼 (PC: 코트 아래 버튼 줄 / 모바일: 왼쪽 이동 패드 + 오른쪽 샷 버튼, TouchUI가 레이아웃 전환)
   bindTouch() {
-    const g = this.game, ctrl = g.player.ctrl, $ = id => document.getElementById(id);
-    const tap = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
-    const hold = (id, on, off) => {
-      const b = $(id);
-      b.addEventListener('pointerdown', e => { e.preventDefault(); on(); });
-      b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
-    };
-    hold('bL', () => ctrl.L = true, () => ctrl.L = false);
-    hold('bR', () => ctrl.R = true, () => ctrl.R = false);
-    hold('bC', () => ctrl.C = true, () => ctrl.C = false);
-    tap('bJ', () => g.jump(g.player));
-    tap('bD', () => g.dash(g.player));
-    const bSrv = $('bSrv');
-    bSrv.addEventListener('pointerdown', e => { e.preventDefault(); g.chargeServe(g.player, true); });
-    bSrv.addEventListener('pointerup', () => g.chargeServe(g.player, false));
-    bSrv.addEventListener('pointercancel', () => g.chargeServe(g.player, false));
-    tap('sC', () => g.playerShot(g.player, 'clear'));
-    tap('sV', () => g.playerShot(g.player, 'drive'));
-    tap('sH', () => g.playerShot(g.player, 'hairpin'));
-    tap('sP', () => g.playerShot(g.player, 'drop'));
-    hold('sS', () => this.mainKey(g.player, true), () => this.mainKey(g.player, false));
+    const g = this.game, ctrl = g.player.ctrl, $ = id => document.getElementById(id), T = TouchUI;
+    T.hold($('bL'), () => ctrl.L = true, () => ctrl.L = false);
+    T.hold($('bR'), () => ctrl.R = true, () => ctrl.R = false);
+    T.hold($('bC'), () => ctrl.C = true, () => ctrl.C = false);
+    T.tap($('bJ'), () => g.jump(g.player));
+    T.tap($('bD'), () => g.dash(g.player));
+    T.tap($('tDash'), () => g.dash(g.player));
+    T.hold($('bSrv'), () => g.chargeServe(g.player, true), () => g.chargeServe(g.player, false));
+    T.tap($('sC'), () => g.playerShot(g.player, 'clear'));
+    T.tap($('sV'), () => g.playerShot(g.player, 'drive'));
+    T.tap($('sH'), () => g.playerShot(g.player, 'hairpin'));
+    T.tap($('sP'), () => g.playerShot(g.player, 'drop'));
+    T.hold($('sS'), () => this.mainKey(g.player, true), () => this.mainKey(g.player, false));   // 스매시 · 서브 게이지 · 시작
+    // 이동 패드 [게임 설계]: 좌우 = 이동, 아래 = 앉기(누르는 동안), 위로 미는 순간 = 점프 (대각선 위 = 이동하며 점프)
+    let lastY = 0;
+    this.pad = T.dpad($('clPad'), d => {
+      ctrl.L = d.x < 0; ctrl.R = d.x > 0; ctrl.C = d.y > 0;
+      if (d.y < 0 && lastY >= 0) g.jump(g.player);
+      lastY = d.y;
+    });
+    window.addEventListener('blur', () => this.pad.reset());
     $('startBtn').addEventListener('click', () => g.start());
+    // 모바일 안내문 (처음 만졌을 때 터치가 켜진 경우에도 바로 바뀌게)
+    T.onEnable(() => {
+      if (g.mode !== 'ai') return;
+      const idle = g.hud.msgEl.innerHTML === g.hud.initialMsg;
+      g.hud.setIntro(INTRO_MSG.touch);
+      if (idle) g.hud.resetMessage();
+    });
   }
 }

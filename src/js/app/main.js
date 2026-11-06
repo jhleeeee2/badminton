@@ -43,6 +43,7 @@ class App {
     try {
       this.court3d = new Game3D(document.getElementById('c3stage'), new Hud3D());
       this.court3dInput = new Input3D(this.court3d, document.getElementById('c3stage'));
+      this.court3dTouch = new Touch3D(this.court3d, this.court3dInput, document.getElementById('c3stage'));   // 모바일 버튼
       return true;
     } catch (err) {
       console.error(err);
@@ -117,8 +118,8 @@ class App {
   }
 
   toMenu() {
-    if (this.screen === 'classic') this.classic.stop();
-    if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); }
+    if (this.screen === 'classic') { this.classic.stop(); this.classicInput.pad.reset(); }
+    if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); this.court3dTouch.reset(); }
     this.lobby.refresh();   // 훈련 레벨 갱신
     this.show('lobby');
   }
@@ -135,4 +136,5 @@ class App {
   }
 }
 
+TouchUI.init();   // 터치 기기면 모바일 버튼 레이아웃
 const app = new App();   // 전역: 콘솔에서 app.classic, app.court3d, app.lobby 확인 가능

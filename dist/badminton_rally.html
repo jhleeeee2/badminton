@@ -282,6 +282,75 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3p2keys{font-size:12px;color:var(--text2);background:rgba(14,10,40,.55);border-radius:10px;padding:4px 10px;text-align:right;line-height:1.5;}
 .c3p2keys b{color:#C9B8FF;}
 .c3p2 .c3gauge{width:100%;}
+
+/* ───────── 화면 버튼 배치 (PC: 코트 아래 버튼 줄 그대로 / 모바일 body.touch: 왼쪽 패드 · 코트 · 오른쪽 버튼) ───────── */
+.tlay{display:flex;flex-direction:column;}
+.tlay>.stage{order:0;}
+.tlay>.tside.L{order:1;}
+.tlay>.tside.R{order:2;}
+.dpad,.tnote,.tonly,.tsub,.aimseg{display:none;}
+#c3lay>.tside{display:none;}
+
+body.touch{padding:6px 8px;align-items:flex-start;overscroll-behavior:none;}
+body.touch .wrap{max-width:none;}
+body.touch .wrap.wide3d{max-width:none;}
+body.touch .foot,body.touch .key{display:none;}
+body.touch h1{font-size:15px;margin:0 0 6px;}
+body.touch h1 .back{padding:5px 9px;font-size:12px;}
+body.touch .hud{margin-bottom:6px;gap:6px;}
+body.touch .hud .cards{gap:5px;}
+body.touch .hud .card{padding:4px 8px;}
+body.touch .hud .card .val{font-size:15px;margin-left:5px;}
+body.touch .hud .card.team .val{font-size:16px;}
+body.touch .hud button{padding:6px 9px;font-size:12px;white-space:nowrap;}
+body.touch .tlay{flex-direction:row;align-items:center;gap:8px;}
+body.touch .tlay>.stage{order:1;flex:1 1 auto;min-width:0;}
+body.touch .tlay>.tside.L{order:0;}
+body.touch .tlay>.tside.R{order:2;}
+body.touch #c3lay>.tside,body.touch .tside{display:flex;}
+body.touch .tside{flex:0 0 auto;width:clamp(128px,19vw,200px);flex-direction:column;align-items:center;gap:8px;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+body.touch .tside .row.krow{display:none;}
+body.touch .dpad{display:block;position:relative;width:clamp(116px,17vw,176px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,#262A34 0 30%,#1F222A 31%);border:1px solid var(--line);touch-action:none;}
+body.touch .dpad.held{border-color:var(--ok);}
+.dpad .a{position:absolute;font-size:18px;color:var(--text3);transform:translate(-50%,-50%);transition:color .08s;pointer-events:none;}
+.dpad .a.u{left:50%;top:15%;} .dpad .a.d{left:50%;top:85%;}
+.dpad .a.l{left:15%;top:50%;} .dpad .a.r{left:85%;top:50%;}
+.dpad .a.on{color:var(--ok);}
+.dpad .knob{position:absolute;left:50%;top:50%;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);pointer-events:none;transition:transform .04s;}
+body.touch .tnote{display:block;font-size:11px;color:var(--text3);}
+body.touch .tside .row{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;}
+body.touch .tside .row button{min-height:44px;padding:6px 4px;font-size:13.5px;line-height:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+body.touch .tside .row button small{font-size:10px;color:var(--text3);font-weight:500;}
+body.touch .tside .row button.big{grid-column:span 2;min-height:54px;font-size:15px;font-weight:700;}
+body.touch .tside .row button.held,body.touch .tside button:active{background:#363B48;transform:scale(.96);}
+body.touch #sS.big{border-color:var(--me);color:var(--me);}
+body.touch .tsub{display:inline;font-size:12px;font-weight:500;}
+body.touch .tonly{display:grid;}
+body.touch .tonly .tdash{grid-column:span 2;color:var(--warn);border-color:rgba(242,169,59,.5);}
+body.touch #clStage canvas{width:auto;max-width:100%;max-height:calc(100vh - 96px);margin:0 auto;}
+body.touch #clStage{display:flex;justify-content:center;}
+/* 3D 오른쪽 버튼 */
+body.touch .aimseg{display:flex;align-items:center;gap:4px;width:100%;}
+.aimseg .albl{font-size:11px;color:var(--text3);margin-right:2px;}
+.aimseg button{flex:1;padding:7px 0;font-size:14px;border-radius:9px;color:var(--text2);}
+.aimseg button.active{background:#2E3340;color:#FFD23F;border-color:#FFD23F;}
+body.touch #t3lift{border-color:#9FE6C6;color:#9FE6C6;}
+body.touch #t3down{border-color:#FF7A45;color:#FF7A45;}
+body.touch #t3emo{font-size:20px;}
+body.touch .stage3d{border-radius:10px;}
+body.touch .c3ext .k{display:none;}
+.c3wheel{transform-origin:50% 50%;}
+/* 세로 화면: 코트를 위에 크게, 버튼은 아래 양쪽 */
+@media (orientation:portrait){
+  body.touch .tlay{flex-wrap:wrap;justify-content:space-between;align-items:flex-start;row-gap:10px;}
+  body.touch .tlay>.stage{order:0;flex:1 1 100%;}
+  body.touch .tlay>.tside.L{order:1;} body.touch .tlay>.tside.R{order:2;}
+  body.touch .tside{width:46%;}
+  body.touch #clStage canvas{max-height:none;width:100%;}
+}
 </style>
 </head>
 <body>
@@ -364,11 +433,11 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
       <button id="startBtn">시작</button>
     </div>
   </div>
-  <div class="stage">
-    <canvas id="court" width="648" height="300"></canvas>
-    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게</div>
-  </div>
-  <div class="row">
+  <div class="tlay" id="clLay">
+  <div class="tside L">
+    <div class="dpad" id="clPad" aria-label="이동 패드"><span class="a u" data-dir="0,-1">▲</span><span class="a l" data-dir="-1,0">◀</span><span class="a r" data-dir="1,0">▶</span><span class="a d" data-dir="0,1">▼</span><div class="knob"></div></div>
+    <div class="tnote">↑ 점프 · ↓ 앉기</div>
+  <div class="row krow">
     <button id="bL" class="wide" aria-label="왼쪽 이동">←</button>
     <button id="bR" class="wide" aria-label="오른쪽 이동">→</button>
     <button id="bJ" class="wide" aria-label="점프">↑</button>
@@ -376,12 +445,21 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
     <button id="bD" class="wide" aria-label="대쉬">⚡</button>
     <button id="bSrv">서브<span class="key">␣</span></button>
   </div>
-  <div class="row">
+  </div>
+  <div class="stage" id="clStage">
+    <canvas id="court" width="648" height="300"></canvas>
+    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게</div>
+  </div>
+  <div class="tside R">
+  <div class="row shots">
     <button id="sC">클리어<span class="key">Q</span></button>
     <button id="sV">드라이브<span class="key">W</span></button>
     <button id="sP">드롭<span class="key">E</span></button>
     <button id="sH">헤어핀<span class="key">R</span></button>
-    <button id="sS" style="font-weight:600;">스매시<span class="key">␣</span></button>
+    <button id="sS" class="big" style="font-weight:600;">스매시<span class="tsub"> / 서브</span><span class="key">␣</span></button>
+  </div>
+    <div class="row tonly"><button id="tDash" class="tdash">⚡ 대쉬</button></div>
+  </div>
   </div>
   <p class="foot"><b style="color:var(--text2)">A 대쉬</b>: 이동키를 누른 채 A(또는 Shift) — 그 방향으로 짧게 가속(랠리당 1회). 대쉬하며 앞으로 치면 파워 보너스. <b style="color:var(--text2)">↓ 앉기</b>: 리치가 늘고 삑사리 없이 안정적으로 받는 완전 수비 자세(리턴은 약해짐). 전진하며 치면 빠르고 길게, 후퇴하며 치면 느리고 짧게 갑니다. 모든 샷에 삑사리 확률이 있고(스매시가 가장 높음) 타점이 낮을수록 잘 납니다. 자세한 건 튜토리얼 버튼을 눌러보세요.</p>
 </div>
@@ -403,6 +481,11 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
       <button id="c3tutBtn">튜토리얼</button>
       <button id="c3startBtn">다시 시작</button>
     </div>
+  </div>
+  <div class="tlay t3" id="c3lay">
+  <div class="tside L" id="c3tL">
+    <div class="dpad" id="c3pad" aria-label="이동 패드"><span class="a u" data-dir="0,-1">▲</span><span class="a l" data-dir="-1,0">◀</span><span class="a r" data-dir="1,0">▶</span><span class="a d" data-dir="0,1">▼</span><div class="knob"></div></div>
+    <div class="tnote">이동</div>
   </div>
   <div class="stage stage3d" id="c3stage">
     <div class="c3vig" id="c3vig"></div>
@@ -431,6 +514,18 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
       </div>
     </div>
     <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)<br>T 꾹 = 감정표현 (마우스로 고르고 떼기)</div>
+  </div>
+  <div class="tside R" id="c3tR">
+    <div class="aimseg" id="c3aim"><span class="albl">방향</span><button data-u="-1">◀</button><button data-u="0" class="active">●</button><button data-u="1">▶</button></div>
+    <div class="row shots3">
+      <button id="t3lift" class="big lift">올리기<small>Q · 서브</small></button>
+      <button id="t3down" class="big down">찍기<small>E</small></button>
+      <button id="t3flat">직선<small>클릭</small></button>
+      <button id="t3jump">점프</button>
+      <button id="t3ext">런지</button>
+      <button id="t3emo" aria-label="감정표현">😀</button>
+    </div>
+  </div>
   </div>
   <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기, G = 셔틀 그림자 켜기/끄기, T 꾹 = 감정표현 원판. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
 </div>
@@ -468,6 +563,104 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
   </div>
 </div>
 <!-- 로드 순서 중요: 클래식 게임 → (Three.js) 3D 코트 → 대기화면 → 진입점 -->
+<script>
+// app/touch.js — 모바일(터치) 버튼 조작 공용 도구
+//   터치 기기면 <body class="touch"> → CSS가 코트 양옆에 버튼 패드를 보여줌 (PC 화면은 그대로)
+//   · TouchUI.hold(el, on, off) : 누르고 있는 동안 (손가락이 버튼 밖으로 미끄러져도 뗄 때까지 유지)
+//   · TouchUI.tap(el, fn)       : 누르는 순간 한 번
+//   · TouchUI.dpad(el, fn)      : 원형 방향 패드. 손가락 위치 → fn({x, y}) (각 −1·0·1, 8방향, 가운데는 정지)
+//   [게임 설계] 판정이 '누른 순간'이라 버튼은 pointerdown에서 바로 실행 (click은 떼야 실행돼서 늦음)
+
+const TouchUI = {
+  on: false,
+  hooks: [],
+
+  init() {
+    let coarse = false;
+    try { coarse = matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { /* 무시 */ }
+    if (coarse || new URLSearchParams(location.search).has('touch')) this.enable();
+    // 터치 노트북처럼 처음엔 마우스로 판정된 기기: 화면을 처음 만지는 순간 켬
+    window.addEventListener('touchstart', () => this.enable(), { passive: true, once: true });
+  },
+  enable() {
+    if (this.on) return;
+    this.on = true;
+    document.body.classList.add('touch');
+    this.hooks.forEach(f => f());
+    window.dispatchEvent(new Event('resize'));   // 3D 화면 크기 다시 계산
+  },
+  onEnable(f) { this.hooks.push(f); if (this.on) f(); },
+
+  // 버튼 공통: 길게 누를 때 뜨는 메뉴·글자 선택·스크롤 막기
+  prep(el) {
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    el.style.touchAction = 'none';
+    return el;
+  },
+  tap(el, fn) {
+    this.prep(el).addEventListener('pointerdown', e => { e.preventDefault(); fn(e); });
+  },
+  hold(el, on, off) {
+    this.prep(el);
+    let id = null;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (id !== null) return;
+      id = e.pointerId;
+      try { el.setPointerCapture(id); } catch (err) { /* 무시 */ }
+      el.classList.add('held'); on(e);
+    });
+    const end = e => {
+      if (e.pointerId !== id) return;
+      id = null; el.classList.remove('held'); off(e);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
+  },
+  dpad(el, fn) {
+    this.prep(el);
+    let id = null, cur = { x: 0, y: 0 };
+    const knob = el.querySelector('.knob');
+    const set = d => {
+      if (d.x === cur.x && d.y === cur.y) return;
+      cur = d; fn(d);
+      el.querySelectorAll('[data-dir]').forEach(s => {
+        const [sx, sy] = s.dataset.dir.split(',').map(Number);
+        s.classList.toggle('on', (sx && sx === d.x) || (sy && sy === d.y));
+      });
+    };
+    const read = e => {
+      const r = el.getBoundingClientRect(), R = r.width / 2;
+      const dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy);
+      if (knob) { const k = Math.min(1, d / R) * R * 0.55, a = Math.atan2(dy, dx); knob.style.transform = `translate(${Math.cos(a) * k}px,${Math.sin(a) * k}px)`; }
+      if (d < R * 0.22) { set({ x: 0, y: 0 }); return; }   // 가운데 = 정지
+      // 8방향: 45° 칸으로 나눔
+      const oct = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+      const T = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]][(oct + 8) % 8];
+      set({ x: T[0], y: T[1] });
+    };
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (id !== null) return;
+      id = e.pointerId;
+      try { el.setPointerCapture(id); } catch (err) { /* 무시 */ }
+      el.classList.add('held'); read(e);
+    });
+    el.addEventListener('pointermove', e => { if (e.pointerId === id) read(e); });
+    const end = e => {
+      if (e.pointerId !== id) return;
+      id = null; el.classList.remove('held');
+      if (knob) knob.style.transform = '';
+      set({ x: 0, y: 0 });
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
+    return { reset: () => { id = null; el.classList.remove('held'); if (knob) knob.style.transform = ''; set({ x: 0, y: 0 }); } };
+  }
+};
+</script>
 <script>
 // config.js — 모든 상수·밸런스 수치. 숫자 조정은 대부분 이 파일에서 합니다.
 
@@ -1336,7 +1529,9 @@ const INTRO_MSG = {
   local2p: '<b>로컬 2인</b> — 한 키보드로 둘이 (목표 점수 선점 + 2점 차)<br>'
     + '<span style="color:var(--opp)">P2 왼쪽</span>: F H 이동 · T 점프 · G 앉기 · Q W E R 샷 · Space 스매시/서브 · A 대쉬<br>'
     + '<span style="color:var(--me)">P1 오른쪽</span>: ←→ 이동 · ↑ 점프 · ↓ 앉기 · U I O P 샷 · ; 스매시/서브 · J 대쉬<br>Space 또는 시작 = 시작',
-  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다'
+  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다',
+  // 모바일(터치 버튼) AI 대전 안내
+  touch: '목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>왼쪽 패드: ◀▶ 이동 · ▲ 점프 · ▼ 앉기(수비)<br>오른쪽: 클리어 · 드라이브 · 드롭 · 헤어핀 · 스매시 · ⚡ 대쉬<br>내 서브: 스매시 버튼을 꾹 눌렀다 떼기 · 가로 화면 추천'
 };
 
 class Game {
@@ -1378,7 +1573,7 @@ class Game {
     this.p2.label = this.mode === 'local2p' ? 'P2' : '상대';
     if (this.mode !== 'room') { this.net.close(); this.oppName = '상대'; this.hud.setRoom(null); }
     this.hud.setNames(this.mode === 'local2p' ? 'P2' : this.oppName, this.mode === 'local2p' ? 'P1' : '나');
-    this.hud.setIntro(INTRO_MSG[this.mode]);
+    this.hud.setIntro(this.mode === 'ai' && typeof TouchUI !== 'undefined' && TouchUI.on ? INTRO_MSG.touch : INTRO_MSG[this.mode]);
     this.hud.setDashVisible(true);
   }
 
@@ -1705,29 +1900,37 @@ class Input {
     else if (g.phase === 'gameover' || g.phase === 'idle') g.start();
   }
 
+  // 화면 버튼 (PC: 코트 아래 버튼 줄 / 모바일: 왼쪽 이동 패드 + 오른쪽 샷 버튼, TouchUI가 레이아웃 전환)
   bindTouch() {
-    const g = this.game, ctrl = g.player.ctrl, $ = id => document.getElementById(id);
-    const tap = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
-    const hold = (id, on, off) => {
-      const b = $(id);
-      b.addEventListener('pointerdown', e => { e.preventDefault(); on(); });
-      b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
-    };
-    hold('bL', () => ctrl.L = true, () => ctrl.L = false);
-    hold('bR', () => ctrl.R = true, () => ctrl.R = false);
-    hold('bC', () => ctrl.C = true, () => ctrl.C = false);
-    tap('bJ', () => g.jump(g.player));
-    tap('bD', () => g.dash(g.player));
-    const bSrv = $('bSrv');
-    bSrv.addEventListener('pointerdown', e => { e.preventDefault(); g.chargeServe(g.player, true); });
-    bSrv.addEventListener('pointerup', () => g.chargeServe(g.player, false));
-    bSrv.addEventListener('pointercancel', () => g.chargeServe(g.player, false));
-    tap('sC', () => g.playerShot(g.player, 'clear'));
-    tap('sV', () => g.playerShot(g.player, 'drive'));
-    tap('sH', () => g.playerShot(g.player, 'hairpin'));
-    tap('sP', () => g.playerShot(g.player, 'drop'));
-    hold('sS', () => this.mainKey(g.player, true), () => this.mainKey(g.player, false));
+    const g = this.game, ctrl = g.player.ctrl, $ = id => document.getElementById(id), T = TouchUI;
+    T.hold($('bL'), () => ctrl.L = true, () => ctrl.L = false);
+    T.hold($('bR'), () => ctrl.R = true, () => ctrl.R = false);
+    T.hold($('bC'), () => ctrl.C = true, () => ctrl.C = false);
+    T.tap($('bJ'), () => g.jump(g.player));
+    T.tap($('bD'), () => g.dash(g.player));
+    T.tap($('tDash'), () => g.dash(g.player));
+    T.hold($('bSrv'), () => g.chargeServe(g.player, true), () => g.chargeServe(g.player, false));
+    T.tap($('sC'), () => g.playerShot(g.player, 'clear'));
+    T.tap($('sV'), () => g.playerShot(g.player, 'drive'));
+    T.tap($('sH'), () => g.playerShot(g.player, 'hairpin'));
+    T.tap($('sP'), () => g.playerShot(g.player, 'drop'));
+    T.hold($('sS'), () => this.mainKey(g.player, true), () => this.mainKey(g.player, false));   // 스매시 · 서브 게이지 · 시작
+    // 이동 패드 [게임 설계]: 좌우 = 이동, 아래 = 앉기(누르는 동안), 위로 미는 순간 = 점프 (대각선 위 = 이동하며 점프)
+    let lastY = 0;
+    this.pad = T.dpad($('clPad'), d => {
+      ctrl.L = d.x < 0; ctrl.R = d.x > 0; ctrl.C = d.y > 0;
+      if (d.y < 0 && lastY >= 0) g.jump(g.player);
+      lastY = d.y;
+    });
+    window.addEventListener('blur', () => this.pad.reset());
     $('startBtn').addEventListener('click', () => g.start());
+    // 모바일 안내문 (처음 만졌을 때 터치가 켜진 경우에도 바로 바뀌게)
+    T.onEnable(() => {
+      if (g.mode !== 'ai') return;
+      const idle = g.hud.msgEl.innerHTML === g.hud.initialMsg;
+      g.hud.setIntro(INTRO_MSG.touch);
+      if (idle) g.hud.resetMessage();
+    });
   }
 }
 </script>
@@ -2551,7 +2754,9 @@ class CourtView3D {
     const w = this.container.clientWidth || 960;
     const top = this.container.getBoundingClientRect().top;
     const avail = window.innerHeight - Math.max(0, top) - 14;
-    const h = Math.round(Math.max(360, Math.min(w * 0.62, avail > 300 ? avail : w * 0.6)));
+    const touch = document.body.classList.contains('touch');   // 모바일: 화면이 낮으니 최소 높이를 낮춤
+    const h = touch ? Math.round(Math.max(200, Math.min(w * 0.62, avail > 160 ? avail : w * 0.6)))
+                    : Math.round(Math.max(360, Math.min(w * 0.62, avail > 300 ? avail : w * 0.6)));
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
   }
@@ -3857,7 +4062,7 @@ class Game3D {
     this.hud.setScore(m.pts, m.opts, server, m.matchPoint());
     const cn = court === 'right' ? '오른쪽' : '왼쪽';
     if (this.duo) this.hud.setHint(server === 'me' ? `P1 서브 (${cn} 코트) — Q 꾹, 원하는 세기에서 떼기 · 마우스로 방향` : `P2 서브 (${cn} 코트) — I 꾹, 원하는 세기에서 떼기 · ←→로 방향`);
-    else this.hud.setHint(server === 'me' ? `내 서브 (${cn} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향` : '상대 서브');
+    else this.hud.setHint(server === 'me' ? (typeof TouchUI !== 'undefined' && TouchUI.on ? `내 서브 (${cn} 코트) — 올리기를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · ◀ ● ▶로 방향` : `내 서브 (${cn} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향`) : '상대 서브');
   }
   placeForServe() { this.setupPoint(); this.phase = 'idle'; }
 
@@ -4455,6 +4660,78 @@ class Input3D {
     this.g.p2Aim = x;
   }
   reset() { this.keys = {}; this.applyMove(); this.keys2 = {}; if (this.g.duo) this.applyMove2(); else this.g.p2Aim = 0; }
+}
+</script>
+<script>
+// court3d/touch.js — 3D 코트 모바일 버튼 조작 (PC의 WASD·마우스·Q/E/클릭 대신)
+//   왼쪽: 이동 패드(8방향, 화면 기준 ▲ = 네트 쪽 = W)
+//   오른쪽: 방향 ◀ ● ▶ (마우스 조준 대신) · 올리기(Q, 꾹 → 떼기 · 서브도 이것) · 찍기(E) · 직선(좌클릭)
+//           · 점프(Space) · 런지(Shift) · 😀 꾹 → 손가락을 밀어 고르고 떼기 = 감정표현(T)
+//   [게임 설계] 방향 3칸: 상대 코트의 왼쪽/가운데/오른쪽 바닥 점(x = ∓AIM_X, z = AIM_Z)을 겨냥.
+//   마우스는 '커서 쪽 방향'이라 연속값이지만, 엄지로 정밀 조준은 어려워서 3칸으로 단순화
+
+const TOUCH3 = Object.freeze({ AIM_X: 2.0, AIM_Z: -4.6, SERVE_U: 0.8 });
+
+class Touch3D {
+  constructor(game, input, stage) {
+    this.g = game; this.input = input; this.stage = stage;
+    const $ = id => document.getElementById(id), T = TouchUI;
+    this.u = 0;
+
+    // 이동 패드
+    this.pad = T.dpad($('c3pad'), d => { game.me.moveDir = { x: d.x, z: d.y }; });
+
+    // 샷: 누르는 동안 충전, 떼면 스윙 (PC와 같은 game.press / release)
+    const shot = (id, type) => T.hold($(id),
+      () => { Sound3.unlock(); if (game.inputOn) game.press(type); },
+      () => game.release(type));
+    shot('t3lift', 'lift'); shot('t3down', 'down'); shot('t3flat', 'flat');
+    T.tap($('t3jump'), () => { if (game.inputOn) game.jump(); });
+    T.tap($('t3ext'), () => { if (game.inputOn) game.extend(); });
+
+    // 방향 3칸
+    this.aimBtns = [...$('c3aim').querySelectorAll('button')];
+    this.aimBtns.forEach(b => T.tap(b, () => this.setAim(+b.dataset.u)));
+
+    // 감정표현: 😀를 누른 채 손가락을 밀어서 고르고, 떼면 보냄 (가운데에서 떼면 취소)
+    const eb = $('t3emo');
+    T.hold(eb, e => {
+      if (!game.inputOn) return;
+      game.emote.open(null, null);                   // 코트 가운데에 원판
+      const w = game.emote.wheel, sr = stage.getBoundingClientRect();
+      this.ws = Math.min(1, (sr.height - 16) / 340, (sr.width - 16) / 340);   // 작은 화면이면 원판 축소
+      w.style.transform = this.ws < 1 ? `scale(${this.ws})` : '';
+      this.emo0 = { x: e.clientX, y: e.clientY };    // 누른 곳 = 원판 중심 (거기서 민 방향으로 고름)
+    }, () => game.emote.release());
+    eb.addEventListener('pointermove', e => {
+      if (!game.emote.isOpen || !this.emo0) return;
+      const k = 1 / (this.ws || 1), em = game.emote;
+      em.move(em.cx + (e.clientX - this.emo0.x) * k * 1.6, em.cy + (e.clientY - this.emo0.y) * k * 1.6);   // 엄지는 조금만 밀어도 되게 ×1.6
+    });
+
+    // 코트(캔버스)를 직접 만진 터치는 무시 — 브라우저가 흉내 내는 마우스 클릭(= 직선 샷·조준 이동)이 생기지 않게
+    stage.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') e.preventDefault(); });
+
+    // 안내문을 터치용으로
+    T.onEnable(() => this.texts());
+  }
+
+  setAim(u) {
+    this.u = u;
+    this.aimBtns.forEach(b => b.classList.toggle('active', +b.dataset.u === u));
+    const g = this.g;
+    g.aimNdc = null;                                  // 마우스 조준 끄기 (마우스를 다시 움직이면 마우스가 우선)
+    g.aimPt = { x: u * TOUCH3.AIM_X, z: TOUCH3.AIM_Z };
+    g.serveU = u * TOUCH3.SERVE_U;
+  }
+
+  texts() {
+    const h = this.g.hud, m = h.el.msg;
+    const t = '왼쪽 패드 = 이동 · ◀ ● ▶ = 치는 방향<br>올리기 · 찍기 · 직선 — 꾹 눌러 충전, 떼면 스윙<br>점프 · 런지(셔틀 쪽으로 크게 한 발) · 😀 꾹 → 밀어서 감정표현<br>가로 화면 추천';
+    if (h.introMsg === m.innerHTML) { m.innerHTML = t; h.introMsg = t; }
+  }
+
+  reset() { this.pad.reset(); ['lift', 'down', 'flat'].forEach(t => this.g.release(t)); this.g.emote.close(); }
 }
 </script>
 <script>
@@ -5056,6 +5333,7 @@ class App {
     try {
       this.court3d = new Game3D(document.getElementById('c3stage'), new Hud3D());
       this.court3dInput = new Input3D(this.court3d, document.getElementById('c3stage'));
+      this.court3dTouch = new Touch3D(this.court3d, this.court3dInput, document.getElementById('c3stage'));   // 모바일 버튼
       return true;
     } catch (err) {
       console.error(err);
@@ -5130,8 +5408,8 @@ class App {
   }
 
   toMenu() {
-    if (this.screen === 'classic') this.classic.stop();
-    if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); }
+    if (this.screen === 'classic') { this.classic.stop(); this.classicInput.pad.reset(); }
+    if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); this.court3dTouch.reset(); }
     this.lobby.refresh();   // 훈련 레벨 갱신
     this.show('lobby');
   }
@@ -5148,6 +5426,7 @@ class App {
   }
 }
 
+TouchUI.init();   // 터치 기기면 모바일 버튼 레이아웃
 const app = new App();   // 전역: 콘솔에서 app.classic, app.court3d, app.lobby 확인 가능
 </script>
 </body>

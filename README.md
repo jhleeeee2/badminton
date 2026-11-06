@@ -10,6 +10,7 @@ src/                         개발용 원본 (여기만 수정)
       catalog.js             게임 종류(GAME_TYPES)·대전 모드(MODES) 목록 — 새 게임/모드는 여기에 등록
       lobby.js               Lobby — 게임 종류·모드·난이도·목표 점수 선택, 마지막 선택 기억, 친구 1:1 닉네임(기억)
       main.js                App — 대기화면 ↔ 게임 전환, Enter 시작 / Esc 메뉴 (전역 app)
+      touch.js               TouchUI — 모바일 버튼 조작 공용(터치 기기면 body.touch, 누르기·꾹·8방향 이동 패드)
       account.js             Account/AccountUI — Supabase 로그인·회원가입, 경기 기록(로컬+서버), 훈련 레벨 동기화
     classic/                 게임 종류 1: 클래식 랠리 (옆에서 보는 2D)
       config.js              모든 상수·밸런스 수치 (COURT, PHYS, MOVE, POWER, SERVE, DIFFS, KEYMAP …)
@@ -39,6 +40,7 @@ src/                         개발용 원본 (여기만 수정)
       game.js                Game3D — 고정 간격 시뮬레이션, 슬로우, 타격·득점 흐름
       online.js              Net3D — 친구 1:1 방 (Supabase Realtime 방송 채널·방 코드), 상대 선수 보간, 지연 보정, 나감/재입장 이어하기
       emote.js               Emote3D — 감정표현 원판(T 꾹 → 마우스로 고르고 떼기), 말풍선(상대 왼쪽 위 · 나 오른쪽 아래)
+      touch.js               Touch3D — 모바일 버튼: 이동 패드·방향 ◀●▶·올리기/찍기/직선·점프·런지·😀 감정표현
       tutorial.js            TUTORIAL_3D_PAGES
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
@@ -56,6 +58,12 @@ T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 ←→ 이동 · ↑ 점프 · ↓ 앉기 · A 대쉬(Shift도 됨) · Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시
 (왼손: 새끼 Q · 약지 W · 중지 E · 검지 R · 엄지 Space · 새끼 한 칸 아래 A)
 서브: Space 길게(길수록 멀리, 너무 짧으면 네트·너무 길면 아웃) · Esc 메뉴
+
+## 조작 (모바일 · 터치 버튼)
+터치 기기에서 열면 자동으로 켜짐 (PC에서 확인하려면 주소 끝에 `?touch`). 가로 화면 추천 — 왼쪽 이동 패드 · 가운데 코트 · 오른쪽 버튼, 세로면 코트 아래에 버튼.
+- 클래식: 패드 ◀▶ 이동 · ▲ 점프(위로 미는 순간) · ▼ 앉기 / 오른쪽 클리어·드라이브·드롭·헤어핀·스매시(꾹 = 서브 게이지) · ⚡ 대쉬(패드로 이동 중에)
+- 3D: 패드 8방향 이동 / 방향 ◀ ● ▶ (상대 코트 왼쪽·가운데·오른쪽, 서브도 이 방향) · 올리기(서브)·찍기·직선 꾹 → 떼면 스윙 · 점프 · 런지 · 😀 꾹 → 밀어서 감정표현
+- 버튼은 누르는 순간 실행(pointerdown), 이동과 샷을 두 엄지로 동시에 가능(멀티터치)
 
 ## 새 게임 종류 추가 방법
 1. js/<게임id>/ 폴더에 게임 코드 작성, index.html에 화면(div)과 script 추가

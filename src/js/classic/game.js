@@ -10,7 +10,9 @@ const INTRO_MSG = {
   local2p: '<b>로컬 2인</b> — 한 키보드로 둘이 (목표 점수 선점 + 2점 차)<br>'
     + '<span style="color:var(--opp)">P2 왼쪽</span>: F H 이동 · T 점프 · G 앉기 · Q W E R 샷 · Space 스매시/서브 · A 대쉬<br>'
     + '<span style="color:var(--me)">P1 오른쪽</span>: ←→ 이동 · ↑ 점프 · ↓ 앉기 · U I O P 샷 · ; 스매시/서브 · J 대쉬<br>Space 또는 시작 = 시작',
-  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다'
+  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다',
+  // 모바일(터치 버튼) AI 대전 안내
+  touch: '목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>왼쪽 패드: ◀▶ 이동 · ▲ 점프 · ▼ 앉기(수비)<br>오른쪽: 클리어 · 드라이브 · 드롭 · 헤어핀 · 스매시 · ⚡ 대쉬<br>내 서브: 스매시 버튼을 꾹 눌렀다 떼기 · 가로 화면 추천'
 };
 
 class Game {
@@ -52,7 +54,7 @@ class Game {
     this.p2.label = this.mode === 'local2p' ? 'P2' : '상대';
     if (this.mode !== 'room') { this.net.close(); this.oppName = '상대'; this.hud.setRoom(null); }
     this.hud.setNames(this.mode === 'local2p' ? 'P2' : this.oppName, this.mode === 'local2p' ? 'P1' : '나');
-    this.hud.setIntro(INTRO_MSG[this.mode]);
+    this.hud.setIntro(this.mode === 'ai' && typeof TouchUI !== 'undefined' && TouchUI.on ? INTRO_MSG.touch : INTRO_MSG[this.mode]);
     this.hud.setDashVisible(true);
   }
 

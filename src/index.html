@@ -86,11 +86,11 @@
       <button id="startBtn">시작</button>
     </div>
   </div>
-  <div class="stage">
-    <canvas id="court" width="648" height="300"></canvas>
-    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게</div>
-  </div>
-  <div class="row">
+  <div class="tlay" id="clLay">
+  <div class="tside L">
+    <div class="dpad" id="clPad" aria-label="이동 패드"><span class="a u" data-dir="0,-1">▲</span><span class="a l" data-dir="-1,0">◀</span><span class="a r" data-dir="1,0">▶</span><span class="a d" data-dir="0,1">▼</span><div class="knob"></div></div>
+    <div class="tnote">↑ 점프 · ↓ 앉기</div>
+  <div class="row krow">
     <button id="bL" class="wide" aria-label="왼쪽 이동">←</button>
     <button id="bR" class="wide" aria-label="오른쪽 이동">→</button>
     <button id="bJ" class="wide" aria-label="점프">↑</button>
@@ -98,12 +98,21 @@
     <button id="bD" class="wide" aria-label="대쉬">⚡</button>
     <button id="bSrv">서브<span class="key">␣</span></button>
   </div>
-  <div class="row">
+  </div>
+  <div class="stage" id="clStage">
+    <canvas id="court" width="648" height="300"></canvas>
+    <div id="msg">목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>Q 클리어 · W 드라이브 · E 드롭 · R 헤어핀 · Space 스매시<br>←→ 이동 · ↑ 점프 · ↓ 앉기(수비) · A 대쉬 · 서브는 Space를 길게</div>
+  </div>
+  <div class="tside R">
+  <div class="row shots">
     <button id="sC">클리어<span class="key">Q</span></button>
     <button id="sV">드라이브<span class="key">W</span></button>
     <button id="sP">드롭<span class="key">E</span></button>
     <button id="sH">헤어핀<span class="key">R</span></button>
-    <button id="sS" style="font-weight:600;">스매시<span class="key">␣</span></button>
+    <button id="sS" class="big" style="font-weight:600;">스매시<span class="tsub"> / 서브</span><span class="key">␣</span></button>
+  </div>
+    <div class="row tonly"><button id="tDash" class="tdash">⚡ 대쉬</button></div>
+  </div>
   </div>
   <p class="foot"><b style="color:var(--text2)">A 대쉬</b>: 이동키를 누른 채 A(또는 Shift) — 그 방향으로 짧게 가속(랠리당 1회). 대쉬하며 앞으로 치면 파워 보너스. <b style="color:var(--text2)">↓ 앉기</b>: 리치가 늘고 삑사리 없이 안정적으로 받는 완전 수비 자세(리턴은 약해짐). 전진하며 치면 빠르고 길게, 후퇴하며 치면 느리고 짧게 갑니다. 모든 샷에 삑사리 확률이 있고(스매시가 가장 높음) 타점이 낮을수록 잘 납니다. 자세한 건 튜토리얼 버튼을 눌러보세요.</p>
 </div>
@@ -125,6 +134,11 @@
       <button id="c3tutBtn">튜토리얼</button>
       <button id="c3startBtn">다시 시작</button>
     </div>
+  </div>
+  <div class="tlay t3" id="c3lay">
+  <div class="tside L" id="c3tL">
+    <div class="dpad" id="c3pad" aria-label="이동 패드"><span class="a u" data-dir="0,-1">▲</span><span class="a l" data-dir="-1,0">◀</span><span class="a r" data-dir="1,0">▶</span><span class="a d" data-dir="0,1">▼</span><div class="knob"></div></div>
+    <div class="tnote">이동</div>
   </div>
   <div class="stage stage3d" id="c3stage">
     <div class="c3vig" id="c3vig"></div>
@@ -153,6 +167,18 @@
       </div>
     </div>
     <div id="c3msg" class="c3msg" hidden>WASD 이동 · 마우스 = 치는 방향(커서 쪽)<br>Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙<br>Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)<br>T 꾹 = 감정표현 (마우스로 고르고 떼기)</div>
+  </div>
+  <div class="tside R" id="c3tR">
+    <div class="aimseg" id="c3aim"><span class="albl">방향</span><button data-u="-1">◀</button><button data-u="0" class="active">●</button><button data-u="1">▶</button></div>
+    <div class="row shots3">
+      <button id="t3lift" class="big lift">올리기<small>Q · 서브</small></button>
+      <button id="t3down" class="big down">찍기<small>E</small></button>
+      <button id="t3flat">직선<small>클릭</small></button>
+      <button id="t3jump">점프</button>
+      <button id="t3ext">런지</button>
+      <button id="t3emo" aria-label="감정표현">😀</button>
+    </div>
+  </div>
   </div>
   <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기, G = 셔틀 그림자 켜기/끄기, T 꾹 = 감정표현 원판. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
 </div>
@@ -190,6 +216,7 @@
   </div>
 </div>
 <!-- 로드 순서 중요: 클래식 게임 → (Three.js) 3D 코트 → 대기화면 → 진입점 -->
+<script src="js/app/touch.js"></script>
 <script src="js/classic/config.js"></script>
 <script src="js/classic/core/shuttle.js"></script>
 <script src="js/classic/systems/match.js"></script>
@@ -220,6 +247,7 @@
 <script src="js/court3d/emote.js"></script>
 <script src="js/court3d/game.js"></script>
 <script src="js/court3d/input.js"></script>
+<script src="js/court3d/touch.js"></script>
 <script src="js/court3d/tutorial.js"></script>
 <script src="js/app/catalog.js"></script>
 <script src="vendor/supabase.min.js"></script>

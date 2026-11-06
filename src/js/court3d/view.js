@@ -77,7 +77,9 @@ class CourtView3D {
     const w = this.container.clientWidth || 960;
     const top = this.container.getBoundingClientRect().top;
     const avail = window.innerHeight - Math.max(0, top) - 14;
-    const h = Math.round(Math.max(360, Math.min(w * 0.62, avail > 300 ? avail : w * 0.6)));
+    const touch = document.body.classList.contains('touch');   // 모바일: 화면이 낮으니 최소 높이를 낮춤
+    const h = touch ? Math.round(Math.max(200, Math.min(w * 0.62, avail > 160 ? avail : w * 0.6)))
+                    : Math.round(Math.max(360, Math.min(w * 0.62, avail > 300 ? avail : w * 0.6)));
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
   }

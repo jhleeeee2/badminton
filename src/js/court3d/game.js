@@ -107,7 +107,7 @@ class Game3D {
     this.hud.setScore(m.pts, m.opts, server, m.matchPoint());
     const cn = court === 'right' ? '오른쪽' : '왼쪽';
     if (this.duo) this.hud.setHint(server === 'me' ? `P1 서브 (${cn} 코트) — Q 꾹, 원하는 세기에서 떼기 · 마우스로 방향` : `P2 서브 (${cn} 코트) — I 꾹, 원하는 세기에서 떼기 · ←→로 방향`);
-    else this.hud.setHint(server === 'me' ? `내 서브 (${cn} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향` : '상대 서브');
+    else this.hud.setHint(server === 'me' ? (typeof TouchUI !== 'undefined' && TouchUI.on ? `내 서브 (${cn} 코트) — 올리기를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · ◀ ● ▶로 방향` : `내 서브 (${cn} 코트) — Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기 · 마우스로 방향`) : '상대 서브');
   }
   placeForServe() { this.setupPoint(); this.phase = 'idle'; }
 
