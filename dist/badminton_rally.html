@@ -283,7 +283,7 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3p2keys b{color:#C9B8FF;}
 .c3p2 .c3gauge{width:100%;}
 
-/* ───────── 화면 버튼 배치 (PC: 코트 아래 버튼 줄 그대로 / 모바일 body.touch: 왼쪽 패드 · 코트 · 오른쪽 버튼) ───────── */
+/* ───────── 화면 버튼 배치 (PC: 코트 아래 버튼 줄 그대로 / 모바일 body.touch: 코트를 화면 가득 + 그 위에 반투명 버튼) ───────── */
 .tlay{display:flex;flex-direction:column;}
 .tlay>.stage{order:0;}
 .tlay>.tside.L{order:1;}
@@ -291,64 +291,87 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .dpad,.tnote,.tonly,.tsub,.aimseg{display:none;}
 #c3lay>.tside{display:none;}
 
-body.touch{padding:6px 8px;align-items:flex-start;overscroll-behavior:none;}
-body.touch .wrap{max-width:none;}
-body.touch .wrap.wide3d{max-width:none;}
-body.touch .foot,body.touch .key{display:none;}
-body.touch h1{font-size:15px;margin:0 0 6px;}
-body.touch h1 .back{padding:5px 9px;font-size:12px;}
-body.touch .hud{margin-bottom:6px;gap:6px;}
-body.touch .hud .cards{gap:5px;}
-body.touch .hud .card{padding:4px 8px;}
-body.touch .hud .card .val{font-size:15px;margin-left:5px;}
-body.touch .hud .card.team .val{font-size:16px;}
-body.touch .hud button{padding:6px 9px;font-size:12px;white-space:nowrap;}
-body.touch .tlay{flex-direction:row;align-items:center;gap:8px;}
-body.touch .tlay>.stage{order:1;flex:1 1 auto;min-width:0;}
-body.touch .tlay>.tside.L{order:0;}
-body.touch .tlay>.tside.R{order:2;}
-body.touch #c3lay>.tside,body.touch .tside{display:flex;}
-body.touch .tside{flex:0 0 auto;width:clamp(128px,19vw,200px);flex-direction:column;align-items:center;gap:8px;
+/* 공통 (모바일) */
+body.touch{padding:4px 6px;align-items:flex-start;overscroll-behavior:none;}
+body.touch .wrap,body.touch .wrap.wide3d{max-width:none;}
+body.touch .foot,body.touch .key,body.touch .tnote{display:none;}
+/* 머리글 한 줄: [← 메뉴] 점수 카드 ··· 버튼들 (제목 글자는 숨김) */
+body.touch #classic:not([hidden]),body.touch #court3d:not([hidden]){display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;}
+body.touch #classic>h1,body.touch #court3d>h1{font-size:0;margin:0 0 4px;flex:0 0 auto;}
+body.touch h1 .back{font-size:12px;padding:5px 9px;margin-right:0;}
+body.touch h1 .c3room{font-size:12px;margin-left:6px;}
+body.touch #classic>.hud,body.touch #court3d>.hud{flex:1 1 0;min-width:0;margin:0 0 4px;gap:5px;flex-wrap:nowrap;}
+body.touch .hud .cards{gap:4px;flex-wrap:nowrap;overflow:hidden;}
+body.touch .hud .card{padding:3px 8px;white-space:nowrap;}
+body.touch .hud .card .lbl{font-size:11px;}
+body.touch .hud .card .val{font-size:14px;margin-left:4px;}
+body.touch .hud .card .val.small{font-size:12px;}
+body.touch #classic .hud .card:nth-child(n+4){display:none;}   /* 클래식: 상대·나·랠리만 */
+body.touch #court3d .hud .cards{display:none;}                  /* 3D: 코트 위 큰 점수판이 있으니 숨김 */
+body.touch .hud>div:last-child{margin-left:auto;flex-wrap:nowrap;}
+body.touch .hud button{padding:5px 8px;font-size:11.5px;white-space:nowrap;}
+body.touch .tlay{flex:1 1 100%;position:relative;}
+
+/* 코트 크게 */
+body.touch #clStage{display:flex;justify-content:center;background:#1A1D24;}
+body.touch #clStage canvas{width:auto;max-width:100%;max-height:calc(100vh - 46px);margin:0 auto;}
+body.touch .stage3d{border-radius:10px;}
+
+/* 반투명 버튼 (코트 위에 겹침) */
+body.touch .tside{display:flex;flex-direction:column;gap:6px;position:absolute;bottom:10px;z-index:8;pointer-events:none;
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+body.touch .tside.L{left:10px;align-items:flex-start;}
+body.touch .tside.R{right:10px;align-items:flex-end;}
+body.touch .tside>*{pointer-events:auto;}
 body.touch .tside .row.krow{display:none;}
-body.touch .dpad{display:block;position:relative;width:clamp(116px,17vw,176px);aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle,#262A34 0 30%,#1F222A 31%);border:1px solid var(--line);touch-action:none;}
-body.touch .dpad.held{border-color:var(--ok);}
-.dpad .a{position:absolute;font-size:18px;color:var(--text3);transform:translate(-50%,-50%);transition:color .08s;pointer-events:none;}
+body.touch #c3lay>.tside{display:flex;}
+body.touch .tside button{background:rgba(20,22,30,.32);border:1.5px solid rgba(255,255,255,.28);color:rgba(255,255,255,.88);
+  backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);text-shadow:0 1px 3px rgba(0,0,0,.7);}
+body.touch .tside button.held,body.touch .tside button:active{background:rgba(255,255,255,.22);transform:scale(.94);}
+body.touch .dpad{display:block;position:relative;width:clamp(112px,16vw,150px);aspect-ratio:1;border-radius:50%;
+  background:rgba(20,22,30,.28);border:1.5px solid rgba(255,255,255,.28);touch-action:none;}
+body.touch .dpad.held{border-color:rgba(91,255,176,.7);}
+.dpad .a{position:absolute;font-size:17px;color:rgba(255,255,255,.55);transform:translate(-50%,-50%);transition:color .08s;pointer-events:none;}
 .dpad .a.u{left:50%;top:15%;} .dpad .a.d{left:50%;top:85%;}
 .dpad .a.l{left:15%;top:50%;} .dpad .a.r{left:85%;top:50%;}
-.dpad .a.on{color:var(--ok);}
-.dpad .knob{position:absolute;left:50%;top:50%;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;
-  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);pointer-events:none;transition:transform .04s;}
-body.touch .tnote{display:block;font-size:11px;color:var(--text3);}
-body.touch .tside .row{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;}
-body.touch .tside .row button{min-height:44px;padding:6px 4px;font-size:13.5px;line-height:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-body.touch .tside .row button small{font-size:10px;color:var(--text3);font-weight:500;}
-body.touch .tside .row button.big{grid-column:span 2;min-height:54px;font-size:15px;font-weight:700;}
-body.touch .tside .row button.held,body.touch .tside button:active{background:#363B48;transform:scale(.96);}
-body.touch #sS.big{border-color:var(--me);color:var(--me);}
-body.touch .tsub{display:inline;font-size:12px;font-weight:500;}
+.dpad .a.on{color:#5BFFB0;}
+.dpad .knob{position:absolute;left:50%;top:50%;width:36%;height:36%;margin:-18% 0 0 -18%;border-radius:50%;
+  background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);pointer-events:none;transition:transform .04s;}
+body.touch .tside .row{margin:0;display:grid;grid-template-columns:repeat(2,58px);gap:6px;}
+body.touch .tside .row button{width:58px;height:50px;padding:2px;font-size:12.5px;font-weight:600;line-height:1.1;border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;}
+body.touch .tside .row button small{font-size:9.5px;opacity:.65;font-weight:500;}
+body.touch .tside .row button.big{grid-column:span 2;width:auto;height:52px;font-size:14px;font-weight:800;}
+body.touch #sS.big{border-color:rgba(255,122,69,.8);color:#FFB08A;}
+body.touch .tsub{display:inline;font-size:11px;font-weight:500;}
 body.touch .tonly{display:grid;}
-body.touch .tonly .tdash{grid-column:span 2;color:var(--warn);border-color:rgba(242,169,59,.5);}
-body.touch #clStage canvas{width:auto;max-width:100%;max-height:calc(100vh - 96px);margin:0 auto;}
-body.touch #clStage{display:flex;justify-content:center;}
-/* 3D 오른쪽 버튼 */
-body.touch .aimseg{display:flex;align-items:center;gap:4px;width:100%;}
-.aimseg .albl{font-size:11px;color:var(--text3);margin-right:2px;}
-.aimseg button{flex:1;padding:7px 0;font-size:14px;border-radius:9px;color:var(--text2);}
-.aimseg button.active{background:#2E3340;color:#FFD23F;border-color:#FFD23F;}
-body.touch #t3lift{border-color:#9FE6C6;color:#9FE6C6;}
-body.touch #t3down{border-color:#FF7A45;color:#FF7A45;}
+body.touch .tonly .tdash{grid-column:span 2;width:auto !important;height:40px !important;color:#FFD27A;border-color:rgba(242,169,59,.6);}
+/* 3D 오른쪽 */
+body.touch .aimseg{display:flex;gap:4px;width:122px;}
+.aimseg .albl{display:none;}
+.aimseg button{flex:1;padding:5px 0;font-size:13px;border-radius:10px;}
+body.touch .aimseg button.active{background:rgba(255,210,63,.28);color:#FFD23F;border-color:rgba(255,210,63,.85);}
+body.touch #t3lift{border-color:rgba(159,230,198,.8);color:#BFF5DB;}
+body.touch #t3down{border-color:rgba(255,122,69,.8);color:#FFB08A;}
 body.touch #t3emo{font-size:20px;}
-body.touch .stage3d{border-radius:10px;}
+/* 버튼과 겹치는 3D 표시 옮기기: 런지 표시 → 가운데 아래(게이지 위), 내 감정표현 → 오른쪽 위 */
+body.touch .c3ext{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4px;font-size:11.5px;}
 body.touch .c3ext .k{display:none;}
+body.touch .c3emo.me{bottom:auto;top:14px;}
+body.touch .c3bottom{bottom:10px;}
+body.touch .c3hint{bottom:calc(10px + 70px);max-width:55%;font-size:12.5px;}
+body.touch .c3board .sc{font-size:30px;}
+body.touch .c3board .side{min-width:52px;padding:3px 8px 5px;}
+body.touch .c3msg{font-size:13px;}
 .c3wheel{transform-origin:50% 50%;}
-/* 세로 화면: 코트를 위에 크게, 버튼은 아래 양쪽 */
+
+/* 세로 화면: 코트가 너무 작아져서 버튼은 겹치지 않고 아래에 (가로 화면 추천) */
 @media (orientation:portrait){
-  body.touch .tlay{flex-wrap:wrap;justify-content:space-between;align-items:flex-start;row-gap:10px;}
-  body.touch .tlay>.stage{order:0;flex:1 1 100%;}
-  body.touch .tlay>.tside.L{order:1;} body.touch .tlay>.tside.R{order:2;}
-  body.touch .tside{width:46%;}
+  body.touch #classic:not([hidden]),body.touch #court3d:not([hidden]){display:block;}
+  body.touch #classic>h1,body.touch #court3d>h1{font-size:15px;}
+  body.touch .tlay{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;row-gap:12px;}
+  body.touch .tlay>.stage{flex:1 1 100%;}
+  body.touch .tside{position:static;}
   body.touch #clStage canvas{max-height:none;width:100%;}
 }
 </style>
