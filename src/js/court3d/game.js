@@ -108,7 +108,8 @@ class Game3D {
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
     this.ai.reset(); this.ai.serveT = this.trainer.active ? 0.9 : 1.1;
     if (this.trainer.active) {
-      this.me.bounds = this.halfBounds('me'); this.view.setTarget(null);
+      if (this.trainer.serverSide !== 'me') this.me.bounds = this.halfBounds('me');   // 내가 서브하는 단계(튜토리얼)는 실제처럼 서비스 코트 안에만
+      this.view.setTarget(null);
       this.hud.setHint(this.trainer.hint()); return;
     }
     this.hud.setScore(m.pts, m.opts, server, m.matchPoint());

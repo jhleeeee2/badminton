@@ -1,4 +1,4 @@
-// court3d/guide.js — 체험형 튜토리얼: 글 대신 직접 해 보는 4단계 (이동 → 올리기 → 찍기 → 서브)
+// court3d/guide.js — 체험형 튜토리얼: 글 대신 직접 해 보는 6단계 (이동 → 올리기 → 찍기 → 점프 → 런지 → 서브)
 //   Trainer3D와 같은 자리(game.trainer)에 끼워져서 피딩·판정 흐름을 그대로 씀. AI는 공을 먹여 주기만 함
 //   단계 구성·피딩 수치·성공 기준·슬로우 범위는 모두 [게임]용 (실제 규칙과 무관)
 
@@ -7,6 +7,8 @@ const GUIDE_STEPS = [
   { id: 'move',  title: '이동',   key: 'W A S D로 노란 칸까지 걸어가 보세요', touch: '왼쪽 패드로 노란 칸까지 걸어가 보세요' },
   { id: 'lift',  title: '올리기', key: 'Q를 누르고 있다가, 셔틀이 몸 가까이 와서 화면이 느려지면 떼세요', touch: '올리기를 누르고 있다가, 셔틀이 몸 가까이 와서 화면이 느려지면 떼세요' },
   { id: 'down',  title: '찍기',   key: '높이 뜬 공이 옵니다. E를 누르고 있다가 셔틀이 머리 위로 오면 떼세요', touch: '높이 뜬 공이 옵니다. 찍기를 누르고 있다가 셔틀이 머리 위로 오면 떼세요' },
+  { id: 'jump',  title: '점프',   key: '높은 공이 옵니다. Space로 뛰어오른 다음 E(찍기)로 쳐 보세요 — 점프 스매시', touch: '높은 공이 옵니다. 점프를 누르고 뛰어오른 다음 찍기로 쳐 보세요 — 점프 스매시' },
+  { id: 'lunge', title: '런지',   key: '먼 공이 옵니다. Shift를 누르면 셔틀 쪽으로 크게 한 발 — 런지하고 Q(올리기)로 받아 보세요', touch: '먼 공이 옵니다. 런지를 누르면 셔틀 쪽으로 크게 한 발 — 런지하고 올리기로 받아 보세요' },
   { id: 'serve', title: '서브',   key: 'Q를 꾹 누르면 게이지가 왕복합니다. 가운데쯤에서 떼세요 (마우스 = 방향)', touch: '올리기를 꾹 누르면 게이지가 왕복합니다. 가운데쯤에서 떼세요' }
 ];
 
@@ -39,6 +41,7 @@ class Guide3D {
     const g = this.g, ch = g.me.charge;
     // 처음엔 오래 누르고 있기 쉬우므로 충전을 75%에서 멈춤 → 과충전(네트·아웃)과 좁은 정타 타이밍이 안 나옴 [게임]
     if (this.active && ch && ch.type !== 'serve' && ch.c > 0.75) ch.c = 0.75;
+    if (this.active && g.phase === 'rally') { if (g.me.y > 0.2) this.usedJump = true;   /* 스플릿 스텝(약 0.08m)은 점프로 치지 않음 */ if (g.me.extT > 0) this.usedExt = true; }   // 점프·런지 단계 확인용
     if (!this.active || this.finished || this.cur.id !== 'move' || g.phase !== 'serve' || this.moveDone) return;
     if (!this.target) {
       const me = g.me.pos, sx = me.x > 0 ? -1 : 1;
@@ -56,12 +59,16 @@ class Guide3D {
   // 서브 차례 대신 치기 쉬운 공을 던져 줌 (이동·서브 단계에서는 던지지 않음)
   feed() {
     const g = this.g, a = g.opp, id = this.cur.id;
-    if (id !== 'lift' && id !== 'down') { g.ai.serveT = 1; return; }
+    if (!['lift', 'down', 'jump', 'lunge'].includes(id)) { g.ai.serveT = 1; return; }
     const me = g.me, R = Math.random, rr = (x, y) => x + R() * (y - x);
-    this.hitType = null;
-    const tx = Math.max(-2.2, Math.min(2.2, me.pos.x + me.right().x * 0.5 * me.h));   // 포핸드 쪽 살짝 옆으로
-    const tz = Math.max(2.6, Math.min(5.6, me.pos.z + (id === 'down' ? 0.1 : 0.3)));
-    const ang = id === 'down' ? rr(56, 60) : rr(40, 44), y0 = 1.0;
+    this.hitType = null; this.usedJump = false; this.usedExt = false; g.match.rally = 0;   // 랠리 수 배너가 뜨지 않게
+    const high = id === 'down' || id === 'jump';
+    let tx = Math.max(-2.2, Math.min(2.2, me.pos.x + me.right().x * 0.5 * me.h));   // 포핸드 쪽 살짝 옆으로
+    let tz = Math.max(2.6, Math.min(5.6, me.pos.z + (high ? 0.1 : 0.3)));
+    if (id === 'lunge') {   // 런지: 걸어서는 빠듯한 거리(옆으로 2m, 조금 앞)에 떨어뜨림
+      tx = Math.max(-2.2, Math.min(2.2, me.pos.x + (me.pos.x > 0 ? -2.0 : 2.0))); tz = Math.max(2.2, Math.min(5.2, me.pos.z - 0.4));
+    }
+    const ang = high ? rr(56, 60) : rr(40, 44), y0 = 1.0;
     const p0 = { x: a.pos.x, y: y0, z: a.pos.z + 0.4 };
     const dx = tx - p0.x, dz = tz - p0.z, range = Math.hypot(dx, dz), hx = dx / range, hz = dz / range;
     const sp = Phys3.solveSpeed(p0, hx, hz, ang, range), v0 = Phys3.launchVel(hx, hz, ang, sp);
@@ -84,8 +91,10 @@ class Guide3D {
       return m.inBox(m.box('opp', m.serveCourt()), p.x, p.z) ? { ok: true, msg: '서브 성공!' } : { ok: false, msg: '서비스 코트 밖 — 게이지 가운데쯤에서' };
     }
     if (!mine) return { ok: false, msg: '놓쳤어요 — 누르고 있다가, 닿을 때 떼기' };
-    if (this.hitType !== id) return { ok: false, msg: id === 'lift' ? `이번엔 ${touch ? '올리기' : 'Q(올리기)'}로!` : `이번엔 ${touch ? '찍기' : 'E(찍기)'}로!` };
-    if (s.netted || p.z > 0) return { ok: false, msg: id === 'down' ? '네트 — 충전을 조금만' : '네트 — 한 번 더' };
+    if (id === 'jump' && !this.usedJump) return { ok: false, msg: `이번엔 ${touch ? '점프' : 'Space(점프)'}로 뛰어서!` };
+    if (id === 'lunge' && !this.usedExt) return { ok: false, msg: `이번엔 ${touch ? '런지' : 'Shift(런지)'}를 써서!` };
+    if ((id === 'lift' || id === 'down') && this.hitType !== id) return { ok: false, msg: id === 'lift' ? `이번엔 ${touch ? '올리기' : 'Q(올리기)'}로!` : `이번엔 ${touch ? '찍기' : 'E(찍기)'}로!` };
+    if (s.netted || p.z > 0) return { ok: false, msg: this.hitType === 'down' ? '네트 — 충전을 조금만' : '네트 — 한 번 더' };
     return { ok: true, msg: m.inSingles(p.x, p.z) ? '좋아요!' : '맞혔어요! (길어서 아웃 — 충전은 짧게)' };
   }
 
@@ -114,7 +123,7 @@ class Guide3D {
       setTimeout(() => { if (this.finished && g.mode === 'guide' && g.phase === 'over' && g.onGuideDone) g.onGuideDone(); }, 2200);
       return;
     }
-    g.hud.showMessage('튜토리얼 완료!<br>Space 점프 · Shift 런지 · 좌클릭 직선 샷도 있어요 (자세한 건 튜토리얼 버튼)<br><b>Enter</b> 또는 <b>시작</b> = 경기 시작 · Esc = 메뉴');
+    g.hud.showMessage('튜토리얼 완료!<br>좌클릭 직선 샷 · T 감정표현도 있어요 (자세한 건 튜토리얼 버튼)<br><b>Enter</b> 또는 <b>시작</b> = 경기 시작 · Esc = 메뉴');
     g.hud.el.startBtn.textContent = '시작';
   }
   skip() {

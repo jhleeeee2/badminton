@@ -113,12 +113,12 @@ class AI3D {
       else { type = 'flat'; c = rr(0.2, 0.45); }          // 낮은 공 푸시는 네트 앞에서만
     }
     // 위치 기반 전술 + 성향 [게임]: 내(플레이어) 위치를 보고 빈 곳으로
-    //   · 플레이어가 뒤(네트에서 4.4m 이상)에 있으면 짧게: 높은 공은 드롭, 네트 근처 낮은 공은 헤어핀
-    //   · 플레이어가 네트 앞(2.7m 이내)이면 길게: 높은 공은 그대로(스매시 기회), 그 외엔 클리어/드라이브로 머리 위를 넘김
+    //   · 플레이어가 뒤(네트에서 4.1m 이상)에 있으면 짧게: 높은 공은 드롭, 네트 근처 낮은 공은 헤어핀
+    //   · 플레이어가 네트 앞(3.0m 이내)이면 길게: 높은 공은 그대로(스매시 기회), 그 외엔 클리어/드라이브로 머리 위를 넘김
     //   · 수비형: 스매시 대신 높고 깊은 클리어 / 네트형: 위치와 상관없이 짧은 공을 자주
-    const pl = this.game.me.pos, plDeep = pl.z > 4.4, plNear = pl.z < 2.7, smashing = type === 'down' && c >= 0.45;
+    const pl = this.game.me.pos, plDeep = pl.z > 4.1, plNear = pl.z < 3.0, smashing = type === 'down' && c >= 0.45;
     if (smashing && R() < d.deepP) { type = 'lift'; c = rr(0.85, 1.0); }
-    else if (R() < d.front + (plDeep && !smashing ? d.tact * 0.5 : 0)) {   // 스매시 기회는 전술 때문에 포기하지 않음 (네트형 성향만 예외)
+    else if (R() < d.front + (plDeep && !smashing ? d.tact * 0.7 : 0)) {   // 스매시 기회는 전술 때문에 포기하지 않음 (네트형 성향만 예외)
       if (p.y > 1.6) { type = 'down'; c = rr(0.05, 0.3); }
       else if (Math.abs(p.z) < 3.5) { type = 'lift'; c = rr(0, 0.2); }
     } else if (plNear && !smashing && R() < d.tact) {
@@ -130,7 +130,7 @@ class AI3D {
     if (soft) { type = 'lift'; c = p.y < 0.6 ? rr(0.55, 0.75) : rr(0.6, 0.85); }
     if (R() < d.over * this.game.aiErrMul()) c = rr(1.17, 1.3);   // 랠리 템포만큼 과충전↑                     // 과충전 실수
     const me = this.game.me;
-    const tx = soft ? rr(-0.9, 0.9) : R() < d.edge ? -Math.sign(me.pos.x || (R() - 0.5)) * rr(1.3, 2.3) : rr(-2.0, 2.0);
+    const tx = soft ? rr(-0.9, 0.9) : R() < d.edge ? -Math.sign(me.pos.x || (R() - 0.5)) * rr(1.3 + 0.6 * d.tact, 2.3) : rr(-2.0, 2.0);   // 어려울수록 반대쪽 사이드라인 가까이
     // 조준: 실제로 떨어질 깊이(샷 종류·충전량) 기준으로 방향을 잡아야 노린 좌우 위치에 떨어짐 (예전엔 1.5+4c 어림값이라 깊은 샷이 옆으로 더 벌어졌음)
     const S = C3.SHOTS[type], tz = S.depth[0] + (S.depth[1] - S.depth[0]) * Math.min(1, c);
     const yaw = Math.max(-C3.AI_AIM_MAX, Math.min(C3.AI_AIM_MAX, Math.atan2(-(tx - p.x), tz - p.z)));
