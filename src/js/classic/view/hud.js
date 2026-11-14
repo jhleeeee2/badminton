@@ -17,7 +17,7 @@ class Hud {
     this.optsEl.previousElementSibling.textContent = left;
     this.ptsEl.previousElementSibling.textContent = right;
   }
-  setRoom(code) {   // 친구 방 코드 (null이면 숨김)
+  setRoom(code) {   // 친선게임 코드 (null이면 숨김)
     const el = document.getElementById('clRoom'); if (!el) return;
     el.hidden = !code; if (code) document.getElementById('clRoomCode').textContent = code;
   }

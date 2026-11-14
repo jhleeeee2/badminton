@@ -69,7 +69,7 @@ class App {
       g.match.diff = DIFFS[sel.diff];
       g.match.win = sel.win;
       g.match.diffId = sel.diff;   // 기록 저장용 난이도 id
-      g.hud.setConfigLabel(sel.mode === 'room' ? '친구 1:1 · ' + sel.win + '점' : DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
+      g.hud.setConfigLabel(sel.mode === 'room' ? '친선게임 · ' + sel.win + '점' : DIFF_NAMES[sel.diff] + ' · ' + sel.win + '점');
       this.show('classic');
       if (sel.mode === 'room') this.openClassicRoom(sel);
       else g.start();
@@ -99,7 +99,7 @@ class App {
 
   nickOf(sel) { return (sel.nick || (typeof Account !== 'undefined' && Account.nickname) || '게스트').slice(0, 12); }
 
-  // 클래식 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
+  // 클래식 친선게임: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
   openClassicRoom(sel) {
     const g = this.classic, r = sel.room;
     g.stop(); g.oppName = '상대'; g.setMode('room'); g.hud.setRoom(r.code);
@@ -108,13 +108,13 @@ class App {
       .then(() => {
         if (g.net.connected || this.screen !== 'classic' || g.mode !== 'room') return;
         g.hud.showMessage(r.host
-          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>레트로 모드 → 친구 1:1 방</b>을 골라야 해요</small>`
+          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>레트로 모드 → 친선게임</b>을 골라야 해요</small>`
           : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(레트로 모드)를 다시 확인해 주세요</small>`);
       })
       .catch(err => { if (this.screen === 'classic') g.netError(err.message || String(err)); });
   }
 
-  // 친구 1:1 방: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
+  // 친선게임: 채널 연결 → 친구가 들어오면 방장 쪽에서 시작 신호
   openRoom(sel) {
     const g = this.court3d, r = sel.room;
     g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(r.code);

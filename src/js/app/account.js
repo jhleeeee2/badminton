@@ -82,7 +82,7 @@ const Account = {
   writeList(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* 저장 막힘 → 무시 */ } },
 
   // r = { game_type, difficulty, target_score, player_score, ai_score, won }
-  // 친구 대전(difficulty 'room', opponent·sets 추가)은 opt.localOnly — 서버 matches 표에는 그 칸이 없어서 이 브라우저에만 저장
+  // 친선게임(difficulty 'room', opponent·sets 추가)은 opt.localOnly — 서버 matches 표에는 그 칸이 없어서 이 브라우저에만 저장
   recordMatch(r, opt) {
     const row = { ...r, played_at: new Date().toISOString() };
     const hist = this.readList(this.HIST_KEY);
@@ -126,7 +126,7 @@ const Account = {
     const hist = this.readList(this.HIST_KEY).filter(x => x.difficulty !== 'room');
     return { source: 'local', wins: hist.filter(x => x.won).length, losses: hist.filter(x => !x.won).length, recent: hist.slice(0, 10) };
   },
-  // 친구 1:1 대전 기록 (이 브라우저)
+  // 친선게임 기록 (이 브라우저)
   roomStats() {
     const h = this.readList(this.HIST_KEY).filter(x => x.difficulty === 'room');
     return { wins: h.filter(x => x.won).length, losses: h.filter(x => !x.won).length, recent: h.slice(0, 10) };
@@ -304,10 +304,10 @@ const AccountUI = {
     const src = document.createElement('div'); src.className = 'rsrc';
     src.textContent = s.source === 'server' ? '계정에 저장된 기록 (AI 대전만 · 최근 10경기)' : '이 브라우저에 저장된 AI 대전 기록 (최근 10경기 표시)';
     box.appendChild(src);
-    const roomBlock = () => {   // 친구 1:1 대전 기록
+    const roomBlock = () => {   // 친선게임 기록
       const rs = Account.roomStats(); if (!rs.recent.length) return;
       const h = document.createElement('div'); h.className = 'rsrc'; h.style.marginTop = '14px';
-      h.innerHTML = `<b style="color:var(--text)">친구 1:1 대전</b> · ${rs.wins}승 ${rs.losses}패 (이 브라우저 · 최근 10경기)`;
+      h.innerHTML = `<b style="color:var(--text)">친선게임</b> · ${rs.wins}승 ${rs.losses}패 (이 브라우저 · 최근 10경기)`;
       box.appendChild(h);
       const l = document.createElement('div'); l.className = 'rlist';
       for (const r of rs.recent) {

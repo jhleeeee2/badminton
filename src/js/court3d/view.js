@@ -13,7 +13,7 @@ const ARENA = Object.freeze({   // [게임] 색 구성
 });
 // 코트 양쪽 끝(엔드) = 응원단 [게임]: END A = 빨강팀, END B = 파랑팀
 //   맞은편 관중석·양옆 관중석의 '맞은편 절반'은 맞은편 엔드 팀 색, 양옆의 '내 쪽 절반'은 내 엔드 팀 색
-//   친구 대전에선 두 사람이 서로 다른 엔드를 보고, 코트 체인지 때 서로 바뀜
+//   친선게임에선 두 사람이 서로 다른 엔드를 보고, 코트 체인지 때 서로 바뀜
 const ENDS = Object.freeze([
   { name: 'RED', team: '빨강팀', BG_TOP: '#3A1230', BG_BOTTOM: '#0C0610', STAND: 0x5A1A24, LED: 0xFFB0A8, RIM_A: 0xFF4B4B, RIM_B: 0xFFB13B, FLAG: '#FF4B4B', HUE: 0.0 },
   { name: 'BLUE', team: '파랑팀', BG_TOP: '#122A5A', BG_BOTTOM: '#050A18', STAND: 0x183068, LED: 0xA8C4FF, RIM_A: 0x3D8BFF, RIM_B: 0x3DD9FF, FLAG: '#4B8BFF', HUE: 0.6 }

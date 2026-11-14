@@ -1,6 +1,6 @@
 // game.js — 게임 전체를 묶는 객체: 상태(phase) 전환, 메인 루프, 서브, 득점 처리
 //
-// 모드: 'ai'(AI 대전) · 'local2p'(한 키보드 2인: 오른쪽 P1 · 왼쪽 P2) · 'room'(친구 1:1 온라인: 내 화면에선 내가 항상 오른쪽)
+// 모드: 'ai'(AI 대전) · 'local2p'(한 키보드 2인: 오른쪽 P1 · 왼쪽 P2) · 'room'(친선게임 온라인: 내 화면에선 내가 항상 오른쪽)
 // phase: 'idle'(시작 전) → 'serve'(서브 대기) → 'flying'(랠리) ↔ 'pserve'(사람 서브 게이지)
 //        ↔ 'oserve'(온라인: 상대가 서브 게이지를 모으는 중) → 'gameover'
 // 선수: player = 오른쪽(사람), left = 왼쪽 (AI 대전이면 ai, 아니면 p2)
@@ -10,7 +10,7 @@ const INTRO_MSG = {
   local2p: '<b>로컬 2인</b> — 한 키보드로 둘이 (목표 점수 선점 + 2점 차)<br>'
     + '<span style="color:var(--opp)">P2 왼쪽</span>: F H 이동 · T 점프 · G 앉기 · Q W E R 샷 · Space 스매시/서브 · A 대쉬<br>'
     + '<span style="color:var(--me)">P1 오른쪽</span>: ←→ 이동 · ↑ 점프 · ↓ 앉기 · U I O P 샷 · ; 스매시/서브 · J 대쉬<br>Space 또는 시작 = 시작',
-  room: '친구 1:1 — 친구가 들어오면 바로 시작합니다',
+  room: '친선게임 — 친구가 들어오면 바로 시작합니다',
   // 모바일(터치 버튼) AI 대전 안내
   touch: '목표 점수 선점 + 2점 차로 승리 (듀스 적용)<br>왼쪽 패드: ◀▶ 이동 · ▲ 점프 · ▼ 앉기(수비)<br>오른쪽: 클리어 · 드라이브 · 드롭 · 헤어핀 · 스매시 · ⚡ 대쉬<br>내 서브: 스매시 버튼을 꾹 눌렀다 떼기 · 가로 화면 추천'
 };
@@ -30,7 +30,7 @@ class Game {
 
     this.mode = 'ai';
     this.oppName = '상대';
-    this.roomRec = { cid: null, name: '', sets: { me: 0, opp: 0 } };   // 친구 방: 같은 상대와 계속하면 세트 스코어 유지
+    this.roomRec = { cid: null, name: '', sets: { me: 0, opp: 0 } };   // 친선게임: 같은 상대와 계속하면 세트 스코어 유지
     this.phase = 'idle';
     this.serveWait = 0;
     this.lastTs = 0;
@@ -46,7 +46,7 @@ class Game {
   // 이 화면이 판정하는가: 온라인에서는 공을 받는 쪽(공이 날아가는 쪽) 컴퓨터만 판정해서 알려줌
   judgeHere() { return this.mode !== 'room' || this.shuttle.dir === 1; }
 
-  // 모드 설정 (App.launch / 친구 방에서 호출)
+  // 모드 설정 (App.launch / 친선게임에서 호출)
   setMode(mode) {
     this.mode = mode === 'local2p' || mode === 'room' ? mode : 'ai';
     this.p2.remote = this.mode === 'room';
@@ -214,13 +214,13 @@ class Game {
     else if (gg.on) { gg.on = false; this.doServe(pl, gg.p); }
   }
 
-  // ───── 친구 1:1 (NetC가 호출) ─────
+  // ───── 친선게임 (NetC가 호출) ─────
   netPeerJoined(peer, win) {
     if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
     this.oppName = peer.name; this.roomRec.name = peer.name;
     this.match.win = win;
     this.hud.setNames(peer.name, '나');
-    this.hud.setConfigLabel('친구 1:1 · ' + win + '점');
+    this.hud.setConfigLabel('친선게임 · ' + win + '점');
     this.fx.show(peer.name + ' 입장!', COLORS.ok, 1.2);
     if (this.net.host) setTimeout(() => { if (this.net.peer === peer && this.phase === 'idle') this.start(); }, 600);   // 방장이 시작 신호
     else this.hud.showMessage(escHtmlC(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');

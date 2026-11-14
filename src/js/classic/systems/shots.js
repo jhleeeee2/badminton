@@ -43,7 +43,7 @@ class ShotSystem {
 
     ai.ignore = (!toRight) && (s.outPred || !!s.net);
     ai.frozen = false;
-    if (g.mode !== 'ai') return;   // 사람끼리(로컬 2인·친구 1:1): AI 반응 계산 없음
+    if (g.mode !== 'ai') return;   // 사람끼리(로컬 2인·친선게임): AI 반응 계산 없음
     if (!toRight && !ai.ignore) {
       // 반사신경 한계: 파워가 임계값을 넘으면 확률적으로 굳음
       const pf = Math.min(d.rC, Math.max(0, (power - d.rT) * d.rK));

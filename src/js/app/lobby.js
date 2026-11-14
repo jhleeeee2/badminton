@@ -1,7 +1,7 @@
 // app/lobby.js — 대기화면: 게임 종류·모드·난이도·목표 점수 선택 후 시작
 
 const LOBBY_STORE_KEY = 'badminton.lobby';
-const NICK_STORE_KEY = 'badminton.nick';   // 친구 1:1 닉네임 (두 게임 종류 공용, 이 브라우저에 기억)
+const NICK_STORE_KEY = 'badminton.nick';   // 친선게임 닉네임 (두 게임 종류 공용, 이 브라우저에 기억)
 
 const COURT_ART = {   // 게임 종류 카드의 작은 그림
   side: '<svg viewBox="0 0 120 44" aria-hidden="true"><line x1="4" y1="38" x2="116" y2="38" stroke="currentColor" stroke-width="2"/><line x1="60" y1="38" x2="60" y2="20" stroke="currentColor" stroke-width="2"/><circle cx="26" cy="22" r="3" fill="var(--opp)"/><line x1="26" y1="25" x2="26" y2="38" stroke="var(--opp)" stroke-width="2"/><circle cx="94" cy="22" r="3" fill="var(--me)"/><line x1="94" y1="25" x2="94" y2="38" stroke="var(--me)" stroke-width="2"/><path d="M90 18 Q60 -4 34 20" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>',

@@ -1,5 +1,5 @@
 // ui/input.js — 키보드·터치 버튼·설정 버튼을 Game 명령으로 연결
-//   1인(AI 대전·친구 1:1): KEYMAP → 오른쪽 선수
+//   1인(AI 대전·친선게임): KEYMAP → 오른쪽 선수
 //   로컬 2인: KEYMAP_2P.L → 왼쪽 P2, KEYMAP_2P.R → 오른쪽 P1
 
 class Input {

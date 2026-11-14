@@ -1,6 +1,6 @@
 // court3d/game.js — 3D 게임 본체: 고정 간격 시뮬레이션, 슬로우, 타격 판정, 서브·득점 흐름
 // phase: 'idle' → 'serve'(서버가 셔틀을 들고 대기) → 'rally' → 'point'(잠시 멈춤) → 'serve' … → 'over'
-//        'pause' = 친구 대전 중 상대가 나감 (점수 그대로 멈춤, 같은 사람이 다시 들어오면 이어서)
+//        'pause' = 친선게임 중 상대가 나감 (점수 그대로 멈춤, 같은 사람이 다시 들어오면 이어서)
 
 const HAND_NAMES = { FH: '포핸드', BH: '백핸드', RTH: '라운드 더 헤드' };
 const CAT_NAMES = { over: '머리 위', side: '옆', low: '아래' };
@@ -26,7 +26,7 @@ class Game3D {
     this.hud.setMute(Sound3.muted);   // 음소거 설정도 브라우저에 기억
     // 엔드(코트 끝): myEnd = 내가 서 있는 엔드(0=A, 1=B). 화면 안쪽에는 반대 엔드 배경이 보임
     this.myEnd = 0; this.midSwapped = false; this.swapNext = false;
-    // 친구 방: 같은 상대와 계속 하면 세트 스코어 유지
+    // 친선게임: 같은 상대와 계속 하면 세트 스코어 유지
     this.roomRec = { cid: null, name: '', sets: { me: 0, opp: 0 } };
     this.awayPeer = null;
     this.emote = new Emote3D(this, container);
@@ -56,7 +56,7 @@ class Game3D {
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
-      : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
+      : this.mode === 'room' ? '친선게임 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
@@ -78,7 +78,7 @@ class Game3D {
     }
     this.match.reset(); this.awayPeer = null;
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
-    // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친구 방 첫 경기는 방장 A·친구 B
+    // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
     else if (this.mode !== 'room') this.myEnd = 0;
     this.swapNext = false; this.midSwapped = false; this.view.setEnd(this.myEnd ^ 1);
@@ -241,7 +241,7 @@ class Game3D {
   aiErrMul() { return 1 + C3.RALLY_TEMPO.AI_ERR_K * (this.tempo().spd - 1); }
 
   // ───── 보조 표시 (낙하 지점 L · 셔틀 그림자 G) ─────
-  //   친구 방에서는 '방 설정': 누가 바꾸든 두 사람 화면에 똑같이 적용 (공정하게)
+  //   친선게임에서는 '방 설정': 누가 바꾸든 두 사람 화면에 똑같이 적용 (공정하게)
   //   내 브라우저에 기억하는 건 내가 직접 바꾼 값만 → 방을 나가면 내 설정으로 돌아옴
   applyLand(on) {
     this.showLand = on;

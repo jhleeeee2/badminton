@@ -227,7 +227,7 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .rrow.w span:last-child{color:var(--ok);} .rrow.l span:last-child{color:var(--bad);}
 #acct [hidden]{display:none !important;}
 
-/* 친구 1:1 방 */
+/* 친선게임 */
 .roomrow{align-items:center;}
 .roomor{font-size:12px;color:var(--text3);}
 .roomcode{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:16px;font-family:inherit;letter-spacing:.2em;text-transform:uppercase;width:150px;}

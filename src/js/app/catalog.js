@@ -20,7 +20,7 @@ const MODES = [
   { id: 'career',  name: '커리어',      desc: '대회 4개 · 성향이 다른 상대 12명' },
   { id: 'daily',   name: '일일 챌린지', desc: '오늘의 종목 · 점수 순위' },
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
-  { id: 'room',    name: '친구 1:1 방', desc: '방 코드로 온라인 대전' },
+  { id: 'room',    name: '친선게임', desc: '방 코드로 온라인 대전' },
   { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
   { id: 'doubles', name: '복식',        desc: '2 대 2' }
 ];
