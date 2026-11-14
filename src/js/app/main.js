@@ -93,8 +93,8 @@ class App {
       .then(() => {
         if (g.net.connected || this.screen !== 'classic' || g.mode !== 'room') return;
         g.hud.showMessage(r.host
-          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>클래식 랠리 → 친구 1:1 방</b>을 골라야 해요</small>`
-          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(클래식)를 다시 확인해 주세요</small>`);
+          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>레트로 모드 → 친구 1:1 방</b>을 골라야 해요</small>`
+          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(레트로 모드)를 다시 확인해 주세요</small>`);
       })
       .catch(err => { if (this.screen === 'classic') g.netError(err.message || String(err)); });
   }

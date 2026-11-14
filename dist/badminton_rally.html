@@ -380,7 +380,7 @@ body.touch .c3msg{font-size:13px;}
 <!-- ───────── 대기화면 ───────── -->
 <div class="wrap" id="lobby">
   <h1>배드민턴 랠리 <span class="cock">●</span></h1>
-  <p class="sub">게임 종류와 대전 모드를 고르고 시작하세요.</p>
+  <p class="sub">실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.</p>
   <div class="acctbar" id="acctBar"></div>
   <section class="lsec">
     <div class="lhead">게임 종류</div>
@@ -441,7 +441,7 @@ body.touch .c3msg{font-size:13px;}
 
 <!-- ───────── 클래식 게임 화면 ───────── -->
 <div class="wrap" id="classic" hidden>
-  <h1><button id="menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">클래식</span> <span class="c3room" id="clRoom" hidden title="클릭하면 코드 복사">방 <b id="clRoomCode"></b></span></h1>
+  <h1><button id="menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">레트로 모드</span> <span class="c3room" id="clRoom" hidden title="클릭하면 코드 복사">방 <b id="clRoomCode"></b></span></h1>
   <div class="hud">
     <div class="cards">
       <div class="card"><span class="lbl" style="color:var(--opp)">상대</span><span id="opts" class="val">0</span></div>
@@ -488,7 +488,7 @@ body.touch .c3msg{font-size:13px;}
 </div>
 <!-- ───────── 3D 코트 화면 ───────── -->
 <div class="wrap wide3d" id="court3d" hidden>
-  <h1><button id="c3menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">3D 코트 · 시험판</span> <span class="c3room" id="c3room" hidden title="클릭하면 코드 복사">방 <b id="c3roomCode"></b></span></h1>
+  <h1><button id="c3menuBtn" class="back" aria-label="메뉴로">← 메뉴<span class="key">Esc</span></button>배드민턴 랠리 <span class="cock">●</span> <span class="mode">3D 코트</span> <span class="c3room" id="c3room" hidden title="클릭하면 코드 복사">방 <b id="c3roomCode"></b></span></h1>
   <div class="hud">
     <div class="cards">
       <div class="card team opp"><span class="lbl">상대</span><span id="c3opts" class="val">0</span><span id="c3srvOpp" class="srv" hidden>서브</span></div>
@@ -1967,7 +1967,7 @@ const TUTORIAL_PAGES = [
   { t: '4. 서브', b: '내 서브 차례엔 위치를 잡고 <b>Space를 누르고 있으면</b> 게이지가 차오릅니다(약 0.9초에 가득).<br>짧게 누르고 떼면 네트 앞에 떨어지는 <b>낮은 숏서브</b>(상대가 받기 까다로움), 꽉 채워 떼면 뒤쪽 깊숙이 가는 <b>높은 롱서브</b>.<br>단, 게이지 양 끝의 <b>빨간 구간</b>은 실패! 툭 치듯 너무 짧으면 <b>네트</b>에 걸리고, 가득 찬 뒤에도 계속 누르고 있으면 <b>아웃</b>됩니다.' },
   { t: '5. 수비 — 앉기', b: '<b>↓를 누르고 있으면 앉은 자세</b>가 됩니다. 리치가 크게 늘고 삑사리가 안 나서 빠른 스매시도 안정적으로 받아냅니다.<br>대신 이동이 느려지고 리턴은 무조건 약한 수비 샷이 돼요 — 받아낸 다음 자세를 풀고 반격하세요.' },
   { t: '6. 판정과 실수', b: '<b>네트</b> — 궤적이 네트를 못 넘으면 친 쪽 실점.<br><b>아웃</b> — 낙하점이 빨간 X면 아웃되는 공. 건드리지 말고 흘려보내면 득점!<br><b>삑사리</b> — 모든 샷에 소확률 존재(스매시>드라이브>헤어핀>드롭>클리어). 타점이 낮을수록 잘 납니다.<br><b>범실</b> — 삑사리 공이 자기 코트에 떨어지면 실점.' },
-  { t: '7. 친구 1:1', b: '대기화면에서 <b>클래식 랠리 → 친구 1:1 방</b>. 닉네임을 적고, 한 명이 방을 만들고 친구는 5자리 코드로 입장.<br>내 화면에선 항상 내가 오른쪽이고 조작은 1인용과 같아요. 첫 서브와 목표 점수는 방장 기준이에요.' }
+  { t: '7. 친구 1:1', b: '대기화면에서 <b>레트로 모드 → 친구 1:1 방</b>. 닉네임을 적고, 한 명이 방을 만들고 친구는 5자리 코드로 입장.<br>내 화면에선 항상 내가 오른쪽이고 조작은 1인용과 같아요. 첫 서브와 목표 점수는 방장 기준이에요.' }
 ];
 
 class Tutorial {
@@ -4761,7 +4761,7 @@ class Touch3D {
 // court3d/tutorial.js — 3D 코트 튜토리얼 페이지
 
 const TUTORIAL_3D_PAGES = [
-  { t: '1. 기본 조작 (3D 코트 · 시험판)', b: '<b>WASD</b> 이동 · <b>마우스</b> = 치는 방향 (발밑 점선이 커서 쪽을 가리킴)<br><b>Q</b> 올리기 · <b>E</b> 찍기 · <b>좌클릭</b> 직선 — 모두 <b>꾹 눌러 충전, 떼는 순간 스윙</b><br><b>Space</b> 점프 · <b>Shift</b> 런지 · <b>Esc</b> 메뉴' },
+  { t: '1. 기본 조작 (3D 코트)', b: '<b>WASD</b> 이동 · <b>마우스</b> = 치는 방향 (발밑 점선이 커서 쪽을 가리킴)<br><b>Q</b> 올리기 · <b>E</b> 찍기 · <b>좌클릭</b> 직선 — 모두 <b>꾹 눌러 충전, 떼는 순간 스윙</b><br><b>Space</b> 점프 · <b>Shift</b> 런지 · <b>Esc</b> 메뉴' },
   { t: '2. 충전량 = 샷 종류', b: '방향은 <b>마우스</b>, 거리와 샷 종류는 <b>충전량</b>이 정합니다.<br><b>Q 올리기</b>: 짧게 → 헤어핀/리프트, 길게 → 클리어<br><b>E 찍기</b>: 짧게 → 드롭, 길게 → 스매시 (공중이면 점프 스매시)<br><b>좌클릭 직선</b>: 짧게 → 푸시, 길게 → 드라이브<br>게이지 오른쪽 <b>빨간 구간</b>까지 버티면 실패: 올리기·직선은 <b>아웃</b>, 찍기는 <b>네트</b>.' },
   { t: '3. 슬로우 타이밍', b: '셔틀이 <b>라켓 든 팔 바로 옆</b>(약 1.4m)까지 오면 잠깐 게임 전체가 느려집니다(화면 가장자리가 어두워짐).<br>슬로우는 짧으니 <b>미리 꾹 눌러 충전</b>해 두고, <b>셔틀이 라켓에 닿는 순간 떼세요</b>.<br>너무 일찍 떼면 헛스윙!<br>랠리가 길어질수록 <b>셔틀과 경기 속도가 점점 빨라지고</b>(최대 1.4배), <b>슬로우 범위도 점점 좁아집니다</b>.<br><b>네트 바로 앞</b>에서는 슬로우 범위가 최대 30% 좁아집니다.<br>Q·E를 <b>80% 넘게</b> 충전하면 맞는 시간이 짧아져서, 100%면 <b>정확한 순간</b>에 떼야만 맞습니다(미리 꽉 채워두고 아무 때나 떼면 헛스윙).' },
   { t: '4. 포핸드 · 백핸드 (자동)', b: '라켓 든 손 쪽으로 오면 <b>포핸드</b>, 반대쪽이면 <b>백핸드</b> — 화면 아래에 미리 표시됩니다.<br>백핸드는 덜 멀리 가고 방향이 흔들립니다. 머리 위로 온 백핸드 쪽 공은 가까우면 <b>라운드 더 헤드</b>(머리 뒤로 돌려 포핸드)로 칩니다.<br>대기화면에서 <b>왼손잡이</b>로 바꿀 수 있어요.' },
@@ -4781,14 +4781,14 @@ const TUTORIAL_3D_PAGES = [
 
 const GAME_TYPES = [
   {
-    id: 'classic', name: '클래식 랠리',
-    desc: '옆에서 보는 2D 코트. 키보드로 샷을 골라 치는 원래 게임.',
-    modes: ['ai', 'room'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
+    id: 'court3d', name: '3D 코트',
+    desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
+    modes: ['ai', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
-    id: 'court3d', name: '3D 코트',
-    desc: '실제 규격 코트·단식 규칙 · WASD 이동 · 마우스 방향 · Q 올리기 / E 찍기 / 클릭 직선 · 슬로우 타이밍.',
-    modes: ['ai', 'train', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
+    id: 'classic', name: '레트로 모드',
+    desc: '이 게임의 첫 버전. 옆에서 보는 2D 코트에서 키보드로 샷을 골라 칩니다.',
+    modes: ['ai', 'room'], badge: { text: '2D 클래식', tone: 'off' }, art: 'side'
   }
 ];
 
@@ -4826,7 +4826,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 const SUPABASE_URL = 'https://ywpbsixafaqmnjqnodkz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vervME1AwGv0J3uo6mxW4A_dS9rur0Q';
 
-const GAME_TYPE_NAMES = { classic: '클래식', court3d: '3D 코트' };
+const GAME_TYPE_NAMES = { classic: '레트로', court3d: '3D 코트' };
 
 const Account = {
   HIST_KEY: 'badminton.history.v1', PEND_KEY: 'badminton.pending.v1', HIST_MAX: 50,
@@ -5155,7 +5155,7 @@ class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
     this.app = app;
-    this.sel = { type: 'classic', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
+    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
@@ -5298,7 +5298,11 @@ class Lobby {
     try {
       const v = JSON.parse(localStorage.getItem(LOBBY_STORE_KEY) || 'null');
       if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str' });
+      // 3D가 본편이 되기 전에 저장된 선택은 한 번만 3D로 옮긴다(그 뒤로는 고른 대로 기억)
+      if (v && v.v !== 2) this.sel.type = 'court3d';
+      this.sel.v = 2;
     } catch (e) { /* 무시 */ }
+    this.sel.v = 2;
   }
   save() { try { localStorage.setItem(LOBBY_STORE_KEY, JSON.stringify(this.sel)); } catch (e) { /* 무시 */ } }
   loadNick() {
@@ -5406,8 +5410,8 @@ class App {
       .then(() => {
         if (g.net.connected || this.screen !== 'classic' || g.mode !== 'room') return;
         g.hud.showMessage(r.host
-          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>클래식 랠리 → 친구 1:1 방</b>을 골라야 해요</small>`
-          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(클래식)를 다시 확인해 주세요</small>`);
+          ? `방 코드<br><span class="c3code">${r.code}</span><br>친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다<br><small>친구도 대기화면에서 <b>레트로 모드 → 친구 1:1 방</b>을 골라야 해요</small>`
+          : `방 <b>${r.code}</b>에서 방장을 기다리는 중…<br><small>오래 걸리면 코드와 게임 종류(레트로 모드)를 다시 확인해 주세요</small>`);
       })
       .catch(err => { if (this.screen === 'classic') g.netError(err.message || String(err)); });
   }

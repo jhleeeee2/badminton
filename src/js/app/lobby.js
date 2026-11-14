@@ -31,7 +31,7 @@ class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
     this.app = app;
-    this.sel = { type: 'classic', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
+    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
@@ -174,7 +174,11 @@ class Lobby {
     try {
       const v = JSON.parse(localStorage.getItem(LOBBY_STORE_KEY) || 'null');
       if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str' });
+      // 3D가 본편이 되기 전에 저장된 선택은 한 번만 3D로 옮긴다(그 뒤로는 고른 대로 기억)
+      if (v && v.v !== 2) this.sel.type = 'court3d';
+      this.sel.v = 2;
     } catch (e) { /* 무시 */ }
+    this.sel.v = 2;
   }
   save() { try { localStorage.setItem(LOBBY_STORE_KEY, JSON.stringify(this.sel)); } catch (e) { /* 무시 */ } }
   loadNick() {

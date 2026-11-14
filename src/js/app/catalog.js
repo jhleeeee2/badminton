@@ -4,14 +4,14 @@
 
 const GAME_TYPES = [
   {
-    id: 'classic', name: '클래식 랠리',
-    desc: '옆에서 보는 2D 코트. 키보드로 샷을 골라 치는 원래 게임.',
-    modes: ['ai', 'room'], badge: { text: '플레이 가능', tone: 'ok' }, art: 'side'
+    id: 'court3d', name: '3D 코트',
+    desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
+    modes: ['ai', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
-    id: 'court3d', name: '3D 코트',
-    desc: '실제 규격 코트·단식 규칙 · WASD 이동 · 마우스 방향 · Q 올리기 / E 찍기 / 클릭 직선 · 슬로우 타이밍.',
-    modes: ['ai', 'train', 'room'], badge: { text: '시험판', tone: 'warn' }, art: 'persp', options: ['hand']
+    id: 'classic', name: '레트로 모드',
+    desc: '이 게임의 첫 버전. 옆에서 보는 2D 코트에서 키보드로 샷을 골라 칩니다.',
+    modes: ['ai', 'room'], badge: { text: '2D 클래식', tone: 'off' }, art: 'side'
   }
 ];
 

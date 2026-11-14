@@ -9,7 +9,7 @@
 const SUPABASE_URL = 'https://ywpbsixafaqmnjqnodkz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vervME1AwGv0J3uo6mxW4A_dS9rur0Q';
 
-const GAME_TYPE_NAMES = { classic: '클래식', court3d: '3D 코트' };
+const GAME_TYPE_NAMES = { classic: '레트로', court3d: '3D 코트' };
 
 const Account = {
   HIST_KEY: 'badminton.history.v1', PEND_KEY: 'badminton.pending.v1', HIST_MAX: 50,

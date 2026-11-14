@@ -12,7 +12,7 @@ src/                         개발용 원본 (여기만 수정)
       main.js                App — 대기화면 ↔ 게임 전환, Enter 시작 / Esc 메뉴 (전역 app)
       touch.js               TouchUI — 모바일 버튼 조작 공용(터치 기기면 body.touch, 누르기·꾹·8방향 이동 패드)
       account.js             Account/AccountUI — Supabase 로그인·회원가입, 경기 기록(로컬+서버), 훈련 레벨 동기화
-    classic/                 게임 종류 1: 클래식 랠리 (옆에서 보는 2D)
+    classic/                 레트로 모드(옛 이름 클래식 랠리): 옆에서 보는 2D — 유지·버그 수정만
       config.js              모든 상수·밸런스 수치 (COURT, PHYS, MOVE, POWER, SERVE, DIFFS, KEYMAP …)
       core/shuttle.js        Shuttle      — 셔틀 궤적(투사체), 네트·아웃 예측
       systems/match.js       Match        — 점수, 랠리, 서브권, 듀스·승패
@@ -27,7 +27,7 @@ src/                         개발용 원본 (여기만 수정)
       game.js                Game         — 모드(ai/room)·phase 전환, 메인 루프, 서브·득점, start/stop
       ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만)
       ui/tutorial.js         Tutorial     — 튜토리얼 팝업 + TUTORIAL_PAGES
-    court3d/                 게임 종류 2: 3D 코트 (시험판, Three.js)
+    court3d/                 본편: 3D 코트 (Three.js) — 새 기능은 여기에
       config.js              C3 — 코트 규격[규격]·물리[근사]·슬로우/충전/샷/AI 수치[게임]
       physics.js             Phys3 — 셔틀 공기저항 물리(종단속도 6.8m/s), 네트 판정, 발사 속력 역산
       shots.js               Shots3 — 충전량·방향·포/백핸드 → 목표 지점 → 발사 속도, 과충전 실패
@@ -82,7 +82,7 @@ T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 - account.js의 키는 publishable(공개용). secret/service_role 키는 절대 넣지 말 것.
 
 ## 친구 1:1 방 (클래식, 온라인)
-- 대기화면 → 클래식 랠리 → 친구 1:1 방. 닉네임을 적고 방 만들기/입장 (3D 방과 채널이 달라서 둘 다 클래식을 골라야 함).
+- 대기화면 → 레트로 모드 → 친구 1:1 방. 닉네임을 적고 방 만들기/입장 (3D 방과 채널이 달라서 둘 다 클래식을 골라야 함).
 - 채널 `bmc-<코드>`: 각자 내 선수 상태를 초당 20번 보냄 · 칠 때는 셔틀 출발점·도착점·비행시간만 보냄(클래식 궤적은 이 세 값으로 결정)
   · 받는 쪽 컴퓨터가 낙하/네트를 판정해 'pt'로 점수를 알림 · 내 화면에선 항상 내가 오른쪽(상대 x는 W − x로 뒤집음).
 - 첫 서브·목표 점수는 방장 기준. 상대가 나가면 경기 중단, 같은 코드로 다시 들어오면 새 경기(세트 스코어는 유지). 기록은 이 브라우저에만.
