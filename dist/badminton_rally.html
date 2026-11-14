@@ -433,6 +433,19 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .crow:disabled{cursor:default;opacity:.7;}
 .careerfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:12.5px;color:var(--text2);}
 .careerfoot button{font-size:12px;padding:5px 10px;color:var(--text3);}
+
+/* ── 일일 챌린지 ── */
+.dailygrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
+.dailycard{--tc:#FFD23F;display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+.dailycard .dn{font-size:15px;font-weight:700;color:var(--tc);}
+.dailycard .dn small{font-size:12px;font-weight:500;color:var(--text3);margin-left:4px;}
+.dailycard .dd{font-size:12.5px;color:var(--text2);line-height:1.55;}
+.dailycard .dd b{color:var(--text);}
+.dailycard .db{font-size:14px;color:var(--text);margin-top:2px;}
+.dailycard .db b{color:var(--tc);}
+.dailycard .drow{display:grid;grid-template-columns:38px 1fr auto;gap:8px;font-size:13px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.04);}
+.dailycard .drow.mine{box-shadow:inset 0 0 0 1px var(--tc);}
+.dailycard .drow span:last-child{font-weight:700;}
 </style>
 </head>
 <body>
@@ -498,6 +511,13 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
     <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
     <div class="careergrid" id="careerList"></div>
     <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
+  </section>
+  <section class="lsec" id="dailySettings" hidden>
+    <div class="lhead">일일 챌린지 <span class="lsub">날마다 종목이 바뀜 · 누구에게나 같은 공 15개 · 여러 번 도전, 최고 점수만 인정</span></div>
+    <div class="dailygrid">
+      <div class="dailycard" id="dailyCard"></div>
+      <div class="dailycard" id="dailyRank"></div>
+    </div>
   </section>
   <section class="lsec" id="trainSettings" hidden>
     <div class="lhead">훈련 — 선수 키우기 <span class="lsub">연속 성공으로 레벨업 · 레벨 효과는 AI 대전에 적용</span></div>
@@ -3641,6 +3661,13 @@ class Hud3D {
     this.el.bTag.textContent = `${t.name} Lv.${t.lv}` + (t.lv >= t.max ? ' (최대)' : '');
     this.el.bTag.style.background = t.color; this.el.bTag.style.color = '#14122a';
   }
+  // 일일 챌린지 진행 표시 (점수 / 남은 공)
+  setDaily(t) {
+    const b = this.el.board; b.classList.add('train'); b.classList.remove('mpMe', 'mpOpp', 'srvMe', 'srvOpp');
+    b.querySelector('.opp .nm').textContent = '점수'; b.querySelector('.me .nm').textContent = '남은 공';
+    this.el.bOpp.textContent = t.score; this.el.bMe.textContent = t.left;
+    this.el.bTag.textContent = '일일 챌린지 · ' + t.name; this.el.bTag.style.background = t.color; this.el.bTag.style.color = '#14122a';
+  }
   // 체험 튜토리얼 진행 표시 (단계 / 전체)
   setGuide(i, n, title) {
     const b = this.el.board; b.classList.add('train'); b.classList.remove('mpMe', 'mpOpp', 'srvMe', 'srvOpp');
@@ -3828,6 +3855,47 @@ const Career3 = {
 Career3.load();
 </script>
 <script>
+// court3d/daily.js — 일일 챌린지: 훈련 3종(근력·순발력·판단력)을 날마다 하나씩 점수 경쟁으로
+//   · 날짜는 한국 시간 기준(자정에 바뀜). 종목은 근력 → 순발력 → 판단력 순으로 하루씩 돌아감
+//   · 그날은 누구에게나 같은 공이 같은 순서로 옴(날짜로 만든 난수) · 공 15개 · 여러 번 도전 가능, 최고 점수만 인정
+//   · 점수: 성공 1번 = 100점 + 연속 보너스(연속 2번째부터 +25씩, 최대 +100)  → 만점 2,750점
+//   · 공평하게: 훈련 레벨과 상관없이 공 세기는 고정(FEED_LV), 근력 레벨의 스매시 각 보너스도 꺼짐
+//   · 내 최고 기록은 이 브라우저에 저장, 로그인하면 서버(daily_scores 표)에 올려 순위표에 표시
+//   수치는 모두 [게임]용
+
+const Daily3 = {
+  KEY: 'badminton.daily.v1', TOTAL: 15, FEED_LV: 3, BASE: 100, BONUS: 25, BONUS_MAX: 100, KEEP: 14,
+  KINDS: ['str', 'agi', 'jud'],
+  days: {},   // { '2026-11-14': { kind, best, tries } }
+
+  dayNum(t) { return Math.floor(((t || Date.now()) + 9 * 3600e3) / 86400e3); },          // 한국 시간 기준 날짜 번호
+  day(t) { return new Date((t || Date.now()) + 9 * 3600e3).toISOString().slice(0, 10); },
+  kind(t) { return this.KINDS[this.dayNum(t) % 3]; },
+  maxScore() { let s = 0; for (let i = 0; i < this.TOTAL; i++) s += this.pts(i + 1); return s; },
+  pts(streak) { return this.BASE + Math.min(this.BONUS_MAX, this.BONUS * Math.max(0, streak - 1)); },   // streak = 이번 성공까지 포함한 연속 수
+  // 그날의 난수 (mulberry32): 도전을 시작할 때마다 새로 만들어 같은 순서를 되풀이
+  rng(t) {
+    let a = (this.dayNum(t) * 2654435761) >>> 0;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  },
+
+  load() { try { const v = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (v && typeof v === 'object') this.days = v; } catch (e) { /* 무시 */ } },
+  save() {
+    const ks = Object.keys(this.days).sort(); while (ks.length > this.KEEP) delete this.days[ks.shift()];
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.days)); } catch (e) { /* 무시 */ }
+  },
+  today() { return this.days[this.day()] || { kind: this.kind(), best: 0, tries: 0 }; },
+  // 한 번의 도전 결과 기록 → { best, isNew }. day는 도전을 시작한 날 (자정을 넘겨도 그날 기록으로)
+  record(day, kind, score) {
+    const d = this.days[day] || (this.days[day] = { kind, best: 0, tries: 0 });
+    d.tries++; const isNew = score > d.best; if (isNew) d.best = score;
+    this.save();
+    return { best: d.best, isNew };
+  }
+};
+Daily3.load();
+</script>
+<script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
 //   str 근력: 높은 공 → 내 스매시가 상대 코트 표적 안에 떨어지면 성공
 //   agi 순발력: AI 스매시 → 상대 코트 안으로 받아 넘기면 성공
@@ -3837,12 +3905,17 @@ Career3.load();
 class Trainer3D {
   constructor(game) { this.g = game; this.kind = null; this.streak = 0; this.best = 0; }
   get active() { return !!this.kind; }
-  start(kind) { this.kind = kind; this.streak = 0; this.best = 0; this.target = null; }
-  stop() { this.kind = null; this.g.view.setTarget(null); }
+  // daily = true면 일일 챌린지: 공 Daily3.TOTAL개를 날짜 난수로 먹여 주고 점수를 셈 (레벨업 없음)
+  start(kind, daily) {
+    this.kind = kind; this.streak = 0; this.best = 0; this.target = null;
+    this.daily = !!daily; this.finished = false; this.score = 0; this.count = 0; this.hits = 0;
+    this.rng = this.daily ? Daily3.rng() : null; this.day = this.daily ? Daily3.day() : null;
+  }
+  stop() { this.kind = null; this.daily = false; this.finished = false; this.rng = null; this.g.view.setTarget(null); }
 
   // 서브 차례 대신 공 먹여 주기
   feed() {
-    const g = this.g, a = g.opp, R = Math.random, rr = (x, y) => x + R() * (y - x), L = Progress3.lv[this.kind];
+    const g = this.g, a = g.opp, R = this.rng || Math.random, rr = (x, y) => x + R() * (y - x), L = this.daily ? Daily3.FEED_LV : Progress3.lv[this.kind];   // 일일 챌린지: 날짜 난수 + 고정 세기
     let tx, tz, ang, y0, name;
     this.myShot = null; this.feedOut = false;
     if (this.kind === 'str') {          // 높은 리프트: 스매시하기 좋은 공
@@ -3905,6 +3978,7 @@ class Trainer3D {
 
   result(r) {
     const g = this.g;
+    if (this.daily) return this.dailyResult(r);
     if (r.ok) {
       this.streak++; this.best = Math.max(this.best, this.streak);
       Sound3.chime(true);
@@ -3922,7 +3996,39 @@ class Trainer3D {
     this.hud();
   }
 
+  // 일일 챌린지 채점: 성공 = 100점 + 연속 보너스, 공을 다 쓰면 끝
+  dailyResult(r) {
+    const g = this.g; this.count++;
+    if (r.ok) {
+      this.streak++; this.best = Math.max(this.best, this.streak); this.hits++;
+      const p = Daily3.pts(this.streak); this.score += p;
+      Sound3.chime(true); g.hud.banner(`${r.msg} +${p}` + (this.streak > 1 ? ` (연속 ${this.streak})` : ''), '#5BFFB0', 1.0);
+    } else {
+      g.hud.banner(r.msg + (this.streak > 1 ? ' · 연속 끊김' : ''), '#FF6B6B', 1.0);
+      this.streak = 0; Sound3.chime(false);
+    }
+    if (this.count >= Daily3.TOTAL) this.finished = true;
+    this.hud();
+  }
+  // 일일 챌린지 끝: 결과 저장(이 브라우저) + 로그인 상태면 서버에 올리고 순위 표시
+  finish() {
+    const g = this.g, I = TRAIN_INFO[this.kind], rec = Daily3.record(this.day, this.kind, this.score);
+    g.phase = 'over'; g.me.charge = null; g.view.setTarget(null); g.hud.setHint('');
+    if (rec.isNew) { g.view.cheer(1); Sound3.cheer(1); }
+    const fmt = n => n.toLocaleString('en-US');
+    const base = `일일 챌린지 끝 — ${I.name}<br><b>${fmt(this.score)}점</b> (성공 ${this.hits}/${Daily3.TOTAL} · 최고 연속 ${this.best})<br>`
+      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`);
+    const tail = '<br>Enter 또는 다시 시작 = 다시 도전 · Esc = 메뉴';
+    g.hud.showMessage(base + tail);
+    const run = this.runId = (this.runId || 0) + 1;
+    if (typeof Account !== 'undefined' && Account.loggedIn) Account.pushDaily(this.day, this.kind, rec.best).then(r => {
+      if (!r || !r.ok || this.runId !== run || g.phase !== 'over' || !this.daily) return;
+      g.hud.showMessage(base + `<br>오늘 순위 <b>${r.rank}위</b> / ${r.total}명` + tail);
+    });
+  }
+
   hud() {
+    if (this.daily) return this.g.hud.setDaily({ name: TRAIN_INFO[this.kind].name, color: TRAIN_INFO[this.kind].color, score: this.score, left: Daily3.TOTAL - this.count });
     const k = this.kind, L = Progress3.lv[k];
     this.g.hud.setTrain({ name: TRAIN_INFO[k].name, lv: L, max: Progress3.MAX, streak: this.streak, need: Progress3.need(k), color: TRAIN_INFO[k].color });
   }
@@ -4347,11 +4453,11 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career }) {
+  configure({ diff, win, hand, mode, train, style, career, daily }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
-    if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
+    if (this.mode === 'train') { this.trainer.start(train || 'str', daily); this.diffId = 'normal'; }
     else if (this.mode === 'guide') { this.trainer.start(); this.diffId = 'easy'; }
     this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
@@ -4364,7 +4470,7 @@ class Game3D {
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
-    this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
+    this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
@@ -4376,6 +4482,7 @@ class Game3D {
 
   start(fromNet) {
     if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
+    if (this.mode === 'train' && this.trainer.daily) this.trainer.start(Daily3.kind(), true);   // 일일 챌린지: 다시 도전 = 같은 공을 처음부터 (자정이 지났으면 새 날짜의 종목)
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
       if (this.guide.finished && this.onGuideDone) return this.onGuideDone();
       this.guide.start();
@@ -4464,7 +4571,7 @@ class Game3D {
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
       errMul: a.side === 'opp' && !this.duo ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
-      strAng: a.side === 'me' && !this.duo ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
+      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
     });
     a.onHit(p0);
     this.launch(a, p0, plan, false, k);
@@ -5144,7 +5251,7 @@ const GAME_TYPES = [
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
-    modes: ['ai', 'career', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'career', 'daily', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
     id: 'classic', name: '레트로 모드',
@@ -5156,6 +5263,7 @@ const GAME_TYPES = [
 const MODES = [
   { id: 'ai',      name: 'AI 대전',     desc: '난이도 5단계' },
   { id: 'career',  name: '커리어',      desc: '대회 4개 · 성향이 다른 상대 12명' },
+  { id: 'daily',   name: '일일 챌린지', desc: '오늘의 종목 · 점수 순위' },
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
   { id: 'room',    name: '친구 1:1 방', desc: '방 코드로 온라인 대전' },
   { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
@@ -5309,6 +5417,43 @@ const Account = {
   roomStats() {
     const h = this.readList(this.HIST_KEY).filter(x => x.difficulty === 'room');
     return { wins: h.filter(x => x.won).length, losses: h.filter(x => !x.won).length, recent: h.slice(0, 10) };
+  },
+
+  // ───── 일일 챌린지 (daily_scores 표: user_id+day 한 줄, 그날 최고 점수) ─────
+  //   표가 아직 없으면(설치 전) { ok:false, missing:true } — 게임은 그대로 되고 순위표만 '준비 중'
+  dailyMissing(e) { return !!e && (e.code === '42P01' || e.code === 'PGRST205' || /daily_scores/.test(e.message || '')); },
+  async dailyTop(day) {
+    try {
+      // 인터넷이 느리거나 막혀 있으면 6초 뒤 포기 (대기화면이 '불러오는 중'에 머물지 않게)
+      const r = await Promise.race([
+        this.sb.from('daily_scores').select('user_id,nickname,score').eq('day', day).order('score', { ascending: false }).order('updated_at', { ascending: true }).limit(10),
+        new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))
+      ]);
+      if (r.error) return { ok: false, missing: this.dailyMissing(r.error) };
+      const me = this.user && this.user.id;
+      return { ok: true, rows: (r.data || []).map(x => ({ nickname: x.nickname, score: x.score, mine: x.user_id === me })) };
+    } catch (e) { return { ok: false }; }
+  },
+  // 내 그날 최고 점수를 올리고(서버 기록보다 높을 때만) 순위를 돌려줌 → { ok, rank, total }
+  async pushDaily(day, kind, score) {
+    if (!this.loggedIn) return { ok: false };
+    try {
+      const id = this.user.id, T = () => this.sb.from('daily_scores');
+      const cur = await T().select('score').eq('user_id', id).eq('day', day).maybeSingle();
+      if (cur.error) return { ok: false, missing: this.dailyMissing(cur.error) };
+      let best = cur.data ? cur.data.score : -1;
+      if (score > best) {
+        const up = await T().upsert({ user_id: id, day, kind, score, nickname: (this.nickname || '선수').slice(0, 16), updated_at: new Date().toISOString() });
+        if (up.error) { console.warn('일일 챌린지 업로드 실패', up.error); return { ok: false }; }
+        best = score;
+      }
+      const [hi, all] = await Promise.all([
+        T().select('user_id', { count: 'exact', head: true }).eq('day', day).gt('score', best),
+        T().select('user_id', { count: 'exact', head: true }).eq('day', day)
+      ]);
+      if (hi.error || all.error) return { ok: false };
+      return { ok: true, rank: (hi.count || 0) + 1, total: all.count || 1 };
+    } catch (e) { console.warn(e); return { ok: false }; }
   },
 
   // ───── 훈련 레벨 동기화 ─────
@@ -5526,6 +5671,7 @@ class Lobby {
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
+    this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
     this.roomBox = $('roomSettings'); this.roomCode = $('roomCode'); this.diffBox = $('diffSeg'); this.aiHead = $('aiHead');
     this.renderTypes();
     this.renderModes();
@@ -5620,9 +5766,12 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career) || !this.canStart();
-    this.diffBox.hidden = room || career; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career;   // 커리어는 경기마다 목표 점수가 정해져 있음
+    const daily = this.sel.mode === 'daily';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily) || !this.canStart();
+    this.diffBox.hidden = room || career || daily; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily;
+    this.dailyBox.hidden = !daily || !this.canStart();
+    if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
@@ -5636,6 +5785,31 @@ class Lobby {
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
     this.save();
+  }
+
+  // 일일 챌린지: 오늘의 종목·내 최고 점수 + 순위표(서버). 순위표는 30초에 한 번만 다시 받음
+  renderDaily() {
+    const day = Daily3.day(), k = Daily3.kind(), I = TRAIN_INFO[k], t = Daily3.today(), fmt = n => n.toLocaleString('en-US');
+    this.dailyCard.style.setProperty('--tc', I.color);
+    this.dailyCard.innerHTML = `<span class="dn">오늘의 종목 · ${I.name} <small>${I.drill} · ${day}</small></span>
+      <span class="dd">${I.how}</span>
+      <span class="dd">성공 1번 = ${Daily3.BASE}점 + 연속 보너스(2번째부터 +${Daily3.BONUS}씩, 최대 +${Daily3.BONUS_MAX}) · 만점 ${fmt(Daily3.maxScore())}점</span>
+      <span class="db">${t.tries ? `내 최고 <b>${fmt(t.best)}점</b> · 도전 ${t.tries}번` : '아직 도전하지 않았어요'}</span>`;
+    const R = this.dailyRank, logged = typeof Account !== 'undefined' && Account.loggedIn;
+    const draw = r => {
+      R.innerHTML = '<span class="dn">오늘의 순위 <small>상위 10명</small></span>';
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; R.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '순위표는 아직 준비 중이에요. 내 최고 기록은 이 브라우저에 저장됩니다.' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 기록이 없어요 — 첫 번째로 올려 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname, fmt(x.score) + '점']) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+      if (r && r.ok && !logged) add('dd', '로그인하면 내 점수도 순위표에 올라가요.');
+    };
+    const C = this.dailyCache;
+    if (C && C.day === day && C.logged === logged && Date.now() - C.at < 30000) return draw(C.r);
+    draw(null);
+    if (typeof Account === 'undefined' || !Account.online) return draw({ ok: false });
+    Account.dailyTop(day).then(r => { this.dailyCache = { day, logged, at: Date.now(), r }; if (this.sel.mode === 'daily' && !this.dailyBox.hidden) draw(r); });
   }
 
   // 커리어: 고른 경기 (없거나 잠겨 있으면 다음에 도전할 경기)
@@ -5793,6 +5967,7 @@ class App {
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
+      if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -5851,7 +6026,7 @@ class App {
   toMenu() {
     if (this.screen === 'classic') { this.classic.stop(); this.classicInput.pad.reset(); }
     if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); this.court3dTouch.reset(); }
-    this.lobby.cstage = null;   // 커리어: 다음에 도전할 경기로 되돌림
+    this.lobby.cstage = null; this.lobby.dailyCache = null;   // 커리어: 다음에 도전할 경기로 되돌림 · 일일 챌린지 순위표는 새로 받음
     this.lobby.refresh();   // 훈련 레벨·커리어 진행 갱신
     this.show('lobby');
   }

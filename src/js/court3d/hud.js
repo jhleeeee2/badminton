@@ -46,6 +46,13 @@ class Hud3D {
     this.el.bTag.textContent = `${t.name} Lv.${t.lv}` + (t.lv >= t.max ? ' (최대)' : '');
     this.el.bTag.style.background = t.color; this.el.bTag.style.color = '#14122a';
   }
+  // 일일 챌린지 진행 표시 (점수 / 남은 공)
+  setDaily(t) {
+    const b = this.el.board; b.classList.add('train'); b.classList.remove('mpMe', 'mpOpp', 'srvMe', 'srvOpp');
+    b.querySelector('.opp .nm').textContent = '점수'; b.querySelector('.me .nm').textContent = '남은 공';
+    this.el.bOpp.textContent = t.score; this.el.bMe.textContent = t.left;
+    this.el.bTag.textContent = '일일 챌린지 · ' + t.name; this.el.bTag.style.background = t.color; this.el.bTag.style.color = '#14122a';
+  }
   // 체험 튜토리얼 진행 표시 (단계 / 전체)
   setGuide(i, n, title) {
     const b = this.el.board; b.classList.add('train'); b.classList.remove('mpMe', 'mpOpp', 'srvMe', 'srvOpp');

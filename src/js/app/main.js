@@ -76,6 +76,7 @@ class App {
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
+      if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -134,7 +135,7 @@ class App {
   toMenu() {
     if (this.screen === 'classic') { this.classic.stop(); this.classicInput.pad.reset(); }
     if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); this.court3dTouch.reset(); }
-    this.lobby.cstage = null;   // 커리어: 다음에 도전할 경기로 되돌림
+    this.lobby.cstage = null; this.lobby.dailyCache = null;   // 커리어: 다음에 도전할 경기로 되돌림 · 일일 챌린지 순위표는 새로 받음
     this.lobby.refresh();   // 훈련 레벨·커리어 진행 갱신
     this.show('lobby');
   }

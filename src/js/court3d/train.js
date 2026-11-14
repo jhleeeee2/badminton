@@ -7,12 +7,17 @@
 class Trainer3D {
   constructor(game) { this.g = game; this.kind = null; this.streak = 0; this.best = 0; }
   get active() { return !!this.kind; }
-  start(kind) { this.kind = kind; this.streak = 0; this.best = 0; this.target = null; }
-  stop() { this.kind = null; this.g.view.setTarget(null); }
+  // daily = true면 일일 챌린지: 공 Daily3.TOTAL개를 날짜 난수로 먹여 주고 점수를 셈 (레벨업 없음)
+  start(kind, daily) {
+    this.kind = kind; this.streak = 0; this.best = 0; this.target = null;
+    this.daily = !!daily; this.finished = false; this.score = 0; this.count = 0; this.hits = 0;
+    this.rng = this.daily ? Daily3.rng() : null; this.day = this.daily ? Daily3.day() : null;
+  }
+  stop() { this.kind = null; this.daily = false; this.finished = false; this.rng = null; this.g.view.setTarget(null); }
 
   // 서브 차례 대신 공 먹여 주기
   feed() {
-    const g = this.g, a = g.opp, R = Math.random, rr = (x, y) => x + R() * (y - x), L = Progress3.lv[this.kind];
+    const g = this.g, a = g.opp, R = this.rng || Math.random, rr = (x, y) => x + R() * (y - x), L = this.daily ? Daily3.FEED_LV : Progress3.lv[this.kind];   // 일일 챌린지: 날짜 난수 + 고정 세기
     let tx, tz, ang, y0, name;
     this.myShot = null; this.feedOut = false;
     if (this.kind === 'str') {          // 높은 리프트: 스매시하기 좋은 공
@@ -75,6 +80,7 @@ class Trainer3D {
 
   result(r) {
     const g = this.g;
+    if (this.daily) return this.dailyResult(r);
     if (r.ok) {
       this.streak++; this.best = Math.max(this.best, this.streak);
       Sound3.chime(true);
@@ -92,7 +98,39 @@ class Trainer3D {
     this.hud();
   }
 
+  // 일일 챌린지 채점: 성공 = 100점 + 연속 보너스, 공을 다 쓰면 끝
+  dailyResult(r) {
+    const g = this.g; this.count++;
+    if (r.ok) {
+      this.streak++; this.best = Math.max(this.best, this.streak); this.hits++;
+      const p = Daily3.pts(this.streak); this.score += p;
+      Sound3.chime(true); g.hud.banner(`${r.msg} +${p}` + (this.streak > 1 ? ` (연속 ${this.streak})` : ''), '#5BFFB0', 1.0);
+    } else {
+      g.hud.banner(r.msg + (this.streak > 1 ? ' · 연속 끊김' : ''), '#FF6B6B', 1.0);
+      this.streak = 0; Sound3.chime(false);
+    }
+    if (this.count >= Daily3.TOTAL) this.finished = true;
+    this.hud();
+  }
+  // 일일 챌린지 끝: 결과 저장(이 브라우저) + 로그인 상태면 서버에 올리고 순위 표시
+  finish() {
+    const g = this.g, I = TRAIN_INFO[this.kind], rec = Daily3.record(this.day, this.kind, this.score);
+    g.phase = 'over'; g.me.charge = null; g.view.setTarget(null); g.hud.setHint('');
+    if (rec.isNew) { g.view.cheer(1); Sound3.cheer(1); }
+    const fmt = n => n.toLocaleString('en-US');
+    const base = `일일 챌린지 끝 — ${I.name}<br><b>${fmt(this.score)}점</b> (성공 ${this.hits}/${Daily3.TOTAL} · 최고 연속 ${this.best})<br>`
+      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`);
+    const tail = '<br>Enter 또는 다시 시작 = 다시 도전 · Esc = 메뉴';
+    g.hud.showMessage(base + tail);
+    const run = this.runId = (this.runId || 0) + 1;
+    if (typeof Account !== 'undefined' && Account.loggedIn) Account.pushDaily(this.day, this.kind, rec.best).then(r => {
+      if (!r || !r.ok || this.runId !== run || g.phase !== 'over' || !this.daily) return;
+      g.hud.showMessage(base + `<br>오늘 순위 <b>${r.rank}위</b> / ${r.total}명` + tail);
+    });
+  }
+
   hud() {
+    if (this.daily) return this.g.hud.setDaily({ name: TRAIN_INFO[this.kind].name, color: TRAIN_INFO[this.kind].color, score: this.score, left: Daily3.TOTAL - this.count });
     const k = this.kind, L = Progress3.lv[k];
     this.g.hud.setTrain({ name: TRAIN_INFO[k].name, lv: L, max: Progress3.MAX, streak: this.streak, need: Progress3.need(k), color: TRAIN_INFO[k].color });
   }

@@ -409,3 +409,16 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .crow:disabled{cursor:default;opacity:.7;}
 .careerfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:12.5px;color:var(--text2);}
 .careerfoot button{font-size:12px;padding:5px 10px;color:var(--text3);}
+
+/* ── 일일 챌린지 ── */
+.dailygrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
+.dailycard{--tc:#FFD23F;display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+.dailycard .dn{font-size:15px;font-weight:700;color:var(--tc);}
+.dailycard .dn small{font-size:12px;font-weight:500;color:var(--text3);margin-left:4px;}
+.dailycard .dd{font-size:12.5px;color:var(--text2);line-height:1.55;}
+.dailycard .dd b{color:var(--text);}
+.dailycard .db{font-size:14px;color:var(--text);margin-top:2px;}
+.dailycard .db b{color:var(--tc);}
+.dailycard .drow{display:grid;grid-template-columns:38px 1fr auto;gap:8px;font-size:13px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.04);}
+.dailycard .drow.mine{box-shadow:inset 0 0 0 1px var(--tc);}
+.dailycard .drow span:last-child{font-weight:700;}

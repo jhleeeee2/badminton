@@ -132,6 +132,43 @@ const Account = {
     return { wins: h.filter(x => x.won).length, losses: h.filter(x => !x.won).length, recent: h.slice(0, 10) };
   },
 
+  // ───── 일일 챌린지 (daily_scores 표: user_id+day 한 줄, 그날 최고 점수) ─────
+  //   표가 아직 없으면(설치 전) { ok:false, missing:true } — 게임은 그대로 되고 순위표만 '준비 중'
+  dailyMissing(e) { return !!e && (e.code === '42P01' || e.code === 'PGRST205' || /daily_scores/.test(e.message || '')); },
+  async dailyTop(day) {
+    try {
+      // 인터넷이 느리거나 막혀 있으면 6초 뒤 포기 (대기화면이 '불러오는 중'에 머물지 않게)
+      const r = await Promise.race([
+        this.sb.from('daily_scores').select('user_id,nickname,score').eq('day', day).order('score', { ascending: false }).order('updated_at', { ascending: true }).limit(10),
+        new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))
+      ]);
+      if (r.error) return { ok: false, missing: this.dailyMissing(r.error) };
+      const me = this.user && this.user.id;
+      return { ok: true, rows: (r.data || []).map(x => ({ nickname: x.nickname, score: x.score, mine: x.user_id === me })) };
+    } catch (e) { return { ok: false }; }
+  },
+  // 내 그날 최고 점수를 올리고(서버 기록보다 높을 때만) 순위를 돌려줌 → { ok, rank, total }
+  async pushDaily(day, kind, score) {
+    if (!this.loggedIn) return { ok: false };
+    try {
+      const id = this.user.id, T = () => this.sb.from('daily_scores');
+      const cur = await T().select('score').eq('user_id', id).eq('day', day).maybeSingle();
+      if (cur.error) return { ok: false, missing: this.dailyMissing(cur.error) };
+      let best = cur.data ? cur.data.score : -1;
+      if (score > best) {
+        const up = await T().upsert({ user_id: id, day, kind, score, nickname: (this.nickname || '선수').slice(0, 16), updated_at: new Date().toISOString() });
+        if (up.error) { console.warn('일일 챌린지 업로드 실패', up.error); return { ok: false }; }
+        best = score;
+      }
+      const [hi, all] = await Promise.all([
+        T().select('user_id', { count: 'exact', head: true }).eq('day', day).gt('score', best),
+        T().select('user_id', { count: 'exact', head: true }).eq('day', day)
+      ]);
+      if (hi.error || all.error) return { ok: false };
+      return { ok: true, rank: (hi.count || 0) + 1, total: all.count || 1 };
+    } catch (e) { console.warn(e); return { ok: false }; }
+  },
+
   // ───── 훈련 레벨 동기화 ─────
   async syncProgress() {
     if (typeof Progress3 === 'undefined') return;

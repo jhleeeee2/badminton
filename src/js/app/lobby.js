@@ -40,6 +40,7 @@ class Lobby {
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
+    this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
     this.roomBox = $('roomSettings'); this.roomCode = $('roomCode'); this.diffBox = $('diffSeg'); this.aiHead = $('aiHead');
     this.renderTypes();
     this.renderModes();
@@ -134,9 +135,12 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career) || !this.canStart();
-    this.diffBox.hidden = room || career; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career;   // 커리어는 경기마다 목표 점수가 정해져 있음
+    const daily = this.sel.mode === 'daily';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily) || !this.canStart();
+    this.diffBox.hidden = room || career || daily; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily;
+    this.dailyBox.hidden = !daily || !this.canStart();
+    if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
@@ -150,6 +154,31 @@ class Lobby {
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
     this.save();
+  }
+
+  // 일일 챌린지: 오늘의 종목·내 최고 점수 + 순위표(서버). 순위표는 30초에 한 번만 다시 받음
+  renderDaily() {
+    const day = Daily3.day(), k = Daily3.kind(), I = TRAIN_INFO[k], t = Daily3.today(), fmt = n => n.toLocaleString('en-US');
+    this.dailyCard.style.setProperty('--tc', I.color);
+    this.dailyCard.innerHTML = `<span class="dn">오늘의 종목 · ${I.name} <small>${I.drill} · ${day}</small></span>
+      <span class="dd">${I.how}</span>
+      <span class="dd">성공 1번 = ${Daily3.BASE}점 + 연속 보너스(2번째부터 +${Daily3.BONUS}씩, 최대 +${Daily3.BONUS_MAX}) · 만점 ${fmt(Daily3.maxScore())}점</span>
+      <span class="db">${t.tries ? `내 최고 <b>${fmt(t.best)}점</b> · 도전 ${t.tries}번` : '아직 도전하지 않았어요'}</span>`;
+    const R = this.dailyRank, logged = typeof Account !== 'undefined' && Account.loggedIn;
+    const draw = r => {
+      R.innerHTML = '<span class="dn">오늘의 순위 <small>상위 10명</small></span>';
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; R.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '순위표는 아직 준비 중이에요. 내 최고 기록은 이 브라우저에 저장됩니다.' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 기록이 없어요 — 첫 번째로 올려 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname, fmt(x.score) + '점']) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+      if (r && r.ok && !logged) add('dd', '로그인하면 내 점수도 순위표에 올라가요.');
+    };
+    const C = this.dailyCache;
+    if (C && C.day === day && C.logged === logged && Date.now() - C.at < 30000) return draw(C.r);
+    draw(null);
+    if (typeof Account === 'undefined' || !Account.online) return draw({ ok: false });
+    Account.dailyTop(day).then(r => { this.dailyCache = { day, logged, at: Date.now(), r }; if (this.sel.mode === 'daily' && !this.dailyBox.hidden) draw(r); });
   }
 
   // 커리어: 고른 경기 (없거나 잠겨 있으면 다음에 도전할 경기)

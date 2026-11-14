@@ -37,11 +37,11 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career }) {
+  configure({ diff, win, hand, mode, train, style, career, daily }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
-    if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
+    if (this.mode === 'train') { this.trainer.start(train || 'str', daily); this.diffId = 'normal'; }
     else if (this.mode === 'guide') { this.trainer.start(); this.diffId = 'easy'; }
     this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
@@ -54,7 +54,7 @@ class Game3D {
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
-    this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
+    this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
@@ -66,6 +66,7 @@ class Game3D {
 
   start(fromNet) {
     if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
+    if (this.mode === 'train' && this.trainer.daily) this.trainer.start(Daily3.kind(), true);   // 일일 챌린지: 다시 도전 = 같은 공을 처음부터 (자정이 지났으면 새 날짜의 종목)
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
       if (this.guide.finished && this.onGuideDone) return this.onGuideDone();
       this.guide.start();
@@ -154,7 +155,7 @@ class Game3D {
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
       errMul: a.side === 'opp' && !this.duo ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
-      strAng: a.side === 'me' && !this.duo ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
+      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
     });
     a.onHit(p0);
     this.launch(a, p0, plan, false, k);
