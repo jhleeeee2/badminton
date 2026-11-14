@@ -251,8 +251,7 @@ button.primary{border-color:var(--ok);color:var(--ok);font-weight:600;}
 .c3board .sets b{font-size:16px;color:#fff;text-align:center;font-variant-numeric:tabular-nums;}
 .c3board .sets span{font-size:11px;letter-spacing:.5px;}
 .c3board .sets[hidden]{display:none;}
-#c3shadowBtn.off,#c3landBtn.off,#c3musicBtn.off{color:var(--text3);}
-#c3musicBtn.off{opacity:.6;}
+#c3shadowBtn.off,#c3landBtn.off{color:var(--text3);}
 .c3wheel{position:absolute;width:340px;height:340px;pointer-events:none;z-index:6;}
 .c3wheel .ring{position:absolute;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);}
 .c3wheel .ring.out{width:332px;height:332px;background:radial-gradient(circle,rgba(14,10,40,.0) 55%,rgba(14,10,40,.78) 56%,rgba(14,10,40,.78) 99%);border:2px solid rgba(255,255,255,.18);}

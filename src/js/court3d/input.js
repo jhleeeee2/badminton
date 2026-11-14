@@ -28,7 +28,6 @@ class Input3D {
         return;
       }
       if (c === 'KeyM' && !e.repeat) { game.hud.setMute(Sound3.toggleMute()); return; }
-      if (c === 'KeyB' && !e.repeat) { game.hud.setMusic(Sound3.toggleMusic()); return; }
       if (c === 'KeyL' && !e.repeat) { game.toggleLand(); return; }
       if (c === 'KeyG' && !e.repeat) { game.toggleShadow(); return; }
       if (c === 'KeyT') { e.preventDefault(); if (!e.repeat && !game.emote.isOpen) game.emote.open(this.mx, this.my); return; }

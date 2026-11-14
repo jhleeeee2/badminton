@@ -1,14 +1,12 @@
 // court3d/sound.js — 효과음 (Web Audio로 직접 합성, 파일 없음 → 오프라인 단일 HTML 유지)
 //   타격음(세기에 따라), 헛스윙 바람소리, 네트, 착지, 관중 환호, 득점 차임   [게임]
-//   배경음(BGM)도 파일 없이 합성: 112BPM 8마디 반복(Am–F–C–G), 킥·하이햇·베이스·패드·짧은 멜로디 + 관중 웅성거림   [게임]
-//   브라우저 정책상 첫 키/클릭 뒤에 소리가 켜짐 · M 키로 전체 음소거 · B 키로 배경음만 켜기/끄기 (둘 다 브라우저에 기억)
+//   배경음악은 없음. 대신 인상적인 순간(스매시 득점·긴 랠리·극적인 수비)에만 관중 박수갈채 applause()   [게임]
+//   브라우저 정책상 첫 키/클릭 뒤에 소리가 켜짐 · M 키로 음소거 (브라우저에 기억)
 
 const Sound3 = {
   ctx: null, master: null, muted: false, _noise: null,
-  music: null, musicOn: true, playing: false, _timer: null, _step: 0, _next: 0, _amb: null,
-  MUSIC_VOL: 0.5, BPM: 112,
-  loadPrefs() { try { this.muted = localStorage.getItem('badminton.c3.mute') === '1'; this.musicOn = localStorage.getItem('badminton.c3.music') !== '0'; } catch (e) { /* 무시 */ } },
-  savePrefs() { try { localStorage.setItem('badminton.c3.mute', this.muted ? '1' : '0'); localStorage.setItem('badminton.c3.music', this.musicOn ? '1' : '0'); } catch (e) { /* 무시 */ } },
+  loadPrefs() { try { this.muted = localStorage.getItem('badminton.c3.mute') === '1'; } catch (e) { /* 무시 */ } },
+  savePrefs() { try { localStorage.setItem('badminton.c3.mute', this.muted ? '1' : '0'); } catch (e) { /* 무시 */ } },
 
 
   unlock() {
@@ -20,78 +18,8 @@ const Sound3 = {
     const len = this.ctx.sampleRate * 2, b = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = b.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this._noise = b;
-    this.music = this.ctx.createGain(); this.music.gain.value = 0; this.music.connect(this.master);   // 배경음 전용 볼륨
-    if (this.playing) this._musicStart();   // 소리가 풀리기 전에 경기가 시작된 경우
   },
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.55; this.savePrefs(); return this.muted; },
-  toggleMusic() { this.musicOn = !this.musicOn; this.savePrefs(); if (this.playing) { if (this.musicOn) this._musicStart(); else this._musicStop(); } return this.musicOn; },
-
-  // ───── 배경음 ─────
-  // 경기·훈련 화면에 들어가면 play(true), 메뉴로 나가면 play(false)
-  play(on) {
-    this.playing = !!on;
-    if (on) this._musicStart(); else this._musicStop();
-  },
-  _musicStart() {
-    if (!this.ctx || !this.musicOn || this._timer) return;
-    const t = this.ctx.currentTime;
-    this.music.gain.cancelScheduledValues(t); this.music.gain.setValueAtTime(Math.max(0.0001, this.music.gain.value), t); this.music.gain.exponentialRampToValueAtTime(this.MUSIC_VOL, t + 0.8);
-    this._step = 0; this._next = t + 0.1;
-    this._timer = setInterval(() => this._schedule(), 90);
-    // 관중 웅성거림: 낮게 깔리는 잡음
-    const s = this.ctx.createBufferSource(); s.buffer = this._noise; s.loop = true;
-    const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 0.35;
-    const g = this.ctx.createGain(); g.gain.value = 0.05;
-    s.connect(f); f.connect(g); g.connect(this.music); s.start();
-    this._amb = s;
-  },
-  _musicStop() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    this.music.gain.cancelScheduledValues(t); this.music.gain.setValueAtTime(Math.max(0.0001, this.music.gain.value), t); this.music.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
-    if (this._amb) { try { this._amb.stop(t + 0.5); } catch (e) { /* 무시 */ } this._amb = null; }
-  },
-  // 앞으로 0.3초 안에 울릴 음을 미리 예약 (16분음표 단위, 한 마디 = 16칸, 8마디 반복)
-  _schedule() {
-    if (!this.ctx || this.ctx.state !== 'running') return;
-    const dur = 60 / this.BPM / 4;
-    if (this._next < this.ctx.currentTime - 0.5) this._next = this.ctx.currentTime + 0.05;   // 탭이 멈췄다 돌아온 경우 밀린 음을 몰아 치지 않음
-    while (this._next < this.ctx.currentTime + 0.3) { this._note(this._step, this._next, dur); this._step = (this._step + 1) % 128; this._next += dur; }
-  },
-  _mEnv(node, t0, a, peak, dec) {
-    const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec);
-    node.connect(g); g.connect(this.music);
-  },
-  _mTone(t0, f, type, peak, a, dec) {
-    const o = this.ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t0);
-    this._mEnv(o, t0, a, peak, dec); o.start(t0); o.stop(t0 + a + dec + 0.05); return o;
-  },
-  _note(step, t, dur) {
-    // 코드 진행 [게임]: Am – F – C – G (각 2마디). bass = 근음, ch = 화음 3음
-    const CH = [
-      { bass: 110.0, ch: [220.0, 261.63, 329.63] }, { bass: 87.31, ch: [174.61, 220.0, 261.63] },
-      { bass: 130.81, ch: [164.81, 196.0, 261.63] }, { bass: 98.0, ch: [146.83, 196.0, 246.94] }
-    ];
-    const bar = Math.floor(step / 16), s = step % 16, c = CH[Math.floor(bar / 2) % 4];
-    if (s === 0 || s === 8 || (s === 10 && bar % 2 === 1)) {   // 킥
-      const o = this._mTone(t, 120, 'sine', s === 10 ? 0.25 : 0.45, 0.003, 0.14); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-    }
-    if (s % 4 === 2) {   // 하이햇
-      const n = this.ctx.createBufferSource(); n.buffer = this._noise;
-      const f = this.ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
-      n.connect(f); this._mEnv(f, t, 0.002, 0.06, 0.04); n.start(t, Math.random()); n.stop(t + 0.08);
-    }
-    if ([0, 3, 6, 8, 11, 14].includes(s)) this._mTone(t, c.bass, 'triangle', 0.22, 0.005, dur * 1.6);   // 베이스
-    if (s === 0) for (const f of c.ch) {   // 패드: 한 마디 길이 화음 (낮은 통과 필터로 부드럽게)
-      const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
-      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
-      o.connect(lp); this._mEnv(lp, t, 0.12, 0.035, dur * 15); o.start(t); o.stop(t + dur * 16 + 0.1);
-    }
-    const ARP = { 0: 0, 4: 1, 7: 2, 10: 1, 12: 2, 14: 0 };   // 짧은 멜로디: 화음 음을 한 옥타브 위에서
-    if (s in ARP && bar % 4 !== 3) this._mTone(t, c.ch[ARP[s]] * 2, 'triangle', 0.07, 0.004, dur * 1.8);
-  },
 
   _env(node, t0, a, peak, dec) {
     const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t0);
@@ -144,6 +72,18 @@ const Sound3 = {
     const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.6;
     const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18 + 0.25 * a, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t + 1.9);
+  },
+  // 박수갈채: 짧은 '짝' 수십~수백 개를 흩뿌림. a(0~1)가 클수록 크고 길고 촘촘함, 0.6 이상이면 환호도 함께
+  applause(a) {
+    if (!this.ctx || this.muted) return;
+    a = Math.max(0.15, Math.min(1, a));
+    const t = this.ctx.currentTime, dur = 1.4 + 1.8 * a, n = Math.round(dur * (22 + 48 * a));
+    for (let i = 0; i < n; i++) {
+      const u = Math.random(), env = Math.min(1, u / 0.12) * Math.pow(1 - u, 1.3);   // 빠르게 커졌다가 서서히 잦아듦
+      if (env < 0.03) continue;
+      this._noiseBurst(t + u * dur, 1100 + Math.random() * 1700, 1.6, (0.5 + 0.6 * a) * env, 0.012 + Math.random() * 0.012);
+    }
+    if (a >= 0.6) this.cheer(a);
   },
   chime(good) {
     if (!this.ctx || this.muted) return;

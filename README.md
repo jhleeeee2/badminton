@@ -36,13 +36,13 @@ src/                         개발용 원본 (여기만 수정)
       view.js                CourtView3D — 경기장(코트·네트·LED판·관중·조명)·카메라(흔들림/줌)·셔틀·이펙트·보조 표시
       ai.js                  AI3D — 궤적 예측 → 위치·점프·팔 뻗기, 샷 선택, 서브
       hud.js / input.js      Hud3D / Input3D — 점수·게이지·포백 표시·슬로우 효과 / WASD·마우스·Q·E·클릭
-      sound.js               Sound3 — Web Audio 합성 효과음(타격 3종·스매시·네트·착지·런지·환호) + 합성 배경음(112BPM 8마디 반복·관중 웅성거림), M 전체 음소거 · B 배경음
+      sound.js               Sound3 — Web Audio 합성 효과음(타격 3종·스매시·네트·착지·런지·환호) + 박수갈채(스매시 득점·10타 이상 랠리·극적인 수비에만), 배경음악 없음, M 음소거
       game.js                Game3D — 고정 간격 시뮬레이션, 슬로우, 타격·득점 흐름
       online.js              Net3D — 친구 1:1 방 (Supabase Realtime 방송 채널·방 코드), 상대 선수 보간, 지연 보정, 나감/재입장 이어하기
       emote.js               Emote3D — 감정표현 원판(T 꾹 → 마우스로 고르고 떼기), 말풍선(상대 왼쪽 위 · 나 오른쪽 아래)
       touch.js               Touch3D — 모바일 버튼: 이동 패드·방향 ◀●▶·올리기/찍기/직선·점프·런지·😀 감정표현
       tutorial.js            TUTORIAL_3D_PAGES
-      daily.js               Daily3 — 일일 챌린지: 날짜(한국 시간)별 종목·날짜 난수·점수 규칙·내 최고 기록(badminton.daily.v1), 순위표는 Supabase daily_scores (tools/supabase_daily.sql)
+      daily.js               Daily3 — 일일 챌린지: 날짜(한국 시간)별 종목·날짜 난수·점수 규칙·내 최고 기록(badminton.daily.v1), 순위표는 Supabase daily_scores (sql/daily_scores.sql)
       career.js              Career3 — 커리어 모드: 대회 4개 × 3경기(상대 12명, 이름·수치 모두 [게임]), 진행 저장(badminton.career.v1), 난이도 사이 섞기(blend)
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
@@ -50,13 +50,13 @@ dist/badminton_rally.html    배포용 단일 파일 (빌드 결과물, 직접 �
 src/og.png · icon*.png · icon.svg · apple-touch-icon.png · manifest.webmanifest · sw.js
                              공유 미리보기 이미지·아이콘·홈 화면 설치(PWA) — 웹 배포(Vercel, 루트 = src)에서만 쓰임
 tools/build.py               src → dist 묶기:  python tools/build.py
-tools/supabase_daily.sql     일일 챌린지 순위표용 표 만들기 (Supabase SQL Editor에서 한 번 실행)
+sql/daily_scores.sql         일일 챌린지 순위표용 표 만들기 (Supabase SQL Editor에서 한 번 실행)
 archive/                     예전 버전 보관 (v1 원본, v2 단순 분리, v3 객체화·로비 이전)
 ```
 
 ## 조작 (3D 코트)
 WASD 이동 · 마우스 좌우 방향 · Q 올리기 / E 찍기 / 좌클릭 직선 (꾹 = 충전, 떼면 스윙) · Space 점프 · Shift 팔 뻗기
-T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리 · B 배경음
+T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 서브: Q 꾹 (짧게 숏 서브, 길게 롱 서브) · 셔틀이 라켓 팔 어깨 근처로 오면 슬로우
 
 ## 조작 (클래식)

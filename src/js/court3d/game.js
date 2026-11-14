@@ -23,7 +23,7 @@ class Game3D {
     this.showShadow = true;
     try { this.showShadow = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
     this.view.setShadowOn(this.showShadow); this.hud.setShadow(this.showShadow);
-    this.hud.setMute(Sound3.muted); this.hud.setMusic(Sound3.musicOn);   // 소리 설정도 브라우저에 기억
+    this.hud.setMute(Sound3.muted);   // 음소거 설정도 브라우저에 기억
     // 엔드(코트 끝): myEnd = 내가 서 있는 엔드(0=A, 1=B). 화면 안쪽에는 반대 엔드 배경이 보임
     this.myEnd = 0; this.midSwapped = false; this.swapNext = false;
     // 친구 방: 같은 상대와 계속 하면 세트 스코어 유지
@@ -89,12 +89,11 @@ class Game3D {
     if (this.duo) { this.setOppName('P2'); this.setMeName('P1'); }
     if (this.career) { const c = this.career; this.setOppName(c.name); this.hud.banner(`${c.cup} ${c.round} · vs ${c.name} (${C3.AI_STYLE[c.style].name})`, c.cupColor, 2.2); }
     this.setupPoint();
-    Sound3.play(true);   // 배경음 (꺼 두었으면 아무 일도 없음)
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
-    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null; Sound3.play(false);
+    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -114,6 +113,7 @@ class Game3D {
       a.vel = { x: 0, z: 0 }; a.y = 0; a.vy = 0; a.extT = 0; a.recoverT = 0; a.coolT = 0; a.charge = null; a.swingS = null;
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
+    this.lastShot = null;
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
     this.ai.reset(); this.ai.serveT = this.trainer.active ? 0.9 : 1.1;
@@ -175,6 +175,13 @@ class Game3D {
     const s = this.sh;
     Object.assign(s, { p: { ...p0 }, v: { ...plan.v0 }, live: true, held: null, lastHitter: a.side, serve: isServe, netted: false, pred: plan.sim, waitNet: false });
     this.match.rally++; this.hud.setRally(this.match.rally);
+    // 극적인 수비 → 그 자리에서 박수 [게임 연출]: 상대 스매시(150km/h 이상)를 받아냈거나, 런지로 바닥 직전(0.6m 아래) 공을 살렸을 때
+    const prev = this.lastShot, lunge = a.extT > 0;
+    if (!this.trainer.active && !isServe && prev && prev.side !== a.side) {
+      const save = prev.smash && lunge ? 0.8 : prev.smash ? 0.45 : lunge && p0.y < 0.6 ? 0.4 : 0;
+      if (save) { Sound3.applause(save); this.view.cheer(save); }
+    }
+    this.lastShot = { side: a.side, smash: !isServe && /스매시/.test(plan.name) && plan.kmh >= 150, kmh: plan.kmh };
     if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
       const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
       this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
@@ -410,8 +417,12 @@ class Game3D {
   }
 
   point(winner, reason, sync) {
-    const m = this.match;
+    const m = this.match, rallyLen = m.rally, ls = this.lastShot; this.lastShot = null;
     m.award(winner);
+    // 박수갈채 [게임 연출]: 스매시로 꽂아 넣은 득점(빠를수록 크게) · 10타 이상 이어진 랠리(길수록 크게). 평범한 득점엔 없음
+    const clap = Math.max(ls && ls.smash && ls.side === winner && reason === '득점' ? 0.55 + 0.45 * Math.min(1, (ls.kmh - 150) / 130) : 0,
+      rallyLen >= 10 ? Math.min(1, 0.45 + 0.05 * (rallyLen - 10)) : 0);
+    if (clap && !this.trainer.active) Sound3.applause(clap);
     if (sync) { m.pts = sync.pts; m.opts = sync.opts; }   // 온라인: 판정한 쪽 점수로 맞춤
     else if (this.online) this.net.send({ t: 'pt', w: winner, r: reason, pts: m.opts, opts: m.pts });   // w는 내 기준(받는 쪽이 뒤집음), 점수는 상대 기준으로 바꿔 보냄
     const meWon = winner === 'me';
