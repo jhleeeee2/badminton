@@ -416,6 +416,23 @@ body:not(.touch) #court3d .hud button{padding:5px 10px;font-size:12.5px;white-sp
 body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 @media (max-width:1100px){body:not(.touch) #court3d .hud .card:nth-child(4){display:none;}}   /* 좁은 창: 최근 샷 숨김 */
 @media (max-width:860px){body:not(.touch) #court3d .hud .cards{display:none;}}
+
+/* ── 커리어 대진표 ── */
+.careergrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;}
+.cupcard{--tc:#FFD23F;display:flex;flex-direction:column;gap:5px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+.cupcard.won{border-color:var(--tc);}
+.cupcard.lock{opacity:.5;}
+.cupcard .cupn{font-size:15px;font-weight:700;color:var(--tc);margin-bottom:2px;}
+.crow{display:grid;grid-template-columns:18px 44px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;padding:7px 9px;border-radius:8px;border:1px solid transparent;background:rgba(255,255,255,.04);font-size:13px;color:var(--text);}
+.crow .cmark{color:var(--tc);font-weight:700;text-align:center;}
+.crow .crd{color:var(--text2);font-size:12px;}
+.crow .cnm{font-weight:600;}
+.crow .cdf{grid-column:2 / -1;font-size:11.5px;color:var(--text3);}
+.crow.done .cnm{color:var(--text2);}
+.crow.sel{border-color:var(--tc);box-shadow:inset 0 0 0 1px var(--tc);}
+.crow:disabled{cursor:default;opacity:.7;}
+.careerfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:12.5px;color:var(--text2);}
+.careerfoot button{font-size:12px;padding:5px 10px;color:var(--text3);}
 </style>
 </head>
 <body>
@@ -476,6 +493,11 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
       <input id="roomCode" class="roomcode" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false" lang="en" inputmode="latin" autocapitalize="characters">
       <button id="roomJoin" class="roombtn">입장</button>
     </div>
+  </section>
+  <section class="lsec" id="careerSettings" hidden>
+    <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
+    <div class="careergrid" id="careerList"></div>
+    <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
   </section>
   <section class="lsec" id="trainSettings" hidden>
     <div class="lhead">훈련 — 선수 키우기 <span class="lsub">연속 성공으로 레벨업 · 레벨 효과는 AI 대전에 적용</span></div>
@@ -2566,6 +2588,13 @@ class Athlete3D {
     if (this.mood) { this.mood.t -= dt; if (this.mood.t <= 0) this.mood = null; }
   }
 
+  // 유니폼 색 바꾸기 (커리어 상대마다 다른 색) — 셔츠·바지·포인트 색만
+  setKit(K) {
+    this.kit = Object.assign({}, this.kit, K);
+    this.mShirt.color.setHex(this.kit.shirt); this.mShorts.color.setHex(this.kit.shorts);
+    this.mAcc.color.setHex(this.kit.accent); this.mAcc.emissive.setHex(this.kit.accent).multiplyScalar(0.25);
+  }
+
   // ───── 몸 모델 ─────
   build(scene) {
     const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 });
@@ -3363,13 +3392,13 @@ class AI3D {
   constructor(game, a) { this.game = game; this.a = a; this.plan = null; this.serveT = 0; }
   // 난이도 수치 + 성향(AI_STYLE)을 합친 값
   get d() {
-    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid;
+    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid + '/' + (g.career ? g.career.idx : '');
     if (this._dk !== key) {
-      const b = C3.AI[g.diffId], st = C3.AI_STYLE[sid];
+      const b = g.career ? Career3.aiOf(g.career) : C3.AI[g.diffId], st = C3.AI_STYLE[sid];   // 커리어: 난이도 사이를 섞은 수치
       this._d = Object.assign({}, b, {
         smash: Math.min(0.95, b.smash * st.smashMul), over: b.over * st.overMul, misread: b.misread * st.misMul,
         jump: Math.min(0.95, b.jump + (b.jump > 0 ? st.jumpAdd : 0)),   // 점프를 아예 안 하는 난이도(쉬움)는 그대로
-        tact: C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
+        tact: g.career ? Career3.tactOf(g.career) : C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
       });
       this._dk = key;
     }
@@ -3725,6 +3754,78 @@ const Progress3 = {
   hintChance() { return 0.12 * this.lv.jud; }            // 낙하 지점 힌트 확률
 };
 Progress3.load();
+</script>
+<script>
+// court3d/career.js — 커리어(토너먼트) 모드: 성향이 다른 AI를 차례로 이기며 대회 4개를 우승
+//   진행 상황은 브라우저(localStorage)에 저장 · 저장이 막힌 환경이면 이번 실행 동안만 유지
+//   대회·선수 이름·수치는 모두 [게임]용으로 지어낸 것 (실존 대회·선수와 무관)
+//   diff + blend: 난이도 사이를 잇는 값. blend 0.5 = 그 난이도와 다음 난이도 수치의 중간 → 한 경기씩 조금씩 어려워짐
+//   지면 그 경기만 다시 도전 (대회 처음으로 돌아가지 않음)
+
+const CAREER_DIFF_ORDER = ['easy', 'normal', 'hard', 'hell', 'imp'];
+const CAREER_ROUNDS = ['8강', '준결승', '결승'];
+
+const Career3 = {
+  KEY: 'badminton.career.v1',
+  CUPS: [
+    { id: 'town', name: '동네 대회', color: '#7CFF6B', win: 11, rounds: [
+      { name: '한도윤', diff: 'easy',   blend: 0,    style: 'base',  kit: { shirt: 0x4CAF7A, accent: 0xFFFFFF, shorts: 0x263238 } },
+      { name: '서지우', diff: 'easy',   blend: 0.5,  style: 'net',   kit: { shirt: 0x3DA5D9, accent: 0xFFE066, shorts: 0x1B2A41 } },
+      { name: '문태오', diff: 'normal', blend: 0,    style: 'wall',  kit: { shirt: 0xE0E0E0, accent: 0x34C08B, shorts: 0x2E3440 } } ] },
+    { id: 'city', name: '시 대회', color: '#3DD9FF', win: 11, rounds: [
+      { name: '강라온', diff: 'normal', blend: 0.25, style: 'smash', kit: { shirt: 0xE5484D, accent: 0x111111, shorts: 0x1C1C1C } },
+      { name: '윤세찬', diff: 'normal', blend: 0.5,  style: 'net',   kit: { shirt: 0x2EC4B6, accent: 0xFFFFFF, shorts: 0x14213D } },
+      { name: '백이든', diff: 'normal', blend: 0.75, style: 'base',  kit: { shirt: 0x7B61FF, accent: 0x2EE6D6, shorts: 0x23234A } } ] },
+    { id: 'nation', name: '전국 대회', color: '#FFD23F', win: 15, rounds: [
+      { name: '차민혁', diff: 'hard',   blend: 0,    style: 'wall',  kit: { shirt: 0x1D4ED8, accent: 0xFFD23F, shorts: 0x0B1B3A } },
+      { name: '남궁설', diff: 'hard',   blend: 0.35, style: 'smash', kit: { shirt: 0x111111, accent: 0xFF3B6B, shorts: 0x111111 } },
+      { name: '도하준', diff: 'hard',   blend: 0.7,  style: 'net',   kit: { shirt: 0xF5F5F5, accent: 0xE5484D, shorts: 0x1D3557 } } ] },
+    { id: 'world', name: '세계 대회', color: '#FF7A45', win: 15, rounds: [
+      { name: '올레 린드',   diff: 'hell', blend: 0.3, style: 'wall',  kit: { shirt: 0xFFD23F, accent: 0x1D4ED8, shorts: 0x1D4ED8 } },
+      { name: '아리사와 켄', diff: 'hell', blend: 0.7, style: 'net',   kit: { shirt: 0xC2185B, accent: 0xFFFFFF, shorts: 0x1A1A2E } },
+      { name: '카이 로웬',   diff: 'imp',  blend: 0,   style: 'smash', win: 21, kit: { shirt: 0x0E0E12, accent: 0xFFB000, shorts: 0x0E0E12 } } ] }
+  ],
+  cleared: 0,          // 순서대로 이긴 경기 수 (0 ~ total)
+  list: null,
+
+  // 대회별 라운드를 한 줄로 펼친 목록
+  stages() {
+    if (this.list) return this.list;
+    this.list = [];
+    this.CUPS.forEach((cup, ci) => cup.rounds.forEach((r, ri) => this.list.push(Object.freeze({
+      idx: this.list.length, cupIdx: ci, roundIdx: ri, cup: cup.name, cupColor: cup.color, round: CAREER_ROUNDS[ri], final: ri === cup.rounds.length - 1,
+      name: r.name, diff: r.diff, blend: r.blend || 0, style: r.style, win: r.win || cup.win, kit: r.kit
+    }))));
+    return this.list;
+  },
+  get total() { return this.stages().length; },
+  stage(i) { return this.stages()[Math.max(0, Math.min(this.total - 1, i | 0))]; },
+  current() { return Math.min(this.cleared, this.total - 1); },   // 다음에 도전할 경기 (전부 깼으면 마지막 결승)
+  unlocked(i) { return i <= this.cleared; },
+  done() { return this.cleared >= this.total; },
+
+  load() { try { const v = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (v) this.cleared = Math.max(0, Math.min(this.total, v.cleared | 0)); } catch (e) { /* 무시 */ } },
+  save() { try { localStorage.setItem(this.KEY, JSON.stringify({ cleared: this.cleared })); } catch (e) { /* 무시 */ } },
+  // 경기 승리 처리 → 처음 깬 경기면 true (이미 깬 경기를 다시 이긴 건 진행에 영향 없음)
+  clear(i) { if (i !== this.cleared || this.done()) return false; this.cleared++; this.save(); return true; },
+  reset() { this.cleared = 0; this.save(); },
+
+  // 난이도 수치: diff와 다음 난이도 사이를 blend만큼 섞음
+  mix(table, s) {
+    const a = table[s.diff], n = table[CAREER_DIFF_ORDER[CAREER_DIFF_ORDER.indexOf(s.diff) + 1]];
+    if (!s.blend || n === undefined) return a;
+    if (typeof a === 'number') return a + (n - a) * s.blend;
+    const o = {}; for (const k in a) o[k] = a[k] + (n[k] - a[k]) * s.blend;
+    return o;
+  },
+  aiOf(s) { return this.mix(C3.AI, s); },
+  tactOf(s) { return this.mix(C3.AI_TACT, s) || 0; },
+
+  diffLabel(s) { return DIFF_NAMES[s.diff] + (s.blend ? '+' : '') + ' ' + C3.AI_STYLE[s.style].name; },
+  // 대기화면 선택 → Game3D.configure에 넘길 설정
+  sel(i, hand) { const s = this.stage(i); return { type: 'court3d', mode: 'ai', diff: s.diff, style: s.style, win: s.win, hand: hand === 'L' ? 'L' : 'R', career: s }; }
+};
+Career3.load();
 </script>
 <script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
@@ -4246,7 +4347,7 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style }) {
+  configure({ diff, win, hand, mode, train, style, career }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -4255,6 +4356,10 @@ class Game3D {
     this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
+    // 커리어: AI 대전과 같은 규칙에 상대 이름·유니폼·섞은 난이도만 얹음
+    this.career = this.mode === 'ai' && career ? career : null; this.careerNext = null;
+    this.opp.setKit(this.career ? this.career.kit : C3.KITS.opp);
+    if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.hud.setDuo(this.mode === 'local2p');
@@ -4262,6 +4367,7 @@ class Game3D {
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
+      : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
   }
 
@@ -4269,6 +4375,7 @@ class Game3D {
   get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
+    if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
       if (this.guide.finished && this.onGuideDone) return this.onGuideDone();
       this.guide.start();
@@ -4288,12 +4395,13 @@ class Game3D {
     if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
     if (this.mode === 'room' && this.net.peer) this.setOppName(this.net.peer.name);
     if (this.duo) { this.setOppName('P2'); this.setMeName('P1'); }
+    if (this.career) { const c = this.career; this.setOppName(c.name); this.hud.banner(`${c.cup} ${c.round} · vs ${c.name} (${C3.AI_STYLE[c.style].name})`, c.cupColor, 2.2); }
     this.setupPoint();
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
-    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false;
+    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -4634,7 +4742,8 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
-      this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head));
+      else this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
       this.midSwapped = true; this.myEnd ^= 1;
@@ -4650,6 +4759,18 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)
+  careerResult(won, head) {
+    const c = this.career;
+    if (!won) return `${head}<br><b>${c.cup} ${c.round}</b> — ${escHtml(c.name)}에게 졌어요<br>Enter 또는 다시 시작 = 재도전 · Esc = 메뉴`;
+    const first = Career3.clear(c.idx), last = c.idx >= Career3.total - 1, n = last ? null : Career3.stage(c.idx + 1);
+    this.careerNext = n ? n.idx : null;
+    if (c.final) { this.view.cheer(1); Sound3.cheer(1); }
+    const title = c.final ? `🏆 <b>${c.cup} 우승!</b>` : `<b>${c.cup} ${c.round}</b> 통과`;
+    if (last) return `${head}<br>${title}<br>${first ? '모든 대회를 우승했습니다 — 커리어 완주!' : '다시 한번 정상에 섰습니다'}<br>Enter 또는 다시 시작 = 결승 다시 하기 · Esc = 메뉴`;
+    return `${head}<br>${title}<br>다음 상대: <b>${escHtml(n.name)}</b> — ${n.cup} ${n.round} · ${Career3.diffLabel(n)} · ${n.win}점<br>Enter 또는 다시 시작 = 다음 경기 · Esc = 메뉴`;
   }
 
   // ───── 루프 ─────
@@ -5007,7 +5128,7 @@ const TUTORIAL_3D_PAGES = [
   { t: '4. 포핸드 · 백핸드 (자동)', b: '라켓 든 손 쪽으로 오면 <b>포핸드</b>, 반대쪽이면 <b>백핸드</b> — 화면 아래에 미리 표시됩니다.<br>백핸드는 덜 멀리 가고 방향이 흔들립니다. 머리 위로 온 백핸드 쪽 공은 가까우면 <b>라운드 더 헤드</b>(머리 뒤로 돌려 포핸드)로 칩니다.<br>대기화면에서 <b>왼손잡이</b>로 바꿀 수 있어요.' },
   { t: '5. 서브와 규칙 (실제 단식 규칙)', b: '서버 점수가 <b>짝수면 오른쪽, 홀수면 왼쪽</b> 서비스 코트에서, <b>대각선</b> 서비스 코트로 넣어야 합니다(숏 서비스 라인 넘어 ~ 베이스라인).<br>내 서브: <b>Q 꾹</b> — 게이지가 <b>왔다 갔다</b> 합니다. 낮을 때 떼면 숏 서브, 높을 때 떼면 롱 서브. 양 끝 빨간 구간(네트/아웃)에서 떼면 폴트.<br>라인에 떨어지면 인. 21점, 20:20부터 2점 차, 29:29면 30점 먼저.' },
   { t: '6. 낮은 공은 찍을 수 없다', b: '스매시(E)는 <b>높은 타점</b>에서만 됩니다 — 네트보다 낮은 데서 찍으면 그대로 네트에 꽂혀요.<br>낮은 공은 Q(올리기)나 좌클릭(푸시)으로. 높은 공은 <b>Space 점프</b>로 더 높은 타점을 만들 수 있습니다.' },
-  { t: '8. 훈련 — 선수 키우기', b: '대기화면에서 <b>3D 코트 → 훈련</b>을 고르세요. 연속 성공 수를 채우면 레벨업(최대 Lv.5)하고, 레벨 효과는 <b>AI 대전에 적용</b>됩니다.<br><b>근력</b>: 높은 공을 스매시로 노란 표적에 → 스매시가 더 가파르고 빠르게, 상대가 늦게 반응<br><b>순발력</b>: 상대 스매시 받아 넘기기 → 내 슬로우 범위가 크게 늘어남<br><b>판단력</b>: 라인 근처 공 인/아웃 판단 → 경기 중 가끔 낙하 지점 힌트(하늘색)' },
+  { t: '8. 훈련 — 선수 키우기', b: '대기화면에서 <b>3D 코트 → 훈련</b>을 고르세요. 연속 성공 수를 채우면 레벨업(최대 Lv.5)하고, 레벨 효과는 <b>AI 대전·커리어에 적용</b>됩니다.<br><b>근력</b>: 높은 공을 스매시로 노란 표적에 → 스매시가 더 가파르고 빠르게, 상대가 늦게 반응<br><b>순발력</b>: 상대 스매시 받아 넘기기 → 내 슬로우 범위가 크게 늘어남<br><b>판단력</b>: 라인 근처 공 인/아웃 판단 → 경기 중 가끔 낙하 지점 힌트(하늘색)' },
   { t: '7. Shift 런지', b: '<b>Shift</b>를 누르면 한 발 크게(약 1.1m) 내딛으며 팔을 뻗습니다. 리치도 0.45m 늘어나요.<br>방향: <b>이동키를 누르고 있으면 그 방향</b>, 아니면 <b>셔틀이 올 곳으로 자동</b>.<br><b>네트 앞 런지 + Q(헤어핀·리프트)나 좌클릭(푸시)</b>은 오히려 더 정확합니다 — 실제 선수들이 네트 앞 공을 받는 방식이에요.<br>뒤쪽 공을 런지로 치면 조금 덜 멀리 갑니다. 쓴 뒤 약 1초 후 다시 사용 가능(왼쪽 아래 표시).' },
   { t: '9. 친구 1:1 방 (온라인)', b: '대기화면에서 <b>3D 코트 → 친구 1:1 방</b>을 고르세요.<br>한 명이 <b>방 만들기</b> → 화면에 뜬 <b>5자리 코드</b>를 친구에게 알려주면, 친구는 코드를 입력하고 <b>입장</b>.<br>두 사람 모두 자기 쪽이 화면 앞(나)으로 보입니다. 첫 서브는 방장, 목표 점수는 방장 설정을 따릅니다.<br>인터넷이 필요하고, 지연이 크면 상대 움직임이 살짝 늦게 보일 수 있어요. 창을 내리면 내 쪽 게임이 멈추니 경기 중엔 화면을 켜 두세요.<br>경기 중 방 코드는 화면 위쪽 제목 옆에 작게 보입니다(클릭하면 복사).' },
   { t: '10. 낙하 지점 표시', b: '<b>L</b> 키 또는 위쪽 <b>📍 낙하 표시</b> 버튼으로 셔틀 낙하 지점 표시를 켜고 끌 수 있어요(브라우저에 기억됨).<br>끄면 난이도와 상관없이 낙하 지점과 하늘색 힌트가 나오지 않습니다. <b>친구 방에서는 누가 바꾸든 두 사람 모두에게 똑같이 적용</b>됩니다(셔틀 그림자 G도 같음). 방장 설정으로 시작해요. 궤적 미리보기(쉬움)는 그대로예요.' },
@@ -5023,7 +5144,7 @@ const GAME_TYPES = [
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
-    modes: ['ai', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'career', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
     id: 'classic', name: '레트로 모드',
@@ -5034,6 +5155,7 @@ const GAME_TYPES = [
 
 const MODES = [
   { id: 'ai',      name: 'AI 대전',     desc: '난이도 5단계' },
+  { id: 'career',  name: '커리어',      desc: '대회 4개 · 성향이 다른 상대 12명' },
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
   { id: 'room',    name: '친구 1:1 방', desc: '방 코드로 온라인 대전' },
   { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
@@ -5391,6 +5513,9 @@ function hangulToQwerty(s) {
   return out;
 }
 
+// 커리어 초기화 확인 (확인 창이 막힌 환경이면 그냥 진행)
+function confirmReset() { try { return window.confirm('커리어 진행을 처음으로 되돌릴까요? (훈련 레벨은 그대로)'); } catch (e) { return true; } }
+
 class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
@@ -5399,6 +5524,8 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
+    $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.roomBox = $('roomSettings'); this.roomCode = $('roomCode'); this.diffBox = $('diffSeg'); this.aiHead = $('aiHead');
     this.renderTypes();
     this.renderModes();
@@ -5492,9 +5619,12 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    const room = this.sel.mode === 'room';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
-    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
+    const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career) || !this.canStart();
+    this.diffBox.hidden = room || career; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career;   // 커리어는 경기마다 목표 점수가 정해져 있음
+    this.careerBox.hidden = !career || !this.canStart();
+    if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
@@ -5506,6 +5636,31 @@ class Lobby {
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
     this.save();
+  }
+
+  // 커리어: 고른 경기 (없거나 잠겨 있으면 다음에 도전할 경기)
+  careerStage() { return this.cstage != null && Career3.unlocked(this.cstage) ? this.cstage : Career3.current(); }
+  // 커리어 대진표: 대회 카드 4개 × 경기 3개. 깬 경기 ✓ · 도전할 경기 ▶ · 잠긴 경기 🔒 (깬 경기는 눌러서 다시 할 수 있음)
+  renderCareer() {
+    this.careerList.innerHTML = '';
+    const pick = this.careerStage();
+    Career3.CUPS.forEach((cup, ci) => {
+      const box = document.createElement('div'), st = Career3.stages().filter(s => s.cupIdx === ci);
+      const won = st.every(s => s.idx < Career3.cleared), open = Career3.unlocked(st[0].idx);
+      box.className = 'cupcard' + (won ? ' won' : '') + (open ? '' : ' lock'); box.style.setProperty('--tc', cup.color);
+      box.innerHTML = `<span class="cupn">${won ? '🏆 ' : ''}${cup.name}</span>`;
+      for (const s of st) {
+        const b = document.createElement('button'), done = s.idx < Career3.cleared, ok = Career3.unlocked(s.idx);
+        b.className = 'crow' + (done ? ' done' : '') + (s.idx === pick ? ' sel' : ''); b.disabled = !ok;
+        b.innerHTML = `<span class="cmark">${done ? '✓' : ok ? '▶' : '🔒'}</span><span class="crd">${s.round}</span><span class="cnm">${ok ? s.name : '???'}</span><span class="cdf">${ok ? Career3.diffLabel(s) + ' · ' + s.win + '점' : ''}</span>`;
+        b.addEventListener('click', () => { this.cstage = s.idx; this.refresh(); });
+        box.appendChild(b);
+      }
+      this.careerList.appendChild(box);
+    });
+    const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
+    this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
+    document.getElementById('careerReset').hidden = !Career3.cleared;
   }
 
   // 훈련 카드: 종목·현재 레벨·다음 레벨까지·효과
@@ -5637,6 +5792,7 @@ class App {
       else g.start();
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;
+      if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -5695,7 +5851,8 @@ class App {
   toMenu() {
     if (this.screen === 'classic') { this.classic.stop(); this.classicInput.pad.reset(); }
     if (this.screen === 'court3d') { this.court3d.stop(); this.court3dInput.reset(); this.court3dTouch.reset(); }
-    this.lobby.refresh();   // 훈련 레벨 갱신
+    this.lobby.cstage = null;   // 커리어: 다음에 도전할 경기로 되돌림
+    this.lobby.refresh();   // 훈련 레벨·커리어 진행 갱신
     this.show('lobby');
   }
 

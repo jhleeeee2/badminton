@@ -27,6 +27,9 @@ function hangulToQwerty(s) {
   return out;
 }
 
+// 커리어 초기화 확인 (확인 창이 막힌 환경이면 그냥 진행)
+function confirmReset() { try { return window.confirm('커리어 진행을 처음으로 되돌릴까요? (훈련 레벨은 그대로)'); } catch (e) { return true; } }
+
 class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
@@ -35,6 +38,8 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
+    $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.roomBox = $('roomSettings'); this.roomCode = $('roomCode'); this.diffBox = $('diffSeg'); this.aiHead = $('aiHead');
     this.renderTypes();
     this.renderModes();
@@ -128,9 +133,12 @@ class Lobby {
       d.textContent = ready ? m.desc : '준비 중';
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
-    const room = this.sel.mode === 'room';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room) || !this.canStart();
-    this.diffBox.hidden = room; this.aiHead.textContent = room ? '대전 설정' : 'AI 대전 설정';
+    const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career) || !this.canStart();
+    this.diffBox.hidden = room || career; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career;   // 커리어는 경기마다 목표 점수가 정해져 있음
+    this.careerBox.hidden = !career || !this.canStart();
+    if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
@@ -142,6 +150,31 @@ class Lobby {
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
     this.save();
+  }
+
+  // 커리어: 고른 경기 (없거나 잠겨 있으면 다음에 도전할 경기)
+  careerStage() { return this.cstage != null && Career3.unlocked(this.cstage) ? this.cstage : Career3.current(); }
+  // 커리어 대진표: 대회 카드 4개 × 경기 3개. 깬 경기 ✓ · 도전할 경기 ▶ · 잠긴 경기 🔒 (깬 경기는 눌러서 다시 할 수 있음)
+  renderCareer() {
+    this.careerList.innerHTML = '';
+    const pick = this.careerStage();
+    Career3.CUPS.forEach((cup, ci) => {
+      const box = document.createElement('div'), st = Career3.stages().filter(s => s.cupIdx === ci);
+      const won = st.every(s => s.idx < Career3.cleared), open = Career3.unlocked(st[0].idx);
+      box.className = 'cupcard' + (won ? ' won' : '') + (open ? '' : ' lock'); box.style.setProperty('--tc', cup.color);
+      box.innerHTML = `<span class="cupn">${won ? '🏆 ' : ''}${cup.name}</span>`;
+      for (const s of st) {
+        const b = document.createElement('button'), done = s.idx < Career3.cleared, ok = Career3.unlocked(s.idx);
+        b.className = 'crow' + (done ? ' done' : '') + (s.idx === pick ? ' sel' : ''); b.disabled = !ok;
+        b.innerHTML = `<span class="cmark">${done ? '✓' : ok ? '▶' : '🔒'}</span><span class="crd">${s.round}</span><span class="cnm">${ok ? s.name : '???'}</span><span class="cdf">${ok ? Career3.diffLabel(s) + ' · ' + s.win + '점' : ''}</span>`;
+        b.addEventListener('click', () => { this.cstage = s.idx; this.refresh(); });
+        box.appendChild(b);
+      }
+      this.careerList.appendChild(box);
+    });
+    const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
+    this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
+    document.getElementById('careerReset').hidden = !Career3.cleared;
   }
 
   // 훈련 카드: 종목·현재 레벨·다음 레벨까지·효과

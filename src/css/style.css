@@ -392,3 +392,20 @@ body:not(.touch) #court3d .hud button{padding:5px 10px;font-size:12.5px;white-sp
 body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 @media (max-width:1100px){body:not(.touch) #court3d .hud .card:nth-child(4){display:none;}}   /* 좁은 창: 최근 샷 숨김 */
 @media (max-width:860px){body:not(.touch) #court3d .hud .cards{display:none;}}
+
+/* ── 커리어 대진표 ── */
+.careergrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;}
+.cupcard{--tc:#FFD23F;display:flex;flex-direction:column;gap:5px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+.cupcard.won{border-color:var(--tc);}
+.cupcard.lock{opacity:.5;}
+.cupcard .cupn{font-size:15px;font-weight:700;color:var(--tc);margin-bottom:2px;}
+.crow{display:grid;grid-template-columns:18px 44px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;padding:7px 9px;border-radius:8px;border:1px solid transparent;background:rgba(255,255,255,.04);font-size:13px;color:var(--text);}
+.crow .cmark{color:var(--tc);font-weight:700;text-align:center;}
+.crow .crd{color:var(--text2);font-size:12px;}
+.crow .cnm{font-weight:600;}
+.crow .cdf{grid-column:2 / -1;font-size:11.5px;color:var(--text3);}
+.crow.done .cnm{color:var(--text2);}
+.crow.sel{border-color:var(--tc);box-shadow:inset 0 0 0 1px var(--tc);}
+.crow:disabled{cursor:default;opacity:.7;}
+.careerfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:12.5px;color:var(--text2);}
+.careerfoot button{font-size:12px;padding:5px 10px;color:var(--text3);}

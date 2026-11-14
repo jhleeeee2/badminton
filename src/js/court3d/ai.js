@@ -21,13 +21,13 @@ class AI3D {
   constructor(game, a) { this.game = game; this.a = a; this.plan = null; this.serveT = 0; }
   // 난이도 수치 + 성향(AI_STYLE)을 합친 값
   get d() {
-    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid;
+    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid + '/' + (g.career ? g.career.idx : '');
     if (this._dk !== key) {
-      const b = C3.AI[g.diffId], st = C3.AI_STYLE[sid];
+      const b = g.career ? Career3.aiOf(g.career) : C3.AI[g.diffId], st = C3.AI_STYLE[sid];   // 커리어: 난이도 사이를 섞은 수치
       this._d = Object.assign({}, b, {
         smash: Math.min(0.95, b.smash * st.smashMul), over: b.over * st.overMul, misread: b.misread * st.misMul,
         jump: Math.min(0.95, b.jump + (b.jump > 0 ? st.jumpAdd : 0)),   // 점프를 아예 안 하는 난이도(쉬움)는 그대로
-        tact: C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
+        tact: g.career ? Career3.tactOf(g.career) : C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
       });
       this._dk = key;
     }

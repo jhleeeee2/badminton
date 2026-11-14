@@ -82,6 +82,11 @@
       <button id="roomJoin" class="roombtn">입장</button>
     </div>
   </section>
+  <section class="lsec" id="careerSettings" hidden>
+    <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
+    <div class="careergrid" id="careerList"></div>
+    <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
+  </section>
   <section class="lsec" id="trainSettings" hidden>
     <div class="lhead">훈련 — 선수 키우기 <span class="lsub">연속 성공으로 레벨업 · 레벨 효과는 AI 대전에 적용</span></div>
     <div class="traingrid" id="trainList"></div>
@@ -267,6 +272,7 @@
 <script src="js/court3d/sound.js"></script>
 <script src="js/court3d/hud.js"></script>
 <script src="js/court3d/progress.js"></script>
+<script src="js/court3d/career.js"></script>
 <script src="js/court3d/train.js"></script>
 <script src="js/court3d/guide.js"></script>
 <script src="js/court3d/online.js"></script>

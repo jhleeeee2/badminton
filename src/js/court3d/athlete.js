@@ -185,6 +185,13 @@ class Athlete3D {
     if (this.mood) { this.mood.t -= dt; if (this.mood.t <= 0) this.mood = null; }
   }
 
+  // 유니폼 색 바꾸기 (커리어 상대마다 다른 색) — 셔츠·바지·포인트 색만
+  setKit(K) {
+    this.kit = Object.assign({}, this.kit, K);
+    this.mShirt.color.setHex(this.kit.shirt); this.mShorts.color.setHex(this.kit.shorts);
+    this.mAcc.color.setHex(this.kit.accent); this.mAcc.emissive.setHex(this.kit.accent).multiplyScalar(0.25);
+  }
+
   // ───── 몸 모델 ─────
   build(scene) {
     const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 });

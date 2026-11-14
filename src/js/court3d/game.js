@@ -37,7 +37,7 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style }) {
+  configure({ diff, win, hand, mode, train, style, career }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -46,6 +46,10 @@ class Game3D {
     this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
+    // 커리어: AI 대전과 같은 규칙에 상대 이름·유니폼·섞은 난이도만 얹음
+    this.career = this.mode === 'ai' && career ? career : null; this.careerNext = null;
+    this.opp.setKit(this.career ? this.career.kit : C3.KITS.opp);
+    if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.hud.setDuo(this.mode === 'local2p');
@@ -53,6 +57,7 @@ class Game3D {
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
+      : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
   }
 
@@ -60,6 +65,7 @@ class Game3D {
   get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
+    if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
       if (this.guide.finished && this.onGuideDone) return this.onGuideDone();
       this.guide.start();
@@ -79,12 +85,13 @@ class Game3D {
     if (this.trainer.active) { this.trainer.streak = 0; this.trainer.hud(); } else this.hud.setTrain(null);
     if (this.mode === 'room' && this.net.peer) this.setOppName(this.net.peer.name);
     if (this.duo) { this.setOppName('P2'); this.setMeName('P1'); }
+    if (this.career) { const c = this.career; this.setOppName(c.name); this.hud.banner(`${c.cup} ${c.round} · vs ${c.name} (${C3.AI_STYLE[c.style].name})`, c.cupColor, 2.2); }
     this.setupPoint();
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
-    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false;
+    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -425,7 +432,8 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
-      this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head));
+      else this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
       this.midSwapped = true; this.myEnd ^= 1;
@@ -441,6 +449,18 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)
+  careerResult(won, head) {
+    const c = this.career;
+    if (!won) return `${head}<br><b>${c.cup} ${c.round}</b> — ${escHtml(c.name)}에게 졌어요<br>Enter 또는 다시 시작 = 재도전 · Esc = 메뉴`;
+    const first = Career3.clear(c.idx), last = c.idx >= Career3.total - 1, n = last ? null : Career3.stage(c.idx + 1);
+    this.careerNext = n ? n.idx : null;
+    if (c.final) { this.view.cheer(1); Sound3.cheer(1); }
+    const title = c.final ? `🏆 <b>${c.cup} 우승!</b>` : `<b>${c.cup} ${c.round}</b> 통과`;
+    if (last) return `${head}<br>${title}<br>${first ? '모든 대회를 우승했습니다 — 커리어 완주!' : '다시 한번 정상에 섰습니다'}<br>Enter 또는 다시 시작 = 결승 다시 하기 · Esc = 메뉴`;
+    return `${head}<br>${title}<br>다음 상대: <b>${escHtml(n.name)}</b> — ${n.cup} ${n.round} · ${Career3.diffLabel(n)} · ${n.win}점<br>Enter 또는 다시 시작 = 다음 경기 · Esc = 메뉴`;
   }
 
   // ───── 루프 ─────
