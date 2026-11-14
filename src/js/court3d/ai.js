@@ -19,7 +19,20 @@ function planIntercept(a, sim, spd, jumpOK) {
 
 class AI3D {
   constructor(game, a) { this.game = game; this.a = a; this.plan = null; this.serveT = 0; }
-  get d() { return C3.AI[this.game.diffId]; }
+  // 난이도 수치 + 성향(AI_STYLE)을 합친 값
+  get d() {
+    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid;
+    if (this._dk !== key) {
+      const b = C3.AI[g.diffId], st = C3.AI_STYLE[sid];
+      this._d = Object.assign({}, b, {
+        smash: Math.min(0.95, b.smash * st.smashMul), over: b.over * st.overMul, misread: b.misread * st.misMul,
+        jump: Math.min(0.95, b.jump + (b.jump > 0 ? st.jumpAdd : 0)),   // 점프를 아예 안 하는 난이도(쉬움)는 그대로
+        tact: C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
+      });
+      this._dk = key;
+    }
+    return this._d;
+  }
   reset() { this.plan = null; }
 
   // 플레이어가 친 직후 호출 → 반응시간 뒤에 계획
@@ -61,7 +74,7 @@ class AI3D {
       if (this.serveT <= 0) this.serve();
     } else if (g.phase === 'rally' && s.live && s.lastHitter === 'me' && !s.netted) {
       if (!this.plan) { this.planAt -= dt; if (this.planAt <= 0) this.makePlan(); }
-      if (this.plan && this.plan.leave) target = { x: 0, z: -3.4 };   // 나가는 공: 안 받음
+      if (this.plan && this.plan.leave) target = { x: 0, z: -this.d.baseZ };   // 나가는 공: 안 받음
       else if (this.plan) {
         this.t0 += dt;
         target = this.plan.stand;
@@ -72,7 +85,7 @@ class AI3D {
       if (!(this.plan && this.plan.leave) && dist > a.reach() && dist < a.reach() + B.EXT_REACH && s.p.y < 1.4 && s.v.y < 0 && s.p.z < 0) a.extend(s.p, true);
       if (!(this.plan && this.plan.leave) && s.p.z < 0.02 && dist <= a.reach() * 0.95) g.aiHit();
     } else if (g.phase === 'rally') {
-      target = { x: 0, z: -3.4 };          // 기본 위치(코트 중앙)로 복귀
+      target = { x: 0, z: -this.d.baseZ };          // 기본 위치로 복귀 (성향마다 앞뒤가 다름)
     }
 
     if (target) {
@@ -99,14 +112,28 @@ class AI3D {
       else if (r < 0.8 || Math.abs(p.z) > 2.6 || p.y < 1.0) { type = 'lift'; c = rr(0.6, 1.0); }
       else { type = 'flat'; c = rr(0.2, 0.45); }          // 낮은 공 푸시는 네트 앞에서만
     }
+    // 위치 기반 전술 + 성향 [게임]: 내(플레이어) 위치를 보고 빈 곳으로
+    //   · 플레이어가 뒤(네트에서 4.4m 이상)에 있으면 짧게: 높은 공은 드롭, 네트 근처 낮은 공은 헤어핀
+    //   · 플레이어가 네트 앞(2.7m 이내)이면 길게: 높은 공은 그대로(스매시 기회), 그 외엔 클리어/드라이브로 머리 위를 넘김
+    //   · 수비형: 스매시 대신 높고 깊은 클리어 / 네트형: 위치와 상관없이 짧은 공을 자주
+    const pl = this.game.me.pos, plDeep = pl.z > 4.4, plNear = pl.z < 2.7, smashing = type === 'down' && c >= 0.45;
+    if (smashing && R() < d.deepP) { type = 'lift'; c = rr(0.85, 1.0); }
+    else if (R() < d.front + (plDeep && !smashing ? d.tact * 0.5 : 0)) {   // 스매시 기회는 전술 때문에 포기하지 않음 (네트형 성향만 예외)
+      if (p.y > 1.6) { type = 'down'; c = rr(0.05, 0.3); }
+      else if (Math.abs(p.z) < 3.5) { type = 'lift'; c = rr(0, 0.2); }
+    } else if (plNear && !smashing && R() < d.tact) {
+      if (p.y > 1.3 && p.y <= 2.3 && R() < 0.4) { type = 'flat'; c = rr(0.8, 1.0); }
+      else { type = 'lift'; c = rr(0.85, 1.0); }
+    }
     // 부드러운 플레이: 높게 띄워 코트 가운데 깊숙이 (쉬움일수록 자주)
     let soft = R() < d.soft;
     if (soft) { type = 'lift'; c = p.y < 0.6 ? rr(0.55, 0.75) : rr(0.6, 0.85); }
     if (R() < d.over * this.game.aiErrMul()) c = rr(1.17, 1.3);   // 랠리 템포만큼 과충전↑                     // 과충전 실수
     const me = this.game.me;
     const tx = soft ? rr(-0.9, 0.9) : R() < d.edge ? -Math.sign(me.pos.x || (R() - 0.5)) * rr(1.3, 2.3) : rr(-2.0, 2.0);
-    const tz = 1.5 + 4 * Math.min(1, c);
-    const yaw = Math.max(-C3.AIM_MAX, Math.min(C3.AIM_MAX, Math.atan2(-(tx - p.x), tz - p.z)));
+    // 조준: 실제로 떨어질 깊이(샷 종류·충전량) 기준으로 방향을 잡아야 노린 좌우 위치에 떨어짐 (예전엔 1.5+4c 어림값이라 깊은 샷이 옆으로 더 벌어졌음)
+    const S = C3.SHOTS[type], tz = S.depth[0] + (S.depth[1] - S.depth[0]) * Math.min(1, c);
+    const yaw = Math.max(-C3.AI_AIM_MAX, Math.min(C3.AI_AIM_MAX, Math.atan2(-(tx - p.x), tz - p.z)));
     return { type, c, yaw };
   }
 

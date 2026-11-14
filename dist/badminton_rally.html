@@ -443,6 +443,13 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
         <button data-d="hell">지옥</button>
         <button data-d="imp">임파서블</button>
       </div>
+      <div class="seg" id="styleSeg">
+        <span class="seglbl">상대 성향</span>
+        <button data-s="base" class="active">기본</button>
+        <button data-s="wall">수비형</button>
+        <button data-s="net">네트형</button>
+        <button data-s="smash">스매시형</button>
+      </div>
       <div class="seg" id="winSeg">
         <span class="seglbl">목표 점수</span>
         <button data-w="11" class="active">11</button>
@@ -2131,6 +2138,18 @@ const C3 = Object.freeze({
     hell:   { spd: 4.5,  react: 0.16, err: 0.95, over: 0.025, smash: 0.75, edge: 0.8,  jump: 0.6,  misread: 0.02,  chaseOut: 0.15, soft: 0 },
     imp:    { spd: 5.0,  react: 0.11, err: 0.72, over: 0.012, smash: 0.83, edge: 0.9,  jump: 0.75, misread: 0.008, chaseOut: 0.1,  soft: 0 }
   }),
+  // AI 전술·성향 [게임]
+  //   AI_TACT: 내 위치를 보고 샷을 고르는 확률 (뒤에 있으면 짧게, 네트 앞이면 길게). 쉬움은 0 = 예전처럼 순한 공
+  AI_TACT: Object.freeze({ easy: 0, normal: 0.25, hard: 0.55, hell: 0.75, imp: 0.9 }),
+  AI_AIM_MAX: 0.9,                       // AI 조준 최대 각 (±52°, 플레이어 AIM_YAW_MAX와 같음. 예전엔 ±31°)
+  //   AI_STYLE: 난이도 수치에 곱/더해지는 성향. smashMul 스매시 선택 배율, front 짧은 공(드롭·헤어핀) 추가 확률, deepP 스매시 대신 클리어로 바꿀 확률,
+  //             overMul 과충전 실수 배율, misMul 오판 배율, jumpAdd 점프 확률 가산, baseZ 기본 대기 위치(네트에서 거리 m)
+  AI_STYLE: Object.freeze({
+    base:  { name: '기본',     desc: '고르게 치는 상대',                         smashMul: 1,    front: 0,    deepP: 0,    overMul: 1,   misMul: 1,   jumpAdd: 0,    baseZ: 3.4 },
+    wall:  { name: '수비형',   desc: '실수가 적고 높고 깊게 넘김 · 결정타가 약함', smashMul: 0.45, front: 0.05, deepP: 0.45, overMul: 0.6, misMul: 0.7, jumpAdd: 0,    baseZ: 3.6 },
+    net:   { name: '네트형',   desc: '드롭·헤어핀으로 앞을 노림 · 깊은 공에 약함', smashMul: 0.8,  front: 0.4,  deepP: 0,    overMul: 1,   misMul: 1,   jumpAdd: 0,    baseZ: 2.8 },
+    smash: { name: '스매시형', desc: '기회만 오면 스매시 · 실수가 잦고 네트 앞이 약함', smashMul: 1.45, front: 0,    deepP: 0,    overMul: 1.6, misMul: 1.2, jumpAdd: 0.25, baseZ: 3.9 }
+  }),
   // 보조 표시: path = 궤적 미리보기, land = 낙하 지점, stand = 칠 수 있는 위치
   // 보조 표시 (난이도가 오를수록 줄어듦) [게임]
   //   land: 낙하 지점 표시 / landAt: 비행의 몇 % 지점부터 보여줄지 / landA: 진하기 / landS: 크기 / inout: 인=초록·아웃=빨강 구분
@@ -3342,7 +3361,20 @@ function planIntercept(a, sim, spd, jumpOK) {
 
 class AI3D {
   constructor(game, a) { this.game = game; this.a = a; this.plan = null; this.serveT = 0; }
-  get d() { return C3.AI[this.game.diffId]; }
+  // 난이도 수치 + 성향(AI_STYLE)을 합친 값
+  get d() {
+    const g = this.game, sid = C3.AI_STYLE[g.styleId] ? g.styleId : 'base', key = g.diffId + '/' + sid;
+    if (this._dk !== key) {
+      const b = C3.AI[g.diffId], st = C3.AI_STYLE[sid];
+      this._d = Object.assign({}, b, {
+        smash: Math.min(0.95, b.smash * st.smashMul), over: b.over * st.overMul, misread: b.misread * st.misMul,
+        jump: Math.min(0.95, b.jump + (b.jump > 0 ? st.jumpAdd : 0)),   // 점프를 아예 안 하는 난이도(쉬움)는 그대로
+        tact: C3.AI_TACT[g.diffId] || 0, front: st.front, deepP: st.deepP, baseZ: st.baseZ
+      });
+      this._dk = key;
+    }
+    return this._d;
+  }
   reset() { this.plan = null; }
 
   // 플레이어가 친 직후 호출 → 반응시간 뒤에 계획
@@ -3384,7 +3416,7 @@ class AI3D {
       if (this.serveT <= 0) this.serve();
     } else if (g.phase === 'rally' && s.live && s.lastHitter === 'me' && !s.netted) {
       if (!this.plan) { this.planAt -= dt; if (this.planAt <= 0) this.makePlan(); }
-      if (this.plan && this.plan.leave) target = { x: 0, z: -3.4 };   // 나가는 공: 안 받음
+      if (this.plan && this.plan.leave) target = { x: 0, z: -this.d.baseZ };   // 나가는 공: 안 받음
       else if (this.plan) {
         this.t0 += dt;
         target = this.plan.stand;
@@ -3395,7 +3427,7 @@ class AI3D {
       if (!(this.plan && this.plan.leave) && dist > a.reach() && dist < a.reach() + B.EXT_REACH && s.p.y < 1.4 && s.v.y < 0 && s.p.z < 0) a.extend(s.p, true);
       if (!(this.plan && this.plan.leave) && s.p.z < 0.02 && dist <= a.reach() * 0.95) g.aiHit();
     } else if (g.phase === 'rally') {
-      target = { x: 0, z: -3.4 };          // 기본 위치(코트 중앙)로 복귀
+      target = { x: 0, z: -this.d.baseZ };          // 기본 위치로 복귀 (성향마다 앞뒤가 다름)
     }
 
     if (target) {
@@ -3422,14 +3454,28 @@ class AI3D {
       else if (r < 0.8 || Math.abs(p.z) > 2.6 || p.y < 1.0) { type = 'lift'; c = rr(0.6, 1.0); }
       else { type = 'flat'; c = rr(0.2, 0.45); }          // 낮은 공 푸시는 네트 앞에서만
     }
+    // 위치 기반 전술 + 성향 [게임]: 내(플레이어) 위치를 보고 빈 곳으로
+    //   · 플레이어가 뒤(네트에서 4.4m 이상)에 있으면 짧게: 높은 공은 드롭, 네트 근처 낮은 공은 헤어핀
+    //   · 플레이어가 네트 앞(2.7m 이내)이면 길게: 높은 공은 그대로(스매시 기회), 그 외엔 클리어/드라이브로 머리 위를 넘김
+    //   · 수비형: 스매시 대신 높고 깊은 클리어 / 네트형: 위치와 상관없이 짧은 공을 자주
+    const pl = this.game.me.pos, plDeep = pl.z > 4.4, plNear = pl.z < 2.7, smashing = type === 'down' && c >= 0.45;
+    if (smashing && R() < d.deepP) { type = 'lift'; c = rr(0.85, 1.0); }
+    else if (R() < d.front + (plDeep && !smashing ? d.tact * 0.5 : 0)) {   // 스매시 기회는 전술 때문에 포기하지 않음 (네트형 성향만 예외)
+      if (p.y > 1.6) { type = 'down'; c = rr(0.05, 0.3); }
+      else if (Math.abs(p.z) < 3.5) { type = 'lift'; c = rr(0, 0.2); }
+    } else if (plNear && !smashing && R() < d.tact) {
+      if (p.y > 1.3 && p.y <= 2.3 && R() < 0.4) { type = 'flat'; c = rr(0.8, 1.0); }
+      else { type = 'lift'; c = rr(0.85, 1.0); }
+    }
     // 부드러운 플레이: 높게 띄워 코트 가운데 깊숙이 (쉬움일수록 자주)
     let soft = R() < d.soft;
     if (soft) { type = 'lift'; c = p.y < 0.6 ? rr(0.55, 0.75) : rr(0.6, 0.85); }
     if (R() < d.over * this.game.aiErrMul()) c = rr(1.17, 1.3);   // 랠리 템포만큼 과충전↑                     // 과충전 실수
     const me = this.game.me;
     const tx = soft ? rr(-0.9, 0.9) : R() < d.edge ? -Math.sign(me.pos.x || (R() - 0.5)) * rr(1.3, 2.3) : rr(-2.0, 2.0);
-    const tz = 1.5 + 4 * Math.min(1, c);
-    const yaw = Math.max(-C3.AIM_MAX, Math.min(C3.AIM_MAX, Math.atan2(-(tx - p.x), tz - p.z)));
+    // 조준: 실제로 떨어질 깊이(샷 종류·충전량) 기준으로 방향을 잡아야 노린 좌우 위치에 떨어짐 (예전엔 1.5+4c 어림값이라 깊은 샷이 옆으로 더 벌어졌음)
+    const S = C3.SHOTS[type], tz = S.depth[0] + (S.depth[1] - S.depth[0]) * Math.min(1, c);
+    const yaw = Math.max(-C3.AI_AIM_MAX, Math.min(C3.AI_AIM_MAX, Math.atan2(-(tx - p.x), tz - p.z)));
     return { type, c, yaw };
   }
 
@@ -4164,7 +4210,7 @@ class Game3D {
     this.hud = hud;
     this.view = new CourtView3D(container);
     this.match = new Match3D();
-    this.diffId = 'normal';
+    this.diffId = 'normal'; this.styleId = 'base';
     this.me = new Athlete3D(this.view.scene, { side: 'me', color: C3.COLORS.me, kit: C3.KITS.me, hand: 'R' });
     this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
     this.ai = new AI3D(this, this.opp);
@@ -4191,12 +4237,13 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train }) {
+  configure({ diff, win, hand, mode, train, style }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else if (this.mode === 'guide') { this.trainer.start(); this.diffId = 'easy'; }
+    this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
@@ -4206,7 +4253,7 @@ class Game3D {
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
-      : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn);
+      : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
   }
 
   get online() { return this.mode === 'room' && this.net.connected; }
@@ -5338,7 +5385,7 @@ class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
     this.app = app;
-    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
+    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str', style: 'base' };
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
@@ -5348,6 +5395,7 @@ class Lobby {
     this.bindSeg('#diffSeg', 'd', v => { this.sel.diff = v; });
     this.bindSeg('#winSeg', 'w', v => { this.sel.win = parseInt(v); });
     this.bindSeg('#handSeg', 'h', v => { this.sel.hand = v; });
+    this.bindSeg('#styleSeg', 's', v => { this.sel.style = v; });
     this.startBtn.addEventListener('click', () => this.start());
     $('roomCreate').addEventListener('click', () => { this.clearRoomCode(); this.start(); });
     $('roomJoin').addEventListener('click', () => this.start());
@@ -5419,7 +5467,7 @@ class Lobby {
     this.segs = this.segs || [];
     const btns = [...document.querySelectorAll(sel + ' button')];
     btns.forEach(b => b.addEventListener('click', () => { apply(b.dataset[attr]); this.refresh(); }));
-    this.segs.push({ btns, attr, get: () => String({ d: this.sel.diff, w: this.sel.win, h: this.sel.hand }[attr]) });
+    this.segs.push({ btns, attr, get: () => String({ d: this.sel.diff, w: this.sel.win, h: this.sel.hand, s: this.sel.style }[attr]) });
   }
 
   // 선택 상태를 화면에 반영
@@ -5441,6 +5489,9 @@ class Lobby {
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
+    const sb = document.getElementById('styleSeg');   // 상대 성향: 3D AI 대전에서만
+    if (sb) { sb.hidden = !(this.sel.type === 'court3d' && this.sel.mode === 'ai'); const st = typeof C3 !== 'undefined' && C3.AI_STYLE[this.sel.style];
+      if (!sb.hidden && st && this.sel.style !== 'base') this.aiHead.textContent = 'AI 대전 설정 — ' + st.name + ': ' + st.desc; }
     const gb = document.getElementById('lobbyGuide'); if (gb) gb.hidden = this.sel.type !== 'court3d';
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
@@ -5481,7 +5532,7 @@ class Lobby {
   load() {
     try {
       const v = JSON.parse(localStorage.getItem(LOBBY_STORE_KEY) || 'null');
-      if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str' });
+      if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str', style: ['base', 'wall', 'net', 'smash'].includes(v.style) ? v.style : 'base' });
       // 3D가 본편이 되기 전에 저장된 선택은 한 번만 3D로 옮긴다(그 뒤로는 고른 대로 기억)
       if (v && v.v !== 2) this.sel.type = 'court3d';
       this.sel.v = 2;

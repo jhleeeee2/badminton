@@ -10,7 +10,7 @@ class Game3D {
     this.hud = hud;
     this.view = new CourtView3D(container);
     this.match = new Match3D();
-    this.diffId = 'normal';
+    this.diffId = 'normal'; this.styleId = 'base';
     this.me = new Athlete3D(this.view.scene, { side: 'me', color: C3.COLORS.me, kit: C3.KITS.me, hand: 'R' });
     this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
     this.ai = new AI3D(this, this.opp);
@@ -37,12 +37,13 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train }) {
+  configure({ diff, win, hand, mode, train, style }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
     else if (this.mode === 'guide') { this.trainer.start(); this.diffId = 'easy'; }
+    this.styleId = this.mode === 'ai' && C3.AI_STYLE[style] ? style : 'base';   // 성향은 AI 대전에서만
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
@@ -52,7 +53,7 @@ class Game3D {
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
-      : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn);
+      : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
   }
 
   get online() { return this.mode === 'room' && this.net.connected; }

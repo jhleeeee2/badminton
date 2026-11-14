@@ -31,7 +31,7 @@ class Lobby {
   constructor(app) {
     const $ = id => document.getElementById(id);
     this.app = app;
-    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str' };
+    this.sel = { type: 'court3d', mode: 'ai', diff: 'normal', win: 11, hand: 'R', train: 'str', style: 'base' };
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
@@ -41,6 +41,7 @@ class Lobby {
     this.bindSeg('#diffSeg', 'd', v => { this.sel.diff = v; });
     this.bindSeg('#winSeg', 'w', v => { this.sel.win = parseInt(v); });
     this.bindSeg('#handSeg', 'h', v => { this.sel.hand = v; });
+    this.bindSeg('#styleSeg', 's', v => { this.sel.style = v; });
     this.startBtn.addEventListener('click', () => this.start());
     $('roomCreate').addEventListener('click', () => { this.clearRoomCode(); this.start(); });
     $('roomJoin').addEventListener('click', () => this.start());
@@ -112,7 +113,7 @@ class Lobby {
     this.segs = this.segs || [];
     const btns = [...document.querySelectorAll(sel + ' button')];
     btns.forEach(b => b.addEventListener('click', () => { apply(b.dataset[attr]); this.refresh(); }));
-    this.segs.push({ btns, attr, get: () => String({ d: this.sel.diff, w: this.sel.win, h: this.sel.hand }[attr]) });
+    this.segs.push({ btns, attr, get: () => String({ d: this.sel.diff, w: this.sel.win, h: this.sel.hand, s: this.sel.style }[attr]) });
   }
 
   // 선택 상태를 화면에 반영
@@ -134,6 +135,9 @@ class Lobby {
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
+    const sb = document.getElementById('styleSeg');   // 상대 성향: 3D AI 대전에서만
+    if (sb) { sb.hidden = !(this.sel.type === 'court3d' && this.sel.mode === 'ai'); const st = typeof C3 !== 'undefined' && C3.AI_STYLE[this.sel.style];
+      if (!sb.hidden && st && this.sel.style !== 'base') this.aiHead.textContent = 'AI 대전 설정 — ' + st.name + ': ' + st.desc; }
     const gb = document.getElementById('lobbyGuide'); if (gb) gb.hidden = this.sel.type !== 'court3d';
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
@@ -174,7 +178,7 @@ class Lobby {
   load() {
     try {
       const v = JSON.parse(localStorage.getItem(LOBBY_STORE_KEY) || 'null');
-      if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str' });
+      if (v && DIFFS[v.diff] && [11, 15, 21].includes(v.win) && GAME_TYPES.some(t => t.id === v.type)) Object.assign(this.sel, v, { hand: v.hand === 'L' ? 'L' : 'R', train: ['str', 'agi', 'jud'].includes(v.train) ? v.train : 'str', style: ['base', 'wall', 'net', 'smash'].includes(v.style) ? v.style : 'base' });
       // 3D가 본편이 되기 전에 저장된 선택은 한 번만 3D로 옮긴다(그 뒤로는 고른 대로 기억)
       if (v && v.v !== 2) this.sel.type = 'court3d';
       this.sel.v = 2;

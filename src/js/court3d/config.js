@@ -80,6 +80,18 @@ const C3 = Object.freeze({
     hell:   { spd: 4.5,  react: 0.16, err: 0.95, over: 0.025, smash: 0.75, edge: 0.8,  jump: 0.6,  misread: 0.02,  chaseOut: 0.15, soft: 0 },
     imp:    { spd: 5.0,  react: 0.11, err: 0.72, over: 0.012, smash: 0.83, edge: 0.9,  jump: 0.75, misread: 0.008, chaseOut: 0.1,  soft: 0 }
   }),
+  // AI 전술·성향 [게임]
+  //   AI_TACT: 내 위치를 보고 샷을 고르는 확률 (뒤에 있으면 짧게, 네트 앞이면 길게). 쉬움은 0 = 예전처럼 순한 공
+  AI_TACT: Object.freeze({ easy: 0, normal: 0.25, hard: 0.55, hell: 0.75, imp: 0.9 }),
+  AI_AIM_MAX: 0.9,                       // AI 조준 최대 각 (±52°, 플레이어 AIM_YAW_MAX와 같음. 예전엔 ±31°)
+  //   AI_STYLE: 난이도 수치에 곱/더해지는 성향. smashMul 스매시 선택 배율, front 짧은 공(드롭·헤어핀) 추가 확률, deepP 스매시 대신 클리어로 바꿀 확률,
+  //             overMul 과충전 실수 배율, misMul 오판 배율, jumpAdd 점프 확률 가산, baseZ 기본 대기 위치(네트에서 거리 m)
+  AI_STYLE: Object.freeze({
+    base:  { name: '기본',     desc: '고르게 치는 상대',                         smashMul: 1,    front: 0,    deepP: 0,    overMul: 1,   misMul: 1,   jumpAdd: 0,    baseZ: 3.4 },
+    wall:  { name: '수비형',   desc: '실수가 적고 높고 깊게 넘김 · 결정타가 약함', smashMul: 0.45, front: 0.05, deepP: 0.45, overMul: 0.6, misMul: 0.7, jumpAdd: 0,    baseZ: 3.6 },
+    net:   { name: '네트형',   desc: '드롭·헤어핀으로 앞을 노림 · 깊은 공에 약함', smashMul: 0.8,  front: 0.4,  deepP: 0,    overMul: 1,   misMul: 1,   jumpAdd: 0,    baseZ: 2.8 },
+    smash: { name: '스매시형', desc: '기회만 오면 스매시 · 실수가 잦고 네트 앞이 약함', smashMul: 1.45, front: 0,    deepP: 0,    overMul: 1.6, misMul: 1.2, jumpAdd: 0.25, baseZ: 3.9 }
+  }),
   // 보조 표시: path = 궤적 미리보기, land = 낙하 지점, stand = 칠 수 있는 위치
   // 보조 표시 (난이도가 오를수록 줄어듦) [게임]
   //   land: 낙하 지점 표시 / landAt: 비행의 몇 % 지점부터 보여줄지 / landA: 진하기 / landS: 크기 / inout: 인=초록·아웃=빨강 구분

@@ -27,7 +27,7 @@ src/                         개발용 원본 (여기만 수정)
       game.js                Game         — 모드(ai/room)·phase 전환, 메인 루프, 서브·득점, start/stop
       ui/input.js            Input        — 키보드·터치 → Game 명령 (inputOn일 때만)
       ui/tutorial.js         Tutorial     — 튜토리얼 팝업 + TUTORIAL_PAGES
-    court3d/                 본편: 3D 코트 (Three.js) — 새 기능은 여기에 · guide.js = 체험형 튜토리얼(이동→올리기→찍기→서브, 처음 한 번 자동)
+    court3d/                 본편: 3D 코트 (Three.js) — 새 기능은 여기에 · ai.js = 난이도(C3.AI) + 성향(C3.AI_STYLE: 기본·수비형·네트형·스매시형) + 위치 기반 전술(C3.AI_TACT) · guide.js = 체험형 튜토리얼(이동→올리기→찍기→서브, 처음 한 번 자동)
       config.js              C3 — 코트 규격[규격]·물리[근사]·슬로우/충전/샷/AI 수치[게임]
       physics.js             Phys3 — 셔틀 공기저항 물리(종단속도 6.8m/s), 네트 판정, 발사 속력 역산
       shots.js               Shots3 — 충전량·방향·포/백핸드 → 목표 지점 → 발사 속도, 과충전 실패
