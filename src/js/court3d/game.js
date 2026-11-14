@@ -14,7 +14,7 @@ class Game3D {
     this.me = new Athlete3D(this.view.scene, { side: 'me', color: C3.COLORS.me, kit: C3.KITS.me, hand: 'R' });
     this.opp = new Athlete3D(this.view.scene, { side: 'opp', color: C3.COLORS.opp, kit: C3.KITS.opp, hand: 'R' });
     this.ai = new AI3D(this, this.opp);
-    this.trainer = new Trainer3D(this); this.mode = 'ai'; this.net = new Net3D();
+    this.coach = new Trainer3D(this); this.guide = new Guide3D(this); this.trainer = this.coach; this.onGuideDone = null; this.mode = 'ai'; this.net = new Net3D();
     // 낙하 지점 표시 켜기/끄기 (L) — 브라우저에 기억
     this.showLand = true;
     try { this.showLand = localStorage.getItem('badminton.c3.showLand') !== '0'; } catch (e) { /* 무시 */ }
@@ -39,16 +39,17 @@ class Game3D {
 
   configure({ diff, win, hand, mode, train }) {
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
-    this.mode = ['train', 'room', 'local2p'].includes(mode) ? mode : 'ai';
+    this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
+    this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
     if (this.mode === 'train') { this.trainer.start(train || 'str'); this.diffId = 'normal'; }
-    else this.trainer.stop();
+    else if (this.mode === 'guide') { this.trainer.start(); this.diffId = 'easy'; }
     if (this.mode !== 'room') { this.hud.setRoom(null); this.net.close(); this.opp.setHand('R'); this.setOppName(this.mode === 'local2p' ? 'P2' : '상대'); this.hud.setSets(null); this.loadViewPrefs(); }
     else this.diffId = 'normal';
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
-    this.hud.setConfig(this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
+    this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? '친구 1:1 · ' + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn);
@@ -58,6 +59,10 @@ class Game3D {
   get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
+    if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
+      if (this.guide.finished && this.onGuideDone) return this.onGuideDone();
+      this.guide.start();
+    }
     if (this.mode === 'room') {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
@@ -86,7 +91,8 @@ class Game3D {
   // ───── 서브 준비: 서비스 코트에 선수 배치, 서버가 셔틀을 듦 ─────
   setupPoint() {
     const m = this.match;
-    if (this.trainer.active) m.server = 'opp';
+    if (this.trainer.active && this.trainer.finished) return this.trainer.finish();
+    if (this.trainer.active) m.server = this.trainer.serverSide || 'opp';
     const court = m.serveCourt(), server = m.server, recv = m.other(server);
     this.phase = 'serve';
     for (const a of [this.me, this.opp]) {
@@ -133,7 +139,7 @@ class Game3D {
   hit(a, sw) {
     const s = this.sh, p0 = { ...s.p }, k = a.classify(p0);
     let yaw = sw.yaw, aimDepth = null;
-    if (a.side === 'me') yaw = this.yawTo(p0);   // 내 샷: 타점에서 커서 아래 바닥 점 '방향' (거리는 충전량)
+    if (a.side === 'me') { yaw = this.yawTo(p0); this.lastType = sw.type; }   // 내 샷: 타점에서 커서 아래 바닥 점 '방향' (거리는 충전량)
     else if (this.duo) yaw = this.p2YawTo(p0);   // P2: 방향키(←→) 또는 자동으로 상대 반대쪽
     const plan = Shots3.plan({
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
@@ -454,7 +460,7 @@ class Game3D {
         if (a.side === s.lastHitter || (a.side === 'opp' && (!C3.SLOW.ON_AI || this.trainer.active))) continue;   // 훈련: AI 쪽 슬로우 없음
         // 순발력 레벨만큼 내 슬로우 범위 증가 · 훈련 중엔 슬로우를 덜 걸리게(작은 범위, 레벨 보너스 없음)
         const S = C3.SLOW, nz = Math.abs(s.p.z), netK = nz <= S.NET_NEAR ? S.NET_MUL : nz >= S.NET_FAR ? 1 : S.NET_MUL + (1 - S.NET_MUL) * (nz - S.NET_NEAR) / (S.NET_FAR - S.NET_NEAR);   // 네트 앞일수록 좁게
-        const sh = a.shoulder(), R = (this.trainer.active ? S.TRAIN_RADIUS : (S.RADIUS + (a.side === 'me' && !this.duo ? Progress3.slowBonus() : 0)) * tp.slow) * netK;   // 랠리가 길수록 슬로우 범위 축소
+        const sh = a.shoulder(), R = (this.trainer.active ? (this.trainer.slowR || S.TRAIN_RADIUS) : (S.RADIUS + (a.side === 'me' && !this.duo ? Progress3.slowBonus() : 0)) * tp.slow) * netK;   // 랠리가 길수록 슬로우 범위 축소
         if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < R) slow = true;
       }
     }
@@ -463,6 +469,7 @@ class Game3D {
     this.hud.setSlow((1 - this.timeScale) / (1 - C3.SLOW.SCALE));
 
     this.me.updateCharge(real);
+    if (this.trainer.tick) this.trainer.tick(real);
     if (this.duo) this.opp.updateCharge(real);
     if (this.mode === 'room') this.net.tick(real);
     let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율

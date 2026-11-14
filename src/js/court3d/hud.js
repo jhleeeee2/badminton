@@ -46,6 +46,13 @@ class Hud3D {
     this.el.bTag.textContent = `${t.name} Lv.${t.lv}` + (t.lv >= t.max ? ' (최대)' : '');
     this.el.bTag.style.background = t.color; this.el.bTag.style.color = '#14122a';
   }
+  // 체험 튜토리얼 진행 표시 (단계 / 전체)
+  setGuide(i, n, title) {
+    const b = this.el.board; b.classList.add('train'); b.classList.remove('mpMe', 'mpOpp', 'srvMe', 'srvOpp');
+    b.querySelector('.opp .nm').textContent = '단계'; b.querySelector('.me .nm').textContent = '전체';
+    this.el.bOpp.textContent = i; this.el.bMe.textContent = n;
+    this.el.bTag.textContent = '튜토리얼 · ' + title; this.el.bTag.style.background = '#FFD23F'; this.el.bTag.style.color = '#14122a';
+  }
   flash(color, a) {   // 스매시 순간 화면 번쩍
     const f = this.el.flash; f.style.background = `radial-gradient(ellipse at center, ${color}55 0%, ${color}00 70%)`;
     f.style.transition = 'none'; f.style.opacity = a; void f.offsetWidth; f.style.transition = 'opacity .35s ease-out'; f.style.opacity = 0;

@@ -134,6 +134,7 @@ class Lobby {
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
+    const gb = document.getElementById('lobbyGuide'); if (gb) gb.hidden = this.sel.type !== 'court3d';
     this.startBtn.disabled = !this.canStart();
     this.note.textContent = this.canStart() ? '' : `${this.type().name} — 이 모드는 아직 준비 중이에요.`;
     this.save();

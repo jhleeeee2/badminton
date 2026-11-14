@@ -16,6 +16,7 @@ class App {
     this.lobby = new Lobby(this);
     AccountUI.init(() => { if (this.screen === 'lobby') this.lobby.refresh(); });   // 계정 줄·로그인 창
 
+    $('lobbyGuide').addEventListener('click', () => this.startGuide({ ...this.lobby.sel, type: 'court3d', mode: 'ai' }));
     $('lobbyTut').addEventListener('click', () => this.openTutorial(this.lobby.sel.type));
     $('menuBtn').addEventListener('click', () => this.toMenu());
     $('c3menuBtn').addEventListener('click', () => this.toMenu());
@@ -74,12 +75,24 @@ class App {
       else g.start();
     } else if (sel.type === 'court3d') {
       if (!this.ensure3D()) return;
+      if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
       this.show('court3d');
       if (sel.mode === 'room') this.openRoom(sel);
       else this.court3d.start();
     }
+  }
+
+  // 체험형 튜토리얼 → 끝나거나 건너뛰면 원래 고른 설정으로 AI 대전 시작
+  startGuide(sel) {
+    if (!this.ensure3D()) return;
+    const g = this.court3d;
+    g.onGuideDone = () => { g.onGuideDone = null; g.configure(sel); g.start(); };
+    g.configure({ ...sel, mode: 'guide' });
+    Sound3.unlock();
+    this.show('court3d');
+    g.start();
   }
 
   nickOf(sel) { return (sel.nick || (typeof Account !== 'undefined' && Account.nickname) || '게스트').slice(0, 12); }
