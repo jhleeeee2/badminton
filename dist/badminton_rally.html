@@ -453,6 +453,16 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .coinhow{max-height:none;} .coinlog{max-height:150px;}
 .coinhow .rrow{grid-template-columns:96px 1fr;} .coinhow .rrow span:last-child{color:var(--text);}
 .coinlog .rrow{grid-template-columns:72px 1fr 60px;} .coinlog .rrow span:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+/* ───── 내 채 ───── */
+.geargrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.gcard{--tc:#C9CCD6;display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+.gcard.sel{border-color:var(--tc);box-shadow:inset 0 0 0 1px var(--tc);}
+.gcard.lock{opacity:.82;}
+.gcard .trn{font-size:16px;font-weight:700;color:var(--tc);} .gcard .trn small{font-size:12px;font-weight:500;color:var(--text3);margin-left:4px;}
+.gcard .pips{display:flex;gap:3px;} .gcard .pips i{width:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);} .gcard .pips i.own{background:rgba(255,255,255,.3);} .gcard .pips i.on{background:var(--tc);}
+.gcard .trd{font-size:12.5px;color:var(--text2);line-height:1.55;}
+.gcard .tre{font-size:12px;color:var(--text2);line-height:1.6;} .gcard .good{color:var(--ok);} .gcard .bad{color:var(--bad);}
+.gcard .gbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px;} .gcard .gbtns button{font-size:12.5px;padding:6px 10px;} .gcard .gbtns .gstep{min-width:34px;}
 </style>
 </head>
 <body>
@@ -518,6 +528,10 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
     <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
     <div class="careergrid" id="careerList"></div>
     <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
+  </section>
+  <section class="lsec" id="gearSettings" hidden>
+    <div class="lhead">내 채 <span class="lsub">코인으로 구매·강화 · 강화할수록 장단점이 함께 커짐 · 효과는 AI 대전·커리어에만 적용</span></div>
+    <div class="geargrid" id="gearList"></div>
   </section>
   <section class="lsec" id="dailySettings" hidden>
     <div class="lhead">일일 챌린지 <span class="lsub">날마다 종목이 바뀜 · 누구에게나 같은 공 15개 · 여러 번 도전, 최고 점수만 인정</span></div>
@@ -2563,13 +2577,14 @@ class Athlete3D {
       ch.c += ch.dir * realDt / C3.CHARGE.SERVE_CYCLE;
       if (ch.c >= M) { ch.c = M; ch.dir = -1; }
       if (ch.c <= 0) { ch.c = 0; ch.dir = 1; }
-    } else ch.c = Math.min(M, ch.c + realDt / C3.CHARGE.TIME);
+    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1)));   // 채 효과: 충전 시간 배율
   }
   takeCharge() { const c = this.charge; this.charge = null; return c; }
 
   swing(type, c, sp, defaultCat) {
     const k = sp ? this.classify(sp) : { cat: defaultCat || 'side', hand: 'FH' };
-    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: Athlete3D.hitWindow(type, c), type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
+    const w0 = Athlete3D.hitWindow(type, c);   // tight: 강한 충전으로 정타 구간이 좁아진 스윙 (채 효과와 무관하게 판단)
+    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: w0 * (this.gear ? this.gear.win : 1), tight: w0 < C3.BODY.HIT_WINDOW - 0.01, type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
     return this.swingS;
   }
   // 떼고 나서 맞을 수 있는 시간: 강하게 충전한 Q·E일수록 짧아짐 (C3.PERFECT)
@@ -4037,6 +4052,81 @@ const Wallet = {
 Wallet.load();
 </script>
 <script>
+// court3d/racket.js — 채 시스템: 균형형 · 헤드 헤비 · 헤드 라이트, 코인으로 구매·강화
+//   · "더 세게"가 아니라 "다르게": 강화할수록 장점과 단점이 함께 커짐. 강화 단계는 산 범위 안에서 낮춰 쓸 수 있음
+//   · 효과는 AI 대전·커리어에만 적용. 친선게임·일일 챌린지·훈련은 모두 균형형(효과 없음)으로 공평하게
+//   · 저장: 브라우저(badminton.gear.v1) · 로그인하면 wallets 표의 gear 칸과 합침(채마다 더 높은 강화 단계) — account.js
+//   [실제 참고] 헤드가 무거운 채는 스매시에 힘이 실리지만 다루기 느리고, 헤드가 가벼운 채는 빠르게 다뤄 수비·네트 플레이에 유리하다는 일반적인 장비 특성
+//   [게임] 그 외 수치·가격은 모두 게임용으로 정한 값
+
+const Gear3 = {
+  KEY: 'badminton.gear.v1', MAX: 3,
+  UP_COST: [200, 350, 500],          // 강화 1·2·3단계 가격
+  RACKETS: {
+    bal:   { name: '균형형',      price: 0,   color: '#C9CCD6', max: 0, desc: '기본 채. 장단점 없이 고르게.' },
+    heavy: { name: '헤드 헤비',   price: 300, color: '#FF7A45', max: 3, desc: '스매시에 힘이 실리지만 스윙이 무거움.' },
+    light: { name: '헤드 라이트', price: 300, color: '#3DD9FF', max: 3, desc: '빠르게 다뤄 수비·타이밍이 편하지만 스매시가 약함.' }
+  },
+  own: { bal: 0 },   // 가진 채: id → 산 강화 단계
+  use: {},           // id → 쓰는 강화 단계 (없으면 산 단계 그대로)
+  eq: 'bal',         // 장착한 채
+  listeners: [],
+
+  // 효과 수치. smashAng: 스매시 발사각 추가(°, 음수 = 더 가파르고 빠름) · react: 내 스매시에 대한 AI 반응 지연(초)
+  //           charge: 충전 시간 배율 · win: 떼고 나서 맞을 수 있는 시간(정타 여유) 배율
+  stats(id, L) {
+    if (id === 'heavy') return { smashAng: -(1 + 0.5 * L), react: 0.015 + 0.01 * L, charge: 1.10 + 0.05 * L, win: 0.94 - 0.03 * L };
+    if (id === 'light') return { smashAng: 1 + 0.5 * L, react: 0, charge: 0.90 - 0.05 * L, win: 1.10 + 0.05 * L };
+    return { smashAng: 0, react: 0, charge: 1, win: 1 };
+  },
+  pros(id, L) {
+    const s = this.stats(id, L), pct = x => Math.round(Math.abs(x - 1) * 100) + '%';
+    if (id === 'heavy') return { good: `스매시 각 ${s.smashAng.toFixed(1)}° (더 가파르고 빠르게) · 상대 반응 +${Math.round(s.react * 1000)}ms`, bad: `충전 시간 +${pct(s.charge)} · 정타 여유 −${pct(s.win)}` };
+    if (id === 'light') return { good: `충전 시간 −${pct(s.charge)} · 정타 여유 +${pct(s.win)}`, bad: `스매시 각 +${s.smashAng.toFixed(1)}° (더 완만하고 느리게)` };
+    return { good: '효과 없음 (친선게임·일일 챌린지와 같은 조건)', bad: '' };
+  },
+
+  load() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this.KEY) || 'null');
+      if (v && typeof v === 'object') { this.merge(v.own); if (v.use && typeof v.use === 'object') for (const id in this.own) if (v.use[id] != null) this.use[id] = this.clampLv(id, v.use[id]); if (this.has(v.eq)) this.eq = v.eq; }
+    } catch (e) { /* 무시 */ }
+  },
+  save(quiet) {
+    try { localStorage.setItem(this.KEY, JSON.stringify({ own: this.own, use: this.use, eq: this.eq })); } catch (e) { /* 무시 */ }
+    if (!quiet) for (const fn of this.listeners) { try { fn(); } catch (e) { console.error(e); } }
+  },
+  on(fn) { this.listeners.push(fn); },
+  // 다른 곳(서버·저장본)의 보유 목록과 합침: 채마다 더 높은 강화 단계
+  merge(own) {
+    if (!own || typeof own !== 'object') return;
+    for (const id in this.RACKETS) if (own[id] != null) this.own[id] = Math.max(this.own[id] || 0, Math.max(0, Math.min(this.RACKETS[id].max, own[id] | 0)));
+    this.own.bal = 0;
+  },
+  clampLv(id, L) { return Math.max(0, Math.min(this.own[id] || 0, L | 0)); },
+  has(id) { return !!this.RACKETS[id] && this.own[id] != null; },
+  lv(id) { return this.own[id] || 0; },                                      // 산 단계
+  useLv(id) { return this.use[id] != null ? this.clampLv(id, this.use[id]) : this.lv(id); },   // 쓰는 단계
+  upCost(id) { const L = this.lv(id); return this.has(id) && L < this.RACKETS[id].max ? this.UP_COST[L] : null; },
+  label() { const L = this.useLv(this.eq); return this.RACKETS[this.eq].name + (L ? ' +' + L : ''); },
+  cur() { return this.stats(this.eq, this.useLv(this.eq)); },   // 장착한 채의 효과
+
+  buy(id) {
+    const R = this.RACKETS[id];
+    if (!R || this.has(id) || typeof Wallet === 'undefined' || !Wallet.spend('채 구매 · ' + R.name, R.price)) return false;
+    this.own[id] = 0; this.eq = id; this.save(); return true;
+  },
+  upgrade(id) {
+    const c = this.upCost(id);
+    if (c == null || typeof Wallet === 'undefined' || !Wallet.spend('채 강화 · ' + this.RACKETS[id].name + ' +' + (this.lv(id) + 1), c)) return false;
+    this.own[id]++; this.use[id] = this.own[id]; this.save(); return true;
+  },
+  equip(id) { if (!this.has(id)) return false; this.eq = id; this.save(); return true; },
+  setUse(id, L) { if (!this.has(id)) return false; this.use[id] = this.clampLv(id, L); this.save(); return true; }
+};
+Gear3.load();
+</script>
+<script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
 //   str 근력: 높은 공 → 내 스매시가 상대 코트 표적 안에 떨어지면 성공
 //   agi 순발력: AI 스매시 → 상대 코트 안으로 받아 넘기면 성공
@@ -4612,6 +4702,9 @@ class Game3D {
     if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
+    // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
+    const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
+    this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -4619,6 +4712,7 @@ class Game3D {
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
+    if (gearOn) this.hud.setConfig(this.hud.el.cfg.textContent + ' · ' + Gear3.label());
   }
 
   get online() { return this.mode === 'room' && this.net.connected; }
@@ -4716,7 +4810,7 @@ class Game3D {
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
       errMul: a.side === 'opp' && !this.duo ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
-      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
+      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() + (a.gear ? a.gear.smashAng : 0) : 0   // 근력 레벨 + 채 효과 · 로컬 2인은 효과 없이 공평하게
     });
     a.onHit(p0);
     this.launch(a, p0, plan, false, k);
@@ -4768,7 +4862,7 @@ class Game3D {
     if ((a.side === 'me' || this.duo) && plan.kmh > 200 && /스매시/.test(plan.name)) this.hud.banner(who + plan.name + '! ' + plan.kmh + 'km/h', a.side === 'me' ? '#FF7A45' : '#B9A8FF', 0.9);
     if (a.side === 'me' && !this.duo) {
       const sm = /스매시/.test(plan.name);
-      this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() : 0);
+      this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() + (a.gear ? a.gear.react : 0) : 0);
       if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
     }
     this.view.clearTrail();
@@ -5152,7 +5246,7 @@ class Game3D {
     }
     // 강하게 충전한 샷을 정타 타이밍 밖에서 뗐을 때 알려줌
     const sw = a.swingS;
-    if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.window < C3.BODY.HIT_WINDOW - 0.01 && s.lastHitter !== 'me' && !s.netted) {
+    if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.tight && s.lastHitter !== 'me' && !s.netted) {
       sw.told = true;
       const sh = a.shoulder();
       if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < a.reach() * 2.2) this.hud.banner('헛스윙! 풀차징은 정확한 타이밍에만', '#FFB13B', 0.9);
@@ -5635,13 +5729,18 @@ const Account = {
     if (!force && W.uid === id && !W.delta && !W.deltaT) return;
     this.walletBusy = true;
     try {
-      const r = await this.sb.from('wallets').select('coins,total').eq('user_id', id).maybeSingle();
+      const G = typeof Gear3 !== 'undefined' ? Gear3 : null;
+      const r = await this.sb.from('wallets').select('coins,total,gear').eq('user_id', id).maybeSingle();
       if (r.error) { if (r.error.code === '42P01' || r.error.code === 'PGRST205' || /wallets/.test(r.error.message || '')) this.walletOff = true; console.warn('코인 동기화 실패', r.error); return; }
       if (W.uid && W.uid !== id) { W.delta = 0; W.deltaT = 0; W.log = []; }
       const d = W.delta, dT = W.deltaT, sc = r.data ? r.data.coins | 0 : 0, st = r.data ? r.data.total | 0 : 0;
       const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
-      if (!r.data || d || dT) {
-        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, updated_at: new Date().toISOString() });
+      // 채: 다른 계정이 쓰던 브라우저면 서버 것만, 아니면 채마다 더 높은 강화 단계로 합침
+      const sg = r.data && r.data.gear && typeof r.data.gear === 'object' ? r.data.gear : {};
+      if (G) { if (W.uid && W.uid !== id) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
+      const gear = G ? G.own : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      if (!r.data || d || dT || gearNew) {
+        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
       }
       // 올리는 사이에 더 번 코인은 남겨 둠
@@ -5796,7 +5895,7 @@ const AccountUI = {
     ];
     const how = el('rlist coinhow', '');
     for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
-    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓸 곳(채·스킨)은 곧 열려요').style.marginTop = '8px';
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 AI 대전·커리어의 「내 채」').style.marginTop = '8px';
     if (!W.log.length) return;
     el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
     const list = el('rlist coinlog', '');
@@ -5857,6 +5956,7 @@ const AccountUI = {
 
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
+if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();
 </script>
@@ -5901,6 +6001,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.gearBox = $('gearSettings'); this.gearList = $('gearList');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
@@ -6005,6 +6106,8 @@ class Lobby {
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
+    this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
+    if (!this.gearBox.hidden) this.renderGear();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
@@ -6067,6 +6170,30 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 내 채: 채 3종 카드 — 구매 / 장착 / 강화(장단점이 함께 커짐) / 쓰는 강화 단계 고르기
+  renderGear() {
+    const G = Gear3, box = this.gearList, coins = Wallet.coins, ask = t => { try { return window.confirm(t); } catch (e) { return true; } };
+    box.innerHTML = '';
+    for (const id of Object.keys(G.RACKETS)) {
+      const R = G.RACKETS[id], has = G.has(id), eq = G.eq === id, L = G.lv(id), U = G.useLv(id), P = G.pros(id, has ? U : 0), card = document.createElement('div');
+      card.className = 'gcard' + (eq ? ' sel' : '') + (has ? '' : ' lock'); card.style.setProperty('--tc', R.color);
+      const pips = R.max ? `<span class="pips">${Array.from({ length: R.max }, (_, i) => `<i class="${i < U ? 'on' : i < L ? 'own' : ''}"></i>`).join('')}</span>` : '';
+      card.innerHTML = `<span class="trn">${R.name}${has && U ? ' +' + U : ''} <small>${eq ? '장착 중' : has ? '보유' : '🪙 ' + Wallet.fmt(R.price)}</small></span>${pips}
+        <span class="trd">${R.desc}</span>
+        <span class="tre"><b class="good">＋</b> ${P.good}${P.bad ? `<br><b class="bad">－</b> ${P.bad}` : ''}</span><span class="gbtns"></span>`;
+      const btns = card.querySelector('.gbtns');
+      const add = (txt, fn, off, cls) => { const b = document.createElement('button'); b.textContent = txt; b.disabled = !!off; if (cls) b.className = cls; b.addEventListener('click', () => { fn(); this.refresh(); }); btns.appendChild(b); };
+      if (!has) add(coins >= R.price ? '구매 🪙 ' + Wallet.fmt(R.price) : `코인 부족 (${Wallet.fmt(R.price - coins)} 더 필요)`, () => { if (ask(`${R.name} 채를 ${R.price}코인에 살까요?`)) G.buy(id); }, coins < R.price, 'primary');
+      else {
+        if (!eq) add('장착', () => G.equip(id), false, 'primary');
+        const c = G.upCost(id);
+        if (c != null) { const N = G.pros(id, L + 1); add(coins >= c ? `강화 +${L + 1} 🪙 ${Wallet.fmt(c)}` : `강화 +${L + 1} — 코인 부족 (${Wallet.fmt(c - coins)} 더 필요)`, () => { if (ask(`${R.name} +${L + 1} 강화 (${c}코인)\n\n장점: ${N.good}\n단점: ${N.bad}\n\n강화 단계는 나중에 낮춰 쓸 수 있어요.`)) G.upgrade(id); }, coins < c); }
+        if (L > 0) { add('−', () => G.setUse(id, U - 1), U <= 0, 'gstep'); add('＋', () => G.setUse(id, U + 1), U >= L, 'gstep'); }
+      }
+      box.appendChild(card);
+    }
   }
 
   // 훈련 카드: 종목·현재 레벨·다음 레벨까지·효과

@@ -133,13 +133,14 @@ class Athlete3D {
       ch.c += ch.dir * realDt / C3.CHARGE.SERVE_CYCLE;
       if (ch.c >= M) { ch.c = M; ch.dir = -1; }
       if (ch.c <= 0) { ch.c = 0; ch.dir = 1; }
-    } else ch.c = Math.min(M, ch.c + realDt / C3.CHARGE.TIME);
+    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1)));   // 채 효과: 충전 시간 배율
   }
   takeCharge() { const c = this.charge; this.charge = null; return c; }
 
   swing(type, c, sp, defaultCat) {
     const k = sp ? this.classify(sp) : { cat: defaultCat || 'side', hand: 'FH' };
-    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: Athlete3D.hitWindow(type, c), type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
+    const w0 = Athlete3D.hitWindow(type, c);   // tight: 강한 충전으로 정타 구간이 좁아진 스윙 (채 효과와 무관하게 판단)
+    this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: w0 * (this.gear ? this.gear.win : 1), tight: w0 < C3.BODY.HIT_WINDOW - 0.01, type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
     return this.swingS;
   }
   // 떼고 나서 맞을 수 있는 시간: 강하게 충전한 Q·E일수록 짧아짐 (C3.PERFECT)

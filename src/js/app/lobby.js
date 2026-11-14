@@ -38,6 +38,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.gearBox = $('gearSettings'); this.gearList = $('gearList');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
@@ -142,6 +143,8 @@ class Lobby {
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
+    this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
+    if (!this.gearBox.hidden) this.renderGear();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
@@ -204,6 +207,30 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 내 채: 채 3종 카드 — 구매 / 장착 / 강화(장단점이 함께 커짐) / 쓰는 강화 단계 고르기
+  renderGear() {
+    const G = Gear3, box = this.gearList, coins = Wallet.coins, ask = t => { try { return window.confirm(t); } catch (e) { return true; } };
+    box.innerHTML = '';
+    for (const id of Object.keys(G.RACKETS)) {
+      const R = G.RACKETS[id], has = G.has(id), eq = G.eq === id, L = G.lv(id), U = G.useLv(id), P = G.pros(id, has ? U : 0), card = document.createElement('div');
+      card.className = 'gcard' + (eq ? ' sel' : '') + (has ? '' : ' lock'); card.style.setProperty('--tc', R.color);
+      const pips = R.max ? `<span class="pips">${Array.from({ length: R.max }, (_, i) => `<i class="${i < U ? 'on' : i < L ? 'own' : ''}"></i>`).join('')}</span>` : '';
+      card.innerHTML = `<span class="trn">${R.name}${has && U ? ' +' + U : ''} <small>${eq ? '장착 중' : has ? '보유' : '🪙 ' + Wallet.fmt(R.price)}</small></span>${pips}
+        <span class="trd">${R.desc}</span>
+        <span class="tre"><b class="good">＋</b> ${P.good}${P.bad ? `<br><b class="bad">－</b> ${P.bad}` : ''}</span><span class="gbtns"></span>`;
+      const btns = card.querySelector('.gbtns');
+      const add = (txt, fn, off, cls) => { const b = document.createElement('button'); b.textContent = txt; b.disabled = !!off; if (cls) b.className = cls; b.addEventListener('click', () => { fn(); this.refresh(); }); btns.appendChild(b); };
+      if (!has) add(coins >= R.price ? '구매 🪙 ' + Wallet.fmt(R.price) : `코인 부족 (${Wallet.fmt(R.price - coins)} 더 필요)`, () => { if (ask(`${R.name} 채를 ${R.price}코인에 살까요?`)) G.buy(id); }, coins < R.price, 'primary');
+      else {
+        if (!eq) add('장착', () => G.equip(id), false, 'primary');
+        const c = G.upCost(id);
+        if (c != null) { const N = G.pros(id, L + 1); add(coins >= c ? `강화 +${L + 1} 🪙 ${Wallet.fmt(c)}` : `강화 +${L + 1} — 코인 부족 (${Wallet.fmt(c - coins)} 더 필요)`, () => { if (ask(`${R.name} +${L + 1} 강화 (${c}코인)\n\n장점: ${N.good}\n단점: ${N.bad}\n\n강화 단계는 나중에 낮춰 쓸 수 있어요.`)) G.upgrade(id); }, coins < c); }
+        if (L > 0) { add('−', () => G.setUse(id, U - 1), U <= 0, 'gstep'); add('＋', () => G.setUse(id, U + 1), U >= L, 'gstep'); }
+      }
+      box.appendChild(card);
+    }
   }
 
   // 훈련 카드: 종목·현재 레벨·다음 레벨까지·효과

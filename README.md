@@ -44,6 +44,7 @@ src/                         개발용 원본 (여기만 수정)
       tutorial.js            TUTORIAL_3D_PAGES
       daily.js               Daily3 — 일일 챌린지: 날짜(한국 시간)별 종목·날짜 난수·점수 규칙·내 최고 기록(badminton.daily.v1), 순위표는 Supabase daily_scores (sql/daily_scores.sql)
       wallet.js              Wallet — 재화(코인): 지급 규칙(Wallet.R)·잔액·최근 내역(badminton.wallet.v1), 서버 저장은 account.js의 syncWallet (sql/wallets.sql)
+      racket.js              Gear3 — 채 시스템: 균형형·헤드 헤비·헤드 라이트, 구매·강화·장착·쓰는 강화 단계(badminton.gear.v1), 효과는 AI 대전·커리어에만
       career.js              Career3 — 커리어 모드: 대회 4개 × 3경기(상대 12명, 이름·수치 모두 [게임]), 진행 저장(badminton.career.v1), 난이도 사이 섞기(blend)
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
@@ -52,7 +53,7 @@ src/og.png · icon*.png · icon.svg · apple-touch-icon.png · manifest.webmanif
                              공유 미리보기 이미지·아이콘·홈 화면 설치(PWA) — 웹 배포(Vercel, 루트 = src)에서만 쓰임
 tools/build.py               src → dist 묶기:  python tools/build.py
 sql/daily_scores.sql         일일 챌린지 순위표용 표 만들기 (Supabase SQL Editor에서 한 번 실행)
-sql/wallets.sql              재화(코인) 저장용 표 만들기 (Supabase SQL Editor에서 한 번 실행 — 안 하면 코인은 브라우저에만 저장)
+sql/wallets.sql              재화(코인)·가진 채 저장용 표 만들기 (Supabase SQL Editor에서 한 번 실행 — 안 하면 코인은 브라우저에만 저장)
 archive/                     예전 버전 보관 (v1 원본, v2 단순 분리, v3 객체화·로비 이전)
 ```
 
@@ -119,3 +120,19 @@ T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
 - 훈련 레벨업 +30 · 친선게임 승 15 / 패 10 (하루 5경기까지)
 - 저장: 브라우저 `badminton.wallet.v1`. 로그인하면 wallets 표와 합침 — 서버 값 + 아직 안 올린 변화량(delta). 게스트로 번 코인은 첫 로그인 때 계정에 더해짐.
 - 대기화면 계정 줄의 🪙 버튼 = 잔액·얻는 방법·최근 내역. 쓰는 곳은 `Wallet.spend(이름, 금액)`으로 붙임(채·스킨).
+
+## 채 시스템 — 3D 코트, AI 대전·커리어에만 적용
+- [실제 참고] 헤드가 무거운 채 = 스매시에 힘이 실리지만 다루기 느림 / 헤드가 가벼운 채 = 빠르게 다뤄 수비·네트에 유리. [게임] 수치·가격은 모두 게임용.
+- 균형형: 기본(무료), 효과 없음. 헤드 헤비·헤드 라이트: 각 300코인. 강화 +1/+2/+3 = 200 / 350 / 500코인 (채 하나를 끝까지 = 1,350코인).
+- 강화할수록 장점과 단점이 함께 커짐. 산 단계 안에서 −/＋로 낮춰 쓸 수 있음(쓰는 단계 = `Gear3.use`).
+
+| 강화 | 헤드 헤비 ＋ | 헤드 헤비 － | 헤드 라이트 ＋ | 헤드 라이트 － |
+|---|---|---|---|---|
+| +0 | 스매시 각 −1.0° · 상대 반응 +15ms | 충전 시간 +10% · 정타 여유 −6% | 충전 시간 −10% · 정타 여유 +10% | 스매시 각 +1.0° |
+| +1 | −1.5° · +25ms | +15% · −9% | −15% · +15% | +1.5° |
+| +2 | −2.0° · +35ms | +20% · −12% | −20% · +20% | +2.0° |
+| +3 | −2.5° · +45ms | +25% · −15% | −25% · +25% | +2.5° |
+
+- 스매시 각은 근력 훈련 효과(레벨당 −1.5°)와 더해짐. 시험값(충전 90%, 높이 2.6m, 뒤쪽 4.5m): 0° 약 165km/h · −2.5° 약 198km/h · +2.5° 약 147km/h.
+- 친선게임·일일 챌린지·훈련·튜토리얼은 채 효과 없음(모두 같은 조건). 경기 화면 '설정' 칸에 장착한 채 표시.
+- 저장: 브라우저 `badminton.gear.v1` · 로그인하면 wallets 표의 gear 칸과 합침(채마다 더 높은 강화 단계).

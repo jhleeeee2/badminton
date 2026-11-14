@@ -180,13 +180,18 @@ const Account = {
     if (!force && W.uid === id && !W.delta && !W.deltaT) return;
     this.walletBusy = true;
     try {
-      const r = await this.sb.from('wallets').select('coins,total').eq('user_id', id).maybeSingle();
+      const G = typeof Gear3 !== 'undefined' ? Gear3 : null;
+      const r = await this.sb.from('wallets').select('coins,total,gear').eq('user_id', id).maybeSingle();
       if (r.error) { if (r.error.code === '42P01' || r.error.code === 'PGRST205' || /wallets/.test(r.error.message || '')) this.walletOff = true; console.warn('코인 동기화 실패', r.error); return; }
       if (W.uid && W.uid !== id) { W.delta = 0; W.deltaT = 0; W.log = []; }
       const d = W.delta, dT = W.deltaT, sc = r.data ? r.data.coins | 0 : 0, st = r.data ? r.data.total | 0 : 0;
       const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
-      if (!r.data || d || dT) {
-        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, updated_at: new Date().toISOString() });
+      // 채: 다른 계정이 쓰던 브라우저면 서버 것만, 아니면 채마다 더 높은 강화 단계로 합침
+      const sg = r.data && r.data.gear && typeof r.data.gear === 'object' ? r.data.gear : {};
+      if (G) { if (W.uid && W.uid !== id) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
+      const gear = G ? G.own : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      if (!r.data || d || dT || gearNew) {
+        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
       }
       // 올리는 사이에 더 번 코인은 남겨 둠
@@ -341,7 +346,7 @@ const AccountUI = {
     ];
     const how = el('rlist coinhow', '');
     for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
-    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓸 곳(채·스킨)은 곧 열려요').style.marginTop = '8px';
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 AI 대전·커리어의 「내 채」').style.marginTop = '8px';
     if (!W.log.length) return;
     el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
     const list = el('rlist coinlog', '');
@@ -402,5 +407,6 @@ const AccountUI = {
 
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
+if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();

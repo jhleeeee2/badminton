@@ -5,8 +5,11 @@ create table if not exists public.wallets (
   user_id    uuid primary key references auth.users (id) on delete cascade,
   coins      integer not null default 0 check (coins >= 0),
   total      integer not null default 0 check (total >= 0),
+  gear       jsonb   not null default '{}'::jsonb,   -- 가진 채: { "heavy": 2, "light": 0 } = 채 id → 강화 단계
   updated_at timestamptz not null default now()
 );
+-- 예전에 gear 칸 없이 만들었다면 추가
+alter table public.wallets add column if not exists gear jsonb not null default '{}'::jsonb;
 
 alter table public.wallets enable row level security;
 

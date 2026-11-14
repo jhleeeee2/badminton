@@ -53,6 +53,9 @@ class Game3D {
     if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
+    // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
+    const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
+    this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -60,6 +63,7 @@ class Game3D {
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
+    if (gearOn) this.hud.setConfig(this.hud.el.cfg.textContent + ' · ' + Gear3.label());
   }
 
   get online() { return this.mode === 'room' && this.net.connected; }
@@ -157,7 +161,7 @@ class Game3D {
       side: a.side, type: sw.type, c: sw.c, yaw, p0, aimDepth,
       bh: k.hand === 'BH', rth: k.hand === 'RTH', ext: a.extT > 0, jumping: !a.onGround(),
       errMul: a.side === 'opp' && !this.duo ? this.ai.d.err * this.aiErrMul() * (this.ai.vsSmash ? Progress3.smashErr() : 1) : 1,
-      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() : 0   // 로컬 2인은 훈련 효과 없이 공평하게
+      strAng: a.side === 'me' && !this.duo && !this.trainer.daily ? Progress3.smashAngle() + (a.gear ? a.gear.smashAng : 0) : 0   // 근력 레벨 + 채 효과 · 로컬 2인은 효과 없이 공평하게
     });
     a.onHit(p0);
     this.launch(a, p0, plan, false, k);
@@ -209,7 +213,7 @@ class Game3D {
     if ((a.side === 'me' || this.duo) && plan.kmh > 200 && /스매시/.test(plan.name)) this.hud.banner(who + plan.name + '! ' + plan.kmh + 'km/h', a.side === 'me' ? '#FF7A45' : '#B9A8FF', 0.9);
     if (a.side === 'me' && !this.duo) {
       const sm = /스매시/.test(plan.name);
-      this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() : 0);
+      this.ai.vsSmash = sm; this.ai.onIncoming(sm ? Progress3.smashReact() + (a.gear ? a.gear.react : 0) : 0);
       if (this.trainer.active) this.trainer.onPlayerHit(plan.name);
     }
     this.view.clearTrail();
@@ -593,7 +597,7 @@ class Game3D {
     }
     // 강하게 충전한 샷을 정타 타이밍 밖에서 뗐을 때 알려줌
     const sw = a.swingS;
-    if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.window < C3.BODY.HIT_WINDOW - 0.01 && s.lastHitter !== 'me' && !s.netted) {
+    if (sw && !sw.hit && !sw.told && sw.t > sw.window && sw.tight && s.lastHitter !== 'me' && !s.netted) {
       sw.told = true;
       const sh = a.shoulder();
       if (Math.hypot(s.p.x - sh.x, s.p.y - sh.y, s.p.z - sh.z) < a.reach() * 2.2) this.hud.banner('헛스윙! 풀차징은 정확한 타이밍에만', '#FFB13B', 0.9);
