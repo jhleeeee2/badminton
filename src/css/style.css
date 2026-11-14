@@ -422,3 +422,10 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .dailycard .drow{display:grid;grid-template-columns:38px 1fr auto;gap:8px;font-size:13px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.04);}
 .dailycard .drow.mine{box-shadow:inset 0 0 0 1px var(--tc);}
 .dailycard .drow span:last-child{font-weight:700;}
+
+/* ───── 재화(코인) ───── */
+.acctbar button.coinchip{font-weight:600;color:#FFD23F;border-color:rgba(255,210,63,.45);font-variant-numeric:tabular-nums;}
+.coinline{color:#FFD23F;font-size:.9em;} .coinline b{color:#FFE27A;}
+.coinhow{max-height:none;} .coinlog{max-height:150px;}
+.coinhow .rrow{grid-template-columns:96px 1fr;} .coinhow .rrow span:last-child{color:var(--text);}
+.coinlog .rrow{grid-template-columns:72px 1fr 60px;} .coinlog .rrow span:last-child{text-align:right;font-variant-numeric:tabular-nums;}

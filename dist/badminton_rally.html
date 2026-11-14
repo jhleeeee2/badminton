@@ -446,6 +446,13 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .dailycard .drow{display:grid;grid-template-columns:38px 1fr auto;gap:8px;font-size:13px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.04);}
 .dailycard .drow.mine{box-shadow:inset 0 0 0 1px var(--tc);}
 .dailycard .drow span:last-child{font-weight:700;}
+
+/* ───── 재화(코인) ───── */
+.acctbar button.coinchip{font-weight:600;color:#FFD23F;border-color:rgba(255,210,63,.45);font-variant-numeric:tabular-nums;}
+.coinline{color:#FFD23F;font-size:.9em;} .coinline b{color:#FFE27A;}
+.coinhow{max-height:none;} .coinlog{max-height:150px;}
+.coinhow .rrow{grid-template-columns:96px 1fr;} .coinhow .rrow span:last-child{color:var(--text);}
+.coinlog .rrow{grid-template-columns:72px 1fr 60px;} .coinlog .rrow span:last-child{text-align:right;font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -3920,6 +3927,116 @@ const Daily3 = {
 Daily3.load();
 </script>
 <script>
+// court3d/wallet.js — 재화(코인): 플레이로만 얻음 (경기 완료 · 일일 챌린지 · 랠리 기록 · 훈련 레벨업)
+//   · 잔액은 브라우저(localStorage)에 저장 · 로그인하면 서버(wallets 표, sql/wallets.sql)와 합침 (account.js)
+//   · delta / deltaT = 서버에 아직 반영되지 않은 변화량(잔액 / 누적 획득). 게스트로 번 코인은 처음 로그인할 때 계정에 더해짐
+//   · 끝까지 한 경기만 지급 (중간에 나가면 없음). 조작 방지(서버 검증)는 랭크전을 열 때 함께 해결
+//   · 레트로 모드(클래식)는 지급 없음 — 새 기능은 3D 본편에만
+//   수치는 모두 [게임]용으로 정한 값
+
+const Wallet = {
+  KEY: 'badminton.wallet.v1', LOG_MAX: 20,
+  coins: 0, total: 0, delta: 0, deltaT: 0, uid: null, day: '', flags: null, log: [], listeners: [],
+
+  R: {
+    WIN: { easy: 20, normal: 35, hard: 55, hell: 80, imp: 110 },   // AI 대전 승리 (11점 경기 기준)
+    TARGET: { 11: 1, 15: 1.3, 21: 1.7 },                           // 목표 점수 배율
+    LOSS: 0.4,                         // 패배: 승리 보상 × 0.4 × (내 점수 / 목표 점수) — 0점으로 지면 0
+    RALLY: [[30, 30], [20, 15], [10, 5]],   // 그 경기의 가장 긴 랠리가 [타수] 이상이면 +[코인]
+    FIRST_WIN: 50,                     // 오늘의 첫 승 (AI 대전·커리어, 한국 시간 기준 하루 1번)
+    CAREER_FIRST: 2, CAREER_REPLAY: 0.5,    // 커리어: 처음 깨는 경기 ×2 · 이미 깬 경기 다시 하기 ×0.5
+    CUP: [100, 150, 250, 400],         // 대회 첫 우승 보너스 (동네·시·전국·세계)
+    ROOM_WIN: 15, ROOM_LOSS: 10, ROOM_CAP: 5,   // 친선게임: 승 15 / 패 10, 하루 5경기까지
+    DAILY_TRY: 20, DAILY_PER: 25,      // 일일 챌린지: 그날 첫 도전 +20 · 그날 최고 점수 25점당 1코인 (만점 2,750점 = 110)
+    LEVEL_UP: 30                       // 훈련 레벨업 1번
+  },
+
+  load() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this.KEY) || 'null');
+      if (v && typeof v === 'object') {
+        const n = x => Math.round(Number(x) || 0);
+        this.coins = Math.max(0, n(v.coins)); this.total = Math.max(0, n(v.total)); this.delta = n(v.delta); this.deltaT = Math.max(0, n(v.deltaT));
+        this.uid = typeof v.uid === 'string' ? v.uid : null; this.day = typeof v.day === 'string' ? v.day : '';
+        this.flags = v.flags && typeof v.flags === 'object' ? v.flags : null;
+        this.log = Array.isArray(v.log) ? v.log.slice(0, this.LOG_MAX) : [];
+      }
+    } catch (e) { /* 무시 */ }
+  },
+  save() {
+    try { localStorage.setItem(this.KEY, JSON.stringify({ coins: this.coins, total: this.total, delta: this.delta, deltaT: this.deltaT, uid: this.uid, day: this.day, flags: this.flags, log: this.log })); } catch (e) { /* 무시 */ }
+  },
+  on(fn) { this.listeners.push(fn); },
+  emit() { for (const fn of this.listeners) { try { fn(); } catch (e) { console.error(e); } } },
+  fmt(n) { return Math.round(n).toLocaleString('en-US'); },
+
+  today() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); },   // 한국 시간 날짜 (Daily3.day와 같은 기준)
+  // 하루 단위 기록(오늘의 첫 승 · 친선게임 횟수 · 일일 챌린지 지급분): 날짜가 바뀌면 새로
+  f() {
+    const d = this.today();
+    if (this.day !== d || !this.flags) { this.day = d; this.flags = { win: false, room: 0, dailyTry: false, dailyPaid: 0 }; }
+    return this.flags;
+  },
+
+  // items = [[이름, 코인], …] → 0보다 큰 것만 더함. { sum, items, html } (html = 결과 창에 붙일 한 줄, 없으면 '')
+  add(title, items) {
+    items = items.map(([k, n]) => [k, Math.round(n)]).filter(x => x[1] > 0);
+    const sum = items.reduce((s, x) => s + x[1], 0);
+    if (!sum) { this.save(); return { sum: 0, items, html: '' }; }
+    this.coins += sum; this.total += sum; this.delta += sum; this.deltaT += sum;
+    this.log.unshift({ t: Date.now(), title, sum }); this.log.length = Math.min(this.log.length, this.LOG_MAX);
+    this.save(); this.emit();
+    return { sum, items, html: `<br><span class="coinline">🪙 <b>+${this.fmt(sum)} 코인</b>${items.length > 1 ? ' (' + items.map(x => x[0] + ' ' + x[1]).join(' · ') + ')' : ' (' + items[0][0] + ')'} · 보유 ${this.fmt(this.coins)}</span>` };
+  },
+  // 쓰기 (10번 채 시스템부터 사용): 모자라면 false
+  spend(title, n) {
+    n = Math.round(n);
+    if (!(n > 0) || this.coins < n) return false;
+    this.coins -= n; this.delta -= n;
+    this.log.unshift({ t: Date.now(), title, sum: -n }); this.log.length = Math.min(this.log.length, this.LOG_MAX);
+    this.save(); this.emit();
+    return true;
+  },
+
+  // ── 지급 규칙 ──
+  winBase(diff, blend, target) {   // 커리어의 '난이도 사이 섞기'(blend)도 보상에 그대로 반영
+    const order = ['easy', 'normal', 'hard', 'hell', 'imp'], a = this.R.WIN[diff] || this.R.WIN.normal, n = this.R.WIN[order[order.indexOf(diff) + 1]];
+    return (blend && n ? a + (n - a) * blend : a) * (this.R.TARGET[target] || target / 11);
+  },
+  rallyBonus(maxRally) { for (const [hits, c] of this.R.RALLY) if (maxRally >= hits) return c; return 0; },
+  // AI 대전·커리어 한 경기. o = { diff, blend, target, won, pts, maxRally, career: null | { name, first, replay, final, cupIdx } }
+  match(o) {
+    const R = this.R, F = this.f(), c = o.career, items = [];
+    let base = this.winBase(o.diff, o.blend || 0, o.target);
+    if (c) base *= c.first ? R.CAREER_FIRST : c.replay ? R.CAREER_REPLAY : 1;
+    if (o.won) {
+      items.push([c && c.first ? '첫 승리' : '승리', base]);
+      if (c && c.first && c.final) items.push(['대회 우승', R.CUP[c.cupIdx] || 0]);
+      if (!F.win) { F.win = true; items.push(['오늘의 첫 승', R.FIRST_WIN]); }
+    } else items.push(['참가', base * R.LOSS * Math.min(1, o.pts / o.target)]);
+    const rb = this.rallyBonus(o.maxRally | 0); if (rb) items.push(['랠리 ' + (o.maxRally | 0) + '타', rb]);
+    return this.add(c ? '커리어 · ' + c.name : 'AI 대전 ' + (o.won ? '승' : '패'), items);
+  },
+  // 친선게임 한 경기 (하루 ROOM_CAP경기까지)
+  room(won) {
+    const R = this.R, F = this.f();
+    if (F.room >= R.ROOM_CAP) { this.save(); return { sum: 0, items: [], html: `<br><span class="coinline">🪙 친선게임 코인은 하루 ${R.ROOM_CAP}경기까지 (오늘은 다 받았어요)</span>` }; }
+    F.room++;
+    return this.add('친선게임 ' + (won ? '승' : '패'), [[(won ? '승리' : '참가') + ` · 오늘 ${F.room}/${R.ROOM_CAP}`, won ? R.ROOM_WIN : R.ROOM_LOSS]]);
+  },
+  // 일일 챌린지 한 번 끝: 그날 최고 점수가 오른 만큼만 지급 (여러 번 해도 합계는 최고 점수 기준)
+  daily(best) {
+    const R = this.R, F = this.f(), items = [];
+    if (!F.dailyTry) { F.dailyTry = true; items.push(['오늘 첫 도전', R.DAILY_TRY]); }
+    const due = Math.floor(best / R.DAILY_PER);
+    if (due > F.dailyPaid) { items.push(['점수', due - F.dailyPaid]); F.dailyPaid = due; }
+    return this.add('일일 챌린지', items);
+  },
+  levelUp(name) { return this.add('훈련 레벨업 · ' + name, [['레벨업', this.R.LEVEL_UP]]); }
+};
+Wallet.load();
+</script>
+<script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
 //   str 근력: 높은 공 → 내 스매시가 상대 코트 표적 안에 떨어지면 성공
 //   agi 순발력: AI 스매시 → 상대 코트 안으로 받아 넘기면 성공
@@ -4009,7 +4126,8 @@ class Trainer3D {
       const need = Progress3.need(this.kind);
       if (this.streak >= need && Progress3.lv[this.kind] < Progress3.MAX) {
         Progress3.up(this.kind); this.streak = 0;
-        g.hud.banner(`${TRAIN_INFO[this.kind].name} Lv.${Progress3.lv[this.kind]} 달성!`, '#FFD23F', 2.0);
+        const coin = typeof Wallet !== 'undefined' ? Wallet.levelUp(TRAIN_INFO[this.kind].name).sum : 0;
+        g.hud.banner(`${TRAIN_INFO[this.kind].name} Lv.${Progress3.lv[this.kind]} 달성!` + (coin ? ` 🪙 +${coin}` : ''), '#FFD23F', 2.0);
         g.view.cheer(1); Sound3.cheer(1);
       } else g.hud.banner(r.msg + ` (${this.streak}/${need})`, '#5BFFB0', 1.0);
     } else {
@@ -4041,7 +4159,8 @@ class Trainer3D {
     if (rec.isNew) { g.view.cheer(1); Sound3.cheer(1); }
     const fmt = n => n.toLocaleString('en-US');
     const base = `일일 챌린지 끝 — ${I.name}<br><b>${fmt(this.score)}점</b> (성공 ${this.hits}/${Daily3.TOTAL} · 최고 연속 ${this.best})<br>`
-      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`);
+      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`)
+      + (typeof Wallet !== 'undefined' ? Wallet.daily(rec.best).html : '');
     const tail = '<br>Enter 또는 다시 시작 = 다시 도전 · Esc = 메뉴';
     g.hud.showMessage(base + tail);
     const run = this.runId = (this.runId || 0) + 1;
@@ -4516,7 +4635,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null;
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0;
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -4858,6 +4977,7 @@ class Game3D {
 
   point(winner, reason, sync) {
     const m = this.match, rallyLen = m.rally, ls = this.lastShot; this.lastShot = null;
+    this.maxRally = Math.max(this.maxRally || 0, rallyLen);
     m.award(winner);
     // 박수갈채 [게임 연출]: 스매시로 꽂아 넣은 득점(빠를수록 크게) · 10타 이상 이어진 랠리(길수록 크게). 평범한 득점엔 없음
     const clap = Math.max(ls && ls.smash && ls.side === winner && reason === '득점' ? 0.55 + 0.45 * Math.min(1, (ls.kmh - 150) / 130) : 0,
@@ -4886,8 +5006,9 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
-      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head));
-      else this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
+      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
+      else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
       this.midSwapped = true; this.myEnd ^= 1;
@@ -4903,6 +5024,15 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음
+  payMatch(won) {
+    if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
+    if (this.mode === 'room') return Wallet.room(won).html;
+    const m = this.match, c = this.career;
+    return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
+      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html;
   }
 
   // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)
@@ -5365,6 +5495,7 @@ const Account = {
     this.emit();
     await this.ensureProfile();
     await this.syncProgress();
+    await this.syncWallet(true);
     await this.flush();
     this.emit();
   },
@@ -5494,6 +5625,34 @@ const Account = {
     } catch (e) { console.warn(e); return { ok: false }; }
   },
 
+  // ───── 재화(코인) 동기화 (wallets 표: user_id 한 줄) ─────
+  //   서버 값 + 아직 안 올린 변화량(delta) → 서버에 저장. 표가 아직 없으면 이 브라우저에만 (walletOff)
+  //   다른 계정이 쓰던 브라우저면 남아 있던 변화량은 버리고 서버 값만 받음
+  async syncWallet(force) {
+    if (!this.loggedIn || typeof Wallet === 'undefined' || this.walletOff) return;
+    const W = Wallet, id = this.user.id;
+    if (this.walletBusy) { this.walletAgain = true; return; }
+    if (!force && W.uid === id && !W.delta && !W.deltaT) return;
+    this.walletBusy = true;
+    try {
+      const r = await this.sb.from('wallets').select('coins,total').eq('user_id', id).maybeSingle();
+      if (r.error) { if (r.error.code === '42P01' || r.error.code === 'PGRST205' || /wallets/.test(r.error.message || '')) this.walletOff = true; console.warn('코인 동기화 실패', r.error); return; }
+      if (W.uid && W.uid !== id) { W.delta = 0; W.deltaT = 0; W.log = []; }
+      const d = W.delta, dT = W.deltaT, sc = r.data ? r.data.coins | 0 : 0, st = r.data ? r.data.total | 0 : 0;
+      const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
+      if (!r.data || d || dT) {
+        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, updated_at: new Date().toISOString() });
+        if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
+      }
+      // 올리는 사이에 더 번 코인은 남겨 둠
+      W.delta -= d; W.deltaT -= dT; W.coins = Math.max(0, coins + W.delta); W.total = total + W.deltaT; W.uid = id;
+      W.save(); W.emit();
+    } catch (e) { console.warn(e); } finally {
+      this.walletBusy = false;
+      if (this.walletAgain) { this.walletAgain = false; this.syncWallet(); }
+    }
+  },
+
   // ───── 훈련 레벨 동기화 ─────
   async syncProgress() {
     if (typeof Progress3 === 'undefined') return;
@@ -5556,16 +5715,17 @@ const AccountUI = {
     bar.innerHTML = '';
     const info = document.createElement('span'); info.className = 'ainfo';
     const add = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); bar.appendChild(b); };
+    const coin = () => { if (typeof Wallet !== 'undefined') add('🪙 ' + Wallet.fmt(Wallet.coins), () => this.openWallet(), 'coinchip'); };
     if (!A.online) {
       info.textContent = '계정 기능을 불러오지 못했어요 — 게스트로 플레이 (기록은 이 브라우저에만 저장)';
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
     } else if (!A.ready) {
       info.textContent = '계정 확인 중…'; bar.appendChild(info);
     } else if (!A.loggedIn) {
       info.innerHTML = '<span class="dot guest"></span>게스트 — 기록은 이 브라우저에만 저장돼요';
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
       add('로그인 / 회원가입', () => this.openLogin(), 'primary');
     } else {
       const nm = document.createElement('b'); nm.textContent = A.nickname || (A.user.email || '').split('@')[0];
@@ -5574,7 +5734,7 @@ const AccountUI = {
       const p = A.pendingCount();
       info.appendChild(document.createTextNode(p ? ` · 업로드 대기 ${p}경기` : ' · 기록이 계정에 저장돼요'));
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
       add('로그아웃', () => A.signOut());
     }
     // 훈련 레벨이 서버 값과 합쳐졌을 수 있으니 대기화면 갱신
@@ -5614,6 +5774,37 @@ const AccountUI = {
         this.pw.value = '';
       }
     } catch (e) { this.say(accountErrorText(e), 'bad'); } finally { this.submit.disabled = false; }
+  },
+
+  // 코인 창: 잔액 · 얻는 방법 · 최근 내역
+  openWallet() {
+    this.show('records'); this.title.textContent = '코인';
+    const W = Wallet, R = W.R, F = W.f(), box = this.recBox, el = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; box.appendChild(d); return d; };
+    box.innerHTML = '';
+    el('rsum', `<span>🪙 <b>${W.fmt(W.coins)}</b> 코인</span><span>지금까지 번 코인 <b>${W.fmt(W.total)}</b></span>`);
+    el('rsrc', Account.loggedIn ? (Account.walletOff ? '서버 저장 준비 중 — 지금은 이 브라우저에만 저장돼요' : '계정에 저장돼요') : '이 브라우저에 저장 — 로그인하면 계정으로 옮겨져요');
+    const w = R.WIN, rows = [
+      ['AI 대전 승리', `쉬움 ${w.easy} · 중간 ${w.normal} · 어려움 ${w.hard} · 지옥 ${w.hell} · 임파서블 ${w.imp}`],
+      ['목표 점수', `15점 ×${R.TARGET[15]} · 21점 ×${R.TARGET[21]}`],
+      ['패배', `승리 보상의 ${R.LOSS * 100}% × (내 점수 ÷ 목표 점수)`],
+      ['오늘의 첫 승', `+${R.FIRST_WIN}` + (F.win ? ' (오늘 받음)' : '')],
+      ['긴 랠리', R.RALLY.slice().reverse().map(x => `${x[0]}타 +${x[1]}`).join(' · ') + ' (경기당 한 번)'],
+      ['커리어', `처음 깨는 경기 ×${R.CAREER_FIRST} · 대회 첫 우승 +${R.CUP.join(' / ')}`],
+      ['일일 챌린지', `첫 도전 +${R.DAILY_TRY} · 최고 점수 ${R.DAILY_PER}점당 1` + (F.dailyTry ? ` (오늘 ${R.DAILY_TRY + F.dailyPaid} 받음)` : '')],
+      ['훈련 레벨업', `+${R.LEVEL_UP}`],
+      ['친선게임', `승 ${R.ROOM_WIN} · 패 ${R.ROOM_LOSS} (오늘 ${F.room}/${R.ROOM_CAP}경기)`]
+    ];
+    const how = el('rlist coinhow', '');
+    for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓸 곳(채·스킨)은 곧 열려요').style.marginTop = '8px';
+    if (!W.log.length) return;
+    el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
+    const list = el('rlist coinlog', '');
+    for (const x of W.log) {
+      const row = document.createElement('div'); row.className = 'rrow ' + (x.sum >= 0 ? 'w' : 'l'); const d = new Date(x.t);
+      for (const c of [(d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x.title, (x.sum >= 0 ? '+' : '') + W.fmt(x.sum)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); }
+      list.appendChild(row);
+    }
   },
 
   async openRecords() {
@@ -5663,6 +5854,9 @@ const AccountUI = {
     roomBlock();
   }
 };
+
+// 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
+if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
 
 Account.init();
 </script>

@@ -87,7 +87,8 @@ class Trainer3D {
       const need = Progress3.need(this.kind);
       if (this.streak >= need && Progress3.lv[this.kind] < Progress3.MAX) {
         Progress3.up(this.kind); this.streak = 0;
-        g.hud.banner(`${TRAIN_INFO[this.kind].name} Lv.${Progress3.lv[this.kind]} 달성!`, '#FFD23F', 2.0);
+        const coin = typeof Wallet !== 'undefined' ? Wallet.levelUp(TRAIN_INFO[this.kind].name).sum : 0;
+        g.hud.banner(`${TRAIN_INFO[this.kind].name} Lv.${Progress3.lv[this.kind]} 달성!` + (coin ? ` 🪙 +${coin}` : ''), '#FFD23F', 2.0);
         g.view.cheer(1); Sound3.cheer(1);
       } else g.hud.banner(r.msg + ` (${this.streak}/${need})`, '#5BFFB0', 1.0);
     } else {
@@ -119,7 +120,8 @@ class Trainer3D {
     if (rec.isNew) { g.view.cheer(1); Sound3.cheer(1); }
     const fmt = n => n.toLocaleString('en-US');
     const base = `일일 챌린지 끝 — ${I.name}<br><b>${fmt(this.score)}점</b> (성공 ${this.hits}/${Daily3.TOTAL} · 최고 연속 ${this.best})<br>`
-      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`);
+      + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`)
+      + (typeof Wallet !== 'undefined' ? Wallet.daily(rec.best).html : '');
     const tail = '<br>Enter 또는 다시 시작 = 다시 도전 · Esc = 메뉴';
     g.hud.showMessage(base + tail);
     const run = this.runId = (this.runId || 0) + 1;

@@ -76,7 +76,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null;
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0;
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -418,6 +418,7 @@ class Game3D {
 
   point(winner, reason, sync) {
     const m = this.match, rallyLen = m.rally, ls = this.lastShot; this.lastShot = null;
+    this.maxRally = Math.max(this.maxRally || 0, rallyLen);
     m.award(winner);
     // 박수갈채 [게임 연출]: 스매시로 꽂아 넣은 득점(빠를수록 크게) · 10타 이상 이어진 랠리(길수록 크게). 평범한 득점엔 없음
     const clap = Math.max(ls && ls.smash && ls.side === winner && reason === '득점' ? 0.55 + 0.45 * Math.min(1, (ls.kmh - 150) / 130) : 0,
@@ -446,8 +447,9 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
-      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head));
-      else this.hud.showMessage(`${head}${setTxt}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
+      const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
+      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
+      else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
       this.midSwapped = true; this.myEnd ^= 1;
@@ -463,6 +465,15 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음
+  payMatch(won) {
+    if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
+    if (this.mode === 'room') return Wallet.room(won).html;
+    const m = this.match, c = this.career;
+    return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
+      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html;
   }
 
   // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)

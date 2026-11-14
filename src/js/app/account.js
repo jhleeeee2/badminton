@@ -40,6 +40,7 @@ const Account = {
     this.emit();
     await this.ensureProfile();
     await this.syncProgress();
+    await this.syncWallet(true);
     await this.flush();
     this.emit();
   },
@@ -169,6 +170,34 @@ const Account = {
     } catch (e) { console.warn(e); return { ok: false }; }
   },
 
+  // ───── 재화(코인) 동기화 (wallets 표: user_id 한 줄) ─────
+  //   서버 값 + 아직 안 올린 변화량(delta) → 서버에 저장. 표가 아직 없으면 이 브라우저에만 (walletOff)
+  //   다른 계정이 쓰던 브라우저면 남아 있던 변화량은 버리고 서버 값만 받음
+  async syncWallet(force) {
+    if (!this.loggedIn || typeof Wallet === 'undefined' || this.walletOff) return;
+    const W = Wallet, id = this.user.id;
+    if (this.walletBusy) { this.walletAgain = true; return; }
+    if (!force && W.uid === id && !W.delta && !W.deltaT) return;
+    this.walletBusy = true;
+    try {
+      const r = await this.sb.from('wallets').select('coins,total').eq('user_id', id).maybeSingle();
+      if (r.error) { if (r.error.code === '42P01' || r.error.code === 'PGRST205' || /wallets/.test(r.error.message || '')) this.walletOff = true; console.warn('코인 동기화 실패', r.error); return; }
+      if (W.uid && W.uid !== id) { W.delta = 0; W.deltaT = 0; W.log = []; }
+      const d = W.delta, dT = W.deltaT, sc = r.data ? r.data.coins | 0 : 0, st = r.data ? r.data.total | 0 : 0;
+      const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
+      if (!r.data || d || dT) {
+        const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, updated_at: new Date().toISOString() });
+        if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
+      }
+      // 올리는 사이에 더 번 코인은 남겨 둠
+      W.delta -= d; W.deltaT -= dT; W.coins = Math.max(0, coins + W.delta); W.total = total + W.deltaT; W.uid = id;
+      W.save(); W.emit();
+    } catch (e) { console.warn(e); } finally {
+      this.walletBusy = false;
+      if (this.walletAgain) { this.walletAgain = false; this.syncWallet(); }
+    }
+  },
+
   // ───── 훈련 레벨 동기화 ─────
   async syncProgress() {
     if (typeof Progress3 === 'undefined') return;
@@ -231,16 +260,17 @@ const AccountUI = {
     bar.innerHTML = '';
     const info = document.createElement('span'); info.className = 'ainfo';
     const add = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); bar.appendChild(b); };
+    const coin = () => { if (typeof Wallet !== 'undefined') add('🪙 ' + Wallet.fmt(Wallet.coins), () => this.openWallet(), 'coinchip'); };
     if (!A.online) {
       info.textContent = '계정 기능을 불러오지 못했어요 — 게스트로 플레이 (기록은 이 브라우저에만 저장)';
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
     } else if (!A.ready) {
       info.textContent = '계정 확인 중…'; bar.appendChild(info);
     } else if (!A.loggedIn) {
       info.innerHTML = '<span class="dot guest"></span>게스트 — 기록은 이 브라우저에만 저장돼요';
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
       add('로그인 / 회원가입', () => this.openLogin(), 'primary');
     } else {
       const nm = document.createElement('b'); nm.textContent = A.nickname || (A.user.email || '').split('@')[0];
@@ -249,7 +279,7 @@ const AccountUI = {
       const p = A.pendingCount();
       info.appendChild(document.createTextNode(p ? ` · 업로드 대기 ${p}경기` : ' · 기록이 계정에 저장돼요'));
       bar.appendChild(info);
-      add('내 기록', () => this.openRecords());
+      coin(); add('내 기록', () => this.openRecords());
       add('로그아웃', () => A.signOut());
     }
     // 훈련 레벨이 서버 값과 합쳐졌을 수 있으니 대기화면 갱신
@@ -289,6 +319,37 @@ const AccountUI = {
         this.pw.value = '';
       }
     } catch (e) { this.say(accountErrorText(e), 'bad'); } finally { this.submit.disabled = false; }
+  },
+
+  // 코인 창: 잔액 · 얻는 방법 · 최근 내역
+  openWallet() {
+    this.show('records'); this.title.textContent = '코인';
+    const W = Wallet, R = W.R, F = W.f(), box = this.recBox, el = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; box.appendChild(d); return d; };
+    box.innerHTML = '';
+    el('rsum', `<span>🪙 <b>${W.fmt(W.coins)}</b> 코인</span><span>지금까지 번 코인 <b>${W.fmt(W.total)}</b></span>`);
+    el('rsrc', Account.loggedIn ? (Account.walletOff ? '서버 저장 준비 중 — 지금은 이 브라우저에만 저장돼요' : '계정에 저장돼요') : '이 브라우저에 저장 — 로그인하면 계정으로 옮겨져요');
+    const w = R.WIN, rows = [
+      ['AI 대전 승리', `쉬움 ${w.easy} · 중간 ${w.normal} · 어려움 ${w.hard} · 지옥 ${w.hell} · 임파서블 ${w.imp}`],
+      ['목표 점수', `15점 ×${R.TARGET[15]} · 21점 ×${R.TARGET[21]}`],
+      ['패배', `승리 보상의 ${R.LOSS * 100}% × (내 점수 ÷ 목표 점수)`],
+      ['오늘의 첫 승', `+${R.FIRST_WIN}` + (F.win ? ' (오늘 받음)' : '')],
+      ['긴 랠리', R.RALLY.slice().reverse().map(x => `${x[0]}타 +${x[1]}`).join(' · ') + ' (경기당 한 번)'],
+      ['커리어', `처음 깨는 경기 ×${R.CAREER_FIRST} · 대회 첫 우승 +${R.CUP.join(' / ')}`],
+      ['일일 챌린지', `첫 도전 +${R.DAILY_TRY} · 최고 점수 ${R.DAILY_PER}점당 1` + (F.dailyTry ? ` (오늘 ${R.DAILY_TRY + F.dailyPaid} 받음)` : '')],
+      ['훈련 레벨업', `+${R.LEVEL_UP}`],
+      ['친선게임', `승 ${R.ROOM_WIN} · 패 ${R.ROOM_LOSS} (오늘 ${F.room}/${R.ROOM_CAP}경기)`]
+    ];
+    const how = el('rlist coinhow', '');
+    for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓸 곳(채·스킨)은 곧 열려요').style.marginTop = '8px';
+    if (!W.log.length) return;
+    el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
+    const list = el('rlist coinlog', '');
+    for (const x of W.log) {
+      const row = document.createElement('div'); row.className = 'rrow ' + (x.sum >= 0 ? 'w' : 'l'); const d = new Date(x.t);
+      for (const c of [(d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x.title, (x.sum >= 0 ? '+' : '') + W.fmt(x.sum)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); }
+      list.appendChild(row);
+    }
   },
 
   async openRecords() {
@@ -338,5 +399,8 @@ const AccountUI = {
     roomBlock();
   }
 };
+
+// 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
+if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
 
 Account.init();

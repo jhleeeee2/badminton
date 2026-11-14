@@ -43,6 +43,7 @@ src/                         개발용 원본 (여기만 수정)
       touch.js               Touch3D — 모바일 버튼: 이동 패드·방향 ◀●▶·올리기/찍기/직선·점프·런지·😀 감정표현
       tutorial.js            TUTORIAL_3D_PAGES
       daily.js               Daily3 — 일일 챌린지: 날짜(한국 시간)별 종목·날짜 난수·점수 규칙·내 최고 기록(badminton.daily.v1), 순위표는 Supabase daily_scores (sql/daily_scores.sql)
+      wallet.js              Wallet — 재화(코인): 지급 규칙(Wallet.R)·잔액·최근 내역(badminton.wallet.v1), 서버 저장은 account.js의 syncWallet (sql/wallets.sql)
       career.js              Career3 — 커리어 모드: 대회 4개 × 3경기(상대 12명, 이름·수치 모두 [게임]), 진행 저장(badminton.career.v1), 난이도 사이 섞기(blend)
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
@@ -51,6 +52,7 @@ src/og.png · icon*.png · icon.svg · apple-touch-icon.png · manifest.webmanif
                              공유 미리보기 이미지·아이콘·홈 화면 설치(PWA) — 웹 배포(Vercel, 루트 = src)에서만 쓰임
 tools/build.py               src → dist 묶기:  python tools/build.py
 sql/daily_scores.sql         일일 챌린지 순위표용 표 만들기 (Supabase SQL Editor에서 한 번 실행)
+sql/wallets.sql              재화(코인) 저장용 표 만들기 (Supabase SQL Editor에서 한 번 실행 — 안 하면 코인은 브라우저에만 저장)
 archive/                     예전 버전 보관 (v1 원본, v2 단순 분리, v3 객체화·로비 이전)
 ```
 
@@ -106,3 +108,14 @@ T 꾹 = 감정표현 원판 · G 셔틀 그림자 · L 낙하 표시 · M 소리
   남은 쪽이 점수·서브·세트·엔드를 'resume'으로 보내 이어서 진행(중단된 랠리는 무효).
 - 같은 상대와 계속하면 세트 스코어 유지(점수판 아래). 15점 이상 경기는 절반 점수에서 코트 체인지, 경기마다 엔드 교대.
 - Supabase 대시보드에서 Realtime을 '비공개 채널만 허용'으로 바꾸면 방이 연결되지 않음.
+
+## 재화 (코인) — 3D 코트 전용, 수치는 모두 [게임]
+- 플레이로만 얻음. 끝까지 한 경기만 지급(중간에 나가면 없음). 레트로 모드·훈련(레벨업 제외)·튜토리얼은 지급 없음.
+- AI 대전 승리(11점 기준): 쉬움 20 · 중간 35 · 어려움 55 · 지옥 80 · 임파서블 110 / 목표 점수 15점 ×1.3 · 21점 ×1.7
+- 패배: 승리 보상 × 0.4 × (내 점수 ÷ 목표 점수) — 0점으로 지면 0 (일부러 빨리 지는 것 방지)
+- 오늘의 첫 승 +50 (한국 시간 하루 1번) · 긴 랠리(그 경기 최장) 10타 +5 / 20타 +15 / 30타 +30
+- 커리어: 처음 깨는 경기 ×2 · 이미 깬 경기 다시 하기 ×0.5 · 대회 첫 우승 +100 / 150 / 250 / 400
+- 일일 챌린지: 그날 첫 도전 +20 · 그날 최고 점수 25점당 1 (만점 110, 최고 점수가 오른 만큼만)
+- 훈련 레벨업 +30 · 친선게임 승 15 / 패 10 (하루 5경기까지)
+- 저장: 브라우저 `badminton.wallet.v1`. 로그인하면 wallets 표와 합침 — 서버 값 + 아직 안 올린 변화량(delta). 게스트로 번 코인은 첫 로그인 때 계정에 더해짐.
+- 대기화면 계정 줄의 🪙 버튼 = 잔액·얻는 방법·최근 내역. 쓰는 곳은 `Wallet.spend(이름, 금액)`으로 붙임(채·스킨).
