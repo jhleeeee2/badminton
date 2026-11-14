@@ -149,5 +149,8 @@ class App {
   }
 }
 
+// 홈 화면 설치·오프라인(PWA): 웹 주소(https)로 열었을 때만. 파일을 더블클릭해 연 경우엔 등록하지 않음
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { /* 무시 */ });
+
 TouchUI.init();   // 터치 기기면 모바일 버튼 레이아웃
 const app = new App();   // 전역: 콘솔에서 app.classic, app.court3d, app.lobby 확인 가능

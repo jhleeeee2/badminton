@@ -1,0 +1,16 @@
+{
+  "name": "배드민턴 랠리",
+  "short_name": "배드민턴 랠리",
+  "description": "실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴. 설치 없이 브라우저에서 바로.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#15171C",
+  "theme_color": "#15171C",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

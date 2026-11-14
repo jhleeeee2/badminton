@@ -45,6 +45,8 @@ src/                         개발용 원본 (여기만 수정)
   vendor/supabase.min.js     supabase-js 2.118.0 UMD (MIT, 오프라인 실행용으로 포함)
   vendor/three.min.js        Three.js r149 (MIT, 오프라인 실행용으로 포함 → dist 약 730KB)
 dist/badminton_rally.html    배포용 단일 파일 (빌드 결과물, 직접 수정 금지)
+src/og.png · icon*.png · icon.svg · apple-touch-icon.png · manifest.webmanifest · sw.js
+                             공유 미리보기 이미지·아이콘·홈 화면 설치(PWA) — 웹 배포(Vercel, 루트 = src)에서만 쓰임
 tools/build.py               src → dist 묶기:  python tools/build.py
 archive/                     예전 버전 보관 (v1 원본, v2 단순 분리, v3 객체화·로비 이전)
 ```
