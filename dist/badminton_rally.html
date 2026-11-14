@@ -396,6 +396,26 @@ body.touch .c3msg{font-size:13px;}
 .c3skip{position:absolute;top:10px;right:10px;z-index:6;font-size:12.5px;padding:6px 12px;border-radius:999px;background:rgba(14,10,40,.6);color:var(--text2);border:1px solid rgba(255,255,255,.18);}
 .c3skip:hover{color:var(--text);}
 #lobbyGuide small{font-size:11px;color:var(--text3);margin-left:2px;}
+
+/* ───────── 3D 화면 정리 (PC): 머리글 한 줄 + 코트를 창 가득 ───────── */
+/*   [← 메뉴] 배드민턴 랠리 · 3D 코트 | 랠리·최근 샷·설정 ··· 버튼들  →  바로 아래 코트. 긴 설명문은 튜토리얼로 옮김 */
+body:not(.touch):has(#court3d:not([hidden])){padding:8px 12px;align-items:flex-start;}
+body:not(.touch) #court3d:not([hidden]){display:flex;flex-wrap:wrap;align-items:center;column-gap:12px;}
+body:not(.touch) #court3d>h1{font-size:15px;margin:0 0 6px;flex:0 0 auto;white-space:nowrap;}
+body:not(.touch) #court3d>h1 .back{margin-right:8px;vertical-align:1px;}
+body:not(.touch) #court3d>h1 .mode{vertical-align:1px;}
+body:not(.touch) #court3d>.hud{flex:1 1 0;min-width:0;margin:0 0 6px;flex-wrap:nowrap;}
+body:not(.touch) #court3d .hud .cards{flex-wrap:nowrap;gap:6px;min-width:0;overflow:hidden;}
+body:not(.touch) #court3d .hud .card{padding:4px 10px;white-space:nowrap;}
+body:not(.touch) #court3d .hud .card.team{display:none;}   /* 점수는 코트 위 큰 점수판에 있음 */
+body:not(.touch) #court3d .hud .card .lbl{font-size:11.5px;}
+body:not(.touch) #court3d .hud .card .val{font-size:15px;}
+body:not(.touch) #court3d .hud .card .val.small{font-size:12.5px;}
+body:not(.touch) #court3d .hud>div:last-child{margin-left:auto;flex-wrap:nowrap;gap:6px !important;}
+body:not(.touch) #court3d .hud button{padding:5px 10px;font-size:12.5px;white-space:nowrap;}
+body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
+@media (max-width:1100px){body:not(.touch) #court3d .hud .card:nth-child(4){display:none;}}   /* 좁은 창: 최근 샷 숨김 */
+@media (max-width:860px){body:not(.touch) #court3d .hud .cards{display:none;}}
 </style>
 </head>
 <body>
@@ -574,7 +594,6 @@ body.touch .c3msg{font-size:13px;}
     </div>
   </div>
   </div>
-  <p class="foot"><b style="color:var(--text2)">타이밍</b>: 셔틀이 라켓 팔 바로 옆까지 오면 짧게 슬로우가 걸립니다. M = 소리 켜기/끄기, L = 낙하 지점 표시 켜기/끄기, G = 셔틀 그림자 켜기/끄기, T 꾹 = 감정표현 원판. 충전하다가 셔틀이 라켓에 닿는 순간 떼세요. 포핸드/백핸드는 공이 오는 쪽으로 자동 판정(화면 아래 표시). 코트·네트·서브 규칙은 실제 단식 규격이고, 슬로우·충전·수치는 게임용입니다.</p>
 </div>
 <div id="tut">
   <div class="tutbox">
