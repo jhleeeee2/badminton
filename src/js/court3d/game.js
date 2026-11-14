@@ -23,6 +23,7 @@ class Game3D {
     this.showShadow = true;
     try { this.showShadow = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
     this.view.setShadowOn(this.showShadow); this.hud.setShadow(this.showShadow);
+    this.hud.setMute(Sound3.muted); this.hud.setMusic(Sound3.musicOn);   // 소리 설정도 브라우저에 기억
     // 엔드(코트 끝): myEnd = 내가 서 있는 엔드(0=A, 1=B). 화면 안쪽에는 반대 엔드 배경이 보임
     this.myEnd = 0; this.midSwapped = false; this.swapNext = false;
     // 친구 방: 같은 상대와 계속 하면 세트 스코어 유지
@@ -88,11 +89,12 @@ class Game3D {
     if (this.duo) { this.setOppName('P2'); this.setMeName('P1'); }
     if (this.career) { const c = this.career; this.setOppName(c.name); this.hud.banner(`${c.cup} ${c.round} · vs ${c.name} (${C3.AI_STYLE[c.style].name})`, c.cupColor, 2.2); }
     this.setupPoint();
+    Sound3.play(true);   // 배경음 (꺼 두었으면 아무 일도 없음)
     this.lastTs = 0;
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
-    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
+    this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null; Sound3.play(false);
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -190,7 +192,7 @@ class Game3D {
       this.hud.flash(a.side === 'me' ? '#FFB13B' : '#B9A8FF', 0.35 + 0.35 * k);
       Sound3.smash(k);
     }
-    Sound3.hit(plan.kmh);
+    Sound3.hit(plan.kmh, smash ? '' : plan.kmh < 75 && plan.v0.y < 6.5 ? 'soft' : plan.v0.y > 9 ? 'high' : '');   // 느리고 낮게 놓는 공 = 톡, 높이 띄우는 공 = 팡 [게임 연출]
     (a.side === 'me' ? this.opp : this.me).splitStep();
     const who = this.duo ? (a.side === 'me' ? 'P1 ' : 'P2 ') : (a.side === 'me' ? '' : '상대 ');
     const r = this.match.rally;
@@ -640,7 +642,7 @@ class Game3D {
         if (d < best) { best = d; target = q; }
       }
     }
-    if (me.extend(target)) { Sound3.whoosh(); this.view.dust(me.pos, me.extDir); }
+    if (me.extend(target)) { Sound3.whoosh(); Sound3.squeak(); this.view.dust(me.pos, me.extDir); }
   }
 }
 
