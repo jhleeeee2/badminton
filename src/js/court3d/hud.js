@@ -79,6 +79,7 @@ class Hud3D {
     const b = this.el.banner; b.textContent = text; b.style.color = color; this.bannerT = dur; b.style.opacity = 1;
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');   // 튀어나오는 애니메이션 다시 시작
   }
+  setStaBtn(show, on) { const b = document.getElementById('c3staBtn'); if (b) { b.hidden = !show; b.textContent = on ? '💪 체력 켬' : '💪 체력 무한'; b.classList.toggle('off', !on); } }
   setLand(on) { const b = document.getElementById('c3landBtn'); if (b) { b.textContent = on ? '📍 낙하 표시 켬' : '📍 낙하 표시 끔'; b.classList.toggle('off', !on); } }
   setRoom(code) {   // 게임 중 상단에 방 코드 (null이면 숨김)
     const el = document.getElementById('c3room'); if (!el) return;
@@ -119,6 +120,9 @@ class Hud3D {
       const name = Shots3.name({ type: ch.type, p0, jumping: !me.onGround() }, Math.min(1, ch.c));
       this.setGauge(ch, name);
     } else this.setGauge(null);
+    // 체력 막대 (무한이면 숨김)
+    const se = this.staEl || (this.staEl = document.getElementById('c3sta'));
+    if (se) { const st = me.sta; se.hidden = !st; if (st) { se.firstElementChild.nextElementSibling.firstElementChild.style.width = (100 * st.v / st.max) + '%'; se.classList.toggle('low', st.v < C3.STAMINA.LOW); se.classList.toggle('tired', st.spent > C3.STAMINA.FATIGUE * 0.5); } }
     // Shift 런지 상태: 준비됨 / 사용 중 / 재충전
     const ek = me.extCharge(), using = me.extT > 0;
     this.el.extFill.style.width = (ek * 100) + '%';

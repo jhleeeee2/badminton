@@ -453,3 +453,12 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .stnote{font-size:12px;color:var(--text3);line-height:1.55;}
 .xpline{color:#9FD8FF;font-size:.9em;} .xpline b{color:#FFD23F;}
 @media (max-width:560px){.strow{grid-template-columns:1fr 36px 36px;} .strow .stn{grid-column:1 / -1;} .strow .ste{grid-column:1 / -1;order:5;}}
+/* ───── 체력 막대 ───── */
+.c3sta{position:absolute;left:16px;bottom:40px;display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border-radius:12px;background:rgba(10,12,30,.55);border:1px solid rgba(255,255,255,.12);}
+.c3sta[hidden]{display:none;}
+.c3sta .k{font-size:11px;font-weight:700;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.1);color:var(--text2);}
+.c3sta .eb{position:relative;width:96px;height:7px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;}
+.c3sta .eb span{position:absolute;left:0;top:0;bottom:0;width:100%;background:#5BFFB0;border-radius:4px;}
+.c3sta.tired .eb span{background:#FFD23F;} .c3sta.low .eb span{background:#FF6B6B;} .c3sta.low{border-color:rgba(255,107,107,.6);}
+@media (max-width:640px){.c3sta{left:8px;}}
+body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4px;} body.touch .c3sta .k{display:none;} body.touch .c3sta .eb{width:60px;}

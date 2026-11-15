@@ -53,11 +53,13 @@ class Game3D {
     if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
+    this.roomSta = true;   // 친선게임 체력: 방에 들어갈 때마다 기본 켜짐
     // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
     const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
     this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
     // 선수 스탯도 같은 범위에서만
     this.me.stat = this.mode === 'ai' && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
+    this.resetStamina();
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -82,7 +84,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null; this.maxRally = 0;
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.resetStamina();
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -119,6 +121,7 @@ class Game3D {
       a.vel = { x: 0, z: 0 }; a.y = 0; a.vy = 0; a.extT = 0; a.recoverT = 0; a.coolT = 0; a.charge = null; a.swingS = null;
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
+    for (const a of [this.me, this.opp]) if (a.sta && (m.pts || m.opts)) a.sta.v = Math.min(a.sta.max, a.sta.v + C3.STAMINA.REST);   // 점수 사이 숨 고르기
     this.lastShot = null;
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
@@ -260,11 +263,13 @@ class Game3D {
     try { land = localStorage.getItem('badminton.c3.showLand') !== '0'; sh = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
     this.applyLand(land); this.applyShadow(sh);
   }
-  sendViewOpts() { if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow }); }
+  sendViewOpts() { if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false }); }
   netOpt(m) {
     const land = !!m.land, sh = !!m.shadow, txt = [];
     if (land !== this.showLand) txt.push('낙하 표시 ' + (land ? '켬' : '끔'));
     if (sh !== this.showShadow) txt.push('그림자 ' + (sh ? '켬' : '끔'));
+    const sta = m.sta !== false;   // 예전 버전 상대는 값이 없음 → 켜짐으로
+    if (sta !== (this.roomSta !== false)) { txt.push('체력 ' + (sta ? '켬' : '무한')); this.roomSta = sta; this.resetStamina(true); }
     this.applyLand(land); this.applyShadow(sh);
     if (txt.length && !m.sync) this.hud.banner('상대가 ' + txt.join(' · ') + ' (둘 다 적용)', '#9FD8FF', 1.2);
   }
@@ -274,6 +279,20 @@ class Game3D {
     try { localStorage.setItem('badminton.c3.shadow', this.showShadow ? '1' : '0'); } catch (e) { /* 무시 */ }
     this.sendViewOpts();
     this.hud.banner((this.showShadow ? '셔틀 그림자 켬' : '셔틀 그림자 끔 — 인/아웃은 눈으로!') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.9);
+  }
+
+  // ── 체력 ── AI 대전·커리어는 항상 켜짐(상대 AI도 같은 규칙). 친선게임은 기본 켜짐, 방 설정에서 '무한'으로 끌 수 있고 두 사람에게 함께 적용
+  //   훈련·일일 챌린지·튜토리얼·로컬 2인은 무한. 체력 스탯(최대치 +)은 AI 대전·커리어에서만
+  staOn() { return this.mode === 'ai' || (this.mode === 'room' && this.roomSta !== false); }
+  resetStamina(keep) {
+    const on = this.staOn(), M = C3.STAMINA.MAX, mk = (a, max) => { a.sta = on && max ? (keep && a.sta ? a.sta : { v: max, max, spent: 0 }) : null; };
+    mk(this.me, M + (this.me.stat ? this.me.stat.sta || 0 : 0)); mk(this.opp, this.mode === 'ai' ? M : 0);   // 친선게임 상대의 체력은 상대 컴퓨터가 계산
+    this.hud.setStaBtn(this.mode === 'room', this.roomSta !== false);
+  }
+  toggleSta() {
+    if (this.mode !== 'room') return;
+    this.roomSta = this.roomSta === false; this.resetStamina(true); this.sendViewOpts();
+    this.hud.banner((this.roomSta ? '체력 켬' : '체력 무한') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.9);
   }
 
   toggleLand() {
@@ -300,7 +319,7 @@ class Game3D {
       const m = this.match, R = this.roomRec;
       this.net.send({ t: 'resume', live: !!away.live, pts: m.opts, opts: m.pts, server: flip3(m.server), win: m.win,
         sets: { me: R.sets.opp, opp: R.sets.me }, end: this.myEnd ^ 1, mid: this.midSwapped, swapNext: this.swapNext });
-      this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true });
+      this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false, sync: true });
       this.hud.banner('상대방이 다시 참여했습니다', '#5BFFB0', 1.8);
       this.resumeAfterRejoin(away.live);
       return;
@@ -312,7 +331,7 @@ class Game3D {
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
-    if (this.net.host) { this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true }); setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600); }   // 방장 설정으로 맞추고 시작 신호
+    if (this.net.host) { this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false, sync: true }); setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600); }   // 방장 설정으로 맞추고 시작 신호
     else this.hud.showMessage(escHtml(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');
   }
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
@@ -672,6 +691,7 @@ class Game3D {
         if (d < best) { best = d; target = q; }
       }
     }
+    if (me === this.me && me.sta && me.sta.v < C3.STAMINA.LUNGE && me.extReady() && me.onGround()) return this.hud.banner('체력 부족 — 런지 불가', '#FF9B9B', 0.7);
     if (me.extend(target)) { Sound3.whoosh(); Sound3.squeak(); this.view.dust(me.pos, me.extDir); }
   }
 }

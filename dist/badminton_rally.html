@@ -477,6 +477,15 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .stnote{font-size:12px;color:var(--text3);line-height:1.55;}
 .xpline{color:#9FD8FF;font-size:.9em;} .xpline b{color:#FFD23F;}
 @media (max-width:560px){.strow{grid-template-columns:1fr 36px 36px;} .strow .stn{grid-column:1 / -1;} .strow .ste{grid-column:1 / -1;order:5;}}
+/* ───── 체력 막대 ───── */
+.c3sta{position:absolute;left:16px;bottom:40px;display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border-radius:12px;background:rgba(10,12,30,.55);border:1px solid rgba(255,255,255,.12);}
+.c3sta[hidden]{display:none;}
+.c3sta .k{font-size:11px;font-weight:700;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.1);color:var(--text2);}
+.c3sta .eb{position:relative;width:96px;height:7px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;}
+.c3sta .eb span{position:absolute;left:0;top:0;bottom:0;width:100%;background:#5BFFB0;border-radius:4px;}
+.c3sta.tired .eb span{background:#FFD23F;} .c3sta.low .eb span{background:#FF6B6B;} .c3sta.low{border-color:rgba(255,107,107,.6);}
+@media (max-width:640px){.c3sta{left:8px;}}
+body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4px;} body.touch .c3sta .k{display:none;} body.touch .c3sta .eb{width:60px;}
 </style>
 </head>
 <body>
@@ -629,6 +638,7 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
       <div class="card"><span class="lbl">설정</span><span id="c3cfg" class="val small">-</span></div>
     </div>
     <div style="display:flex;gap:8px;">
+      <button id="c3staBtn" hidden title="친선게임 방 설정: 체력 켬 / 무한 (둘 다 적용)">💪 체력 켬</button>
       <button id="c3landBtn" title="L">📍 낙하 표시 켬</button>
       <button id="c3shadowBtn" title="G">🌑 그림자 켬</button>
       <button id="c3muteBtn" title="M">🔊 소리</button>
@@ -655,6 +665,7 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
     <button id="c3skip" class="c3skip" hidden>튜토리얼 건너뛰기 ›</button>
     <div class="c3bottom">
       <div class="c3hand" id="c3hand"></div>
+      <div class="c3sta" id="c3sta" hidden><span class="k">체력</span><span class="eb"><span></span></span></div>
       <div class="c3ext ready" id="c3ext"><span class="k">Shift</span>런지<span class="eb"><span id="c3extFill"></span></span></div>
       <div class="c3gauge" id="c3gauge" hidden>
         <div class="c3bar"><div class="c3zone" id="c3zoneLo"></div><div class="c3zone" id="c3zoneHi"></div><div class="c3fill" id="c3fill"></div><div class="c3tick" id="c3tick"></div></div>
@@ -2173,6 +2184,11 @@ const C3 = Object.freeze({
   //           슬로우 범위는 −SLOW_STEP 비율씩 줄어듦 (최소 SLOW_MIN배). 훈련에는 적용 안 함   // [게임]
   RALLY_TEMPO: Object.freeze({ START: 3, SPEED_STEP: 0.03, SPEED_MAX: 1.4, SLOW_STEP: 0.04, SLOW_MIN: 0.55, AI_ERR_K: 2 }),   // AI_ERR_K: AI 실수 배율 = 1 + K×(속도배율−1)
 
+  // 체력 [게임]: 달리기(초당 RUN × 속도 비율)·런지·점프·스윙(SWING + CHARGE × 충전량)으로 소모
+  //   회복: 초당 REGEN (움직이는 중엔 ×REGEN_MOVE, 충전·런지 중엔 없음) × 피로 배율. 피로 배율 = 1 − (그 경기에서 쓴 총량 ÷ FATIGUE), 최소 REGEN_MIN → 많이 쓸수록 회복이 느려짐
+  //   LOW 아래로 떨어지면 0에 가까울수록 이동 속도 ×SLOW·충전 시간 ×CHARGE_SLOW까지 나빠짐. 런지·점프는 그만큼 남아 있어야 가능. 점수 사이 쉬는 동안 +REST
+  STAMINA: Object.freeze({ MAX: 100, RUN: 6, LUNGE: 10, JUMP: 5, SWING: 2, CHARGE: 7, REGEN: 8, REGEN_MOVE: 0.25, FATIGUE: 2000, REGEN_MIN: 0.4, LOW: 25, SLOW: 0.8, CHARGE_SLOW: 1.3, REST: 10 }),
+
   // 충전: 현실 시간 기준 (슬로우 중에도 같은 속도로 차오름)
   CHARGE: Object.freeze({ TIME: 0.65, MAX: 1.35, FAULT: 1.15, SERVE_NET: 0.1, SERVE_CYCLE: 0.85 }),   // SERVE_CYCLE: 서브 게이지 0→최대 한 번 가는 시간             // [게임]
   // 정타 타이밍: Q·E를 FROM 이상 충전하면, 떼고 나서 맞을 수 있는 시간(HIT_WINDOW 0.32초)이 줄어듦
@@ -2564,10 +2580,18 @@ class Athlete3D {
   }
 
   // ───── 동작 ─────
-  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
+  jump() { if (this.onGround() && this.extT <= 0 && this.staUse(C3.STAMINA.JUMP, true)) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
   // 스플릿 스텝: 상대가 치는 순간 가볍게 뛰어 다음 첫 발을 준비 (실제 배드민턴 풋워크) — 여기선 보이는 동작만
   splitStep() { if (this.onGround() && this.extT <= 0 && !this.charge && !this.swingS) this.vy = 1.25; }
   react(kind) { this.mood = { kind, t: 1.3 }; if (kind === 'win' && this.onGround()) this.vy = 2.3; }
+  // ── 체력 (this.sta = { v, max, spent } · null이면 무한) ──
+  // need = true면 n만큼 남아 있을 때만 쓰고(모자라면 false), 아니면 있는 만큼만 씀
+  staUse(n, need) {
+    const s = this.sta; if (!s) return true;
+    if (need && s.v < n) return false;
+    const u = Math.min(s.v, n); s.v -= u; s.spent += u; return true;
+  }
+  staK() { const s = this.sta; return !s || s.v >= C3.STAMINA.LOW ? 1 : s.v / C3.STAMINA.LOW; }   // 1 = 멀쩡, 0 = 바닥
   // 런지 가능 여부 (0 = 바로 가능, 0~1 = 재충전 진행도)
   extReady() { return this.extT <= 0 && this.recoverT <= 0 && this.coolT <= 0; }
   extCharge() {
@@ -2581,6 +2605,7 @@ class Athlete3D {
     let dx = this.moveDir.x, dz = this.moveDir.z;
     if ((targetFirst || Math.hypot(dx, dz) < 0.05) && target) { dx = target.x - this.pos.x; dz = target.z - this.pos.z; }
     if (Math.hypot(dx, dz) < 0.05) { dx = 0; dz = this.facing; }
+    if (!this.staUse(C3.STAMINA.LUNGE, true)) return false;   // 체력이 모자라면 런지 불가
     const L = Math.hypot(dx, dz);
     this.extDir = { x: dx / L, z: dz / L };
     this.extT = C3.BODY.EXT_TIME;
@@ -2595,12 +2620,13 @@ class Athlete3D {
       ch.c += ch.dir * realDt / C3.CHARGE.SERVE_CYCLE;
       if (ch.c >= M) { ch.c = M; ch.dir = -1; }
       if (ch.c <= 0) { ch.c = 0; ch.dir = 1; }
-    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1)));   // 채 효과: 충전 시간 배율
+    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1) * (1 + (C3.STAMINA.CHARGE_SLOW - 1) * (1 - this.staK()))));   // 채 효과 · 체력이 바닥나면 충전도 느려짐
   }
   takeCharge() { const c = this.charge; this.charge = null; return c; }
 
   swing(type, c, sp, defaultCat) {
     const k = sp ? this.classify(sp) : { cat: defaultCat || 'side', hand: 'FH' };
+    if (type !== 'serve') this.staUse(C3.STAMINA.SWING + C3.STAMINA.CHARGE * Math.max(0, Math.min(1, c)));   // 스윙: 세게 충전할수록 체력 소모
     const w0 = Athlete3D.hitWindow(type, c);   // tight: 강한 충전으로 정타 구간이 좁아진 스윙 (채 효과와 무관하게 판단)
     this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: w0 * (this.gear ? this.gear.win : 1), tight: w0 < C3.BODY.HIT_WINDOW - 0.01, type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
     return this.swingS;
@@ -2630,7 +2656,7 @@ class Athlete3D {
       const v = p < 1 ? (B.EXT_LUNGE / (B.EXT_TIME * 0.6)) * 2 * (1 - p) : 0;
       this.vel.x = this.extDir.x * v; this.vel.z = this.extDir.z * v;
     } else {
-      const maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
+      const ST = C3.STAMINA, maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1) * (ST.SLOW + (1 - ST.SLOW) * this.staK());
       const L = Math.hypot(this.moveDir.x, this.moveDir.z) || 1;
       const tx = this.moveDir.x / L * maxV, tz = this.moveDir.z / L * maxV;
       const acc = B.ACCEL * (this.onGround() ? 1 : 0.2) * dt;
@@ -2644,6 +2670,11 @@ class Athlete3D {
       if (this.y <= 0) { this.y = 0; this.vy = 0; }
     }
     if (this.swingS) { this.swingS.t += dt; if (this.swingS.t >= this.swingS.dur) this.swingS = null; }
+    if (this.sta) {   // 체력: 달리면 줄고, 쉬면 참 (많이 쓴 경기일수록 천천히)
+      const ST = C3.STAMINA, st = this.sta, run = Math.min(1, Math.hypot(this.vel.x, this.vel.z) / B.SPEED);
+      if (this.extT <= 0 && run > 0.3) this.staUse(ST.RUN * run * dt);
+      if (this.extT <= 0 && !this.charge) st.v = Math.min(st.max, st.v + ST.REGEN * (run > 0.3 ? ST.REGEN_MOVE : 1) * Math.max(ST.REGEN_MIN, 1 - st.spent / ST.FATIGUE) * dt);
+    }
     this.stride += Math.hypot(this.vel.x, this.vel.z) * dt * 2.4;
     if (this.mood) { this.mood.t -= dt; if (this.mood.t <= 0) this.mood = null; }
   }
@@ -3758,6 +3789,7 @@ class Hud3D {
     const b = this.el.banner; b.textContent = text; b.style.color = color; this.bannerT = dur; b.style.opacity = 1;
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');   // 튀어나오는 애니메이션 다시 시작
   }
+  setStaBtn(show, on) { const b = document.getElementById('c3staBtn'); if (b) { b.hidden = !show; b.textContent = on ? '💪 체력 켬' : '💪 체력 무한'; b.classList.toggle('off', !on); } }
   setLand(on) { const b = document.getElementById('c3landBtn'); if (b) { b.textContent = on ? '📍 낙하 표시 켬' : '📍 낙하 표시 끔'; b.classList.toggle('off', !on); } }
   setRoom(code) {   // 게임 중 상단에 방 코드 (null이면 숨김)
     const el = document.getElementById('c3room'); if (!el) return;
@@ -3798,6 +3830,9 @@ class Hud3D {
       const name = Shots3.name({ type: ch.type, p0, jumping: !me.onGround() }, Math.min(1, ch.c));
       this.setGauge(ch, name);
     } else this.setGauge(null);
+    // 체력 막대 (무한이면 숨김)
+    const se = this.staEl || (this.staEl = document.getElementById('c3sta'));
+    if (se) { const st = me.sta; se.hidden = !st; if (st) { se.firstElementChild.nextElementSibling.firstElementChild.style.width = (100 * st.v / st.max) + '%'; se.classList.toggle('low', st.v < C3.STAMINA.LOW); se.classList.toggle('tired', st.spent > C3.STAMINA.FATIGUE * 0.5); } }
     // Shift 런지 상태: 준비됨 / 사용 중 / 재충전
     const ek = me.extCharge(), using = me.extT > 0;
     this.el.extFill.style.width = (ek * 100) + '%';
@@ -4146,23 +4181,24 @@ Gear3.load();
 </script>
 <script>
 // court3d/stats.js — 선수 스탯: 경기·훈련으로 선수 레벨을 올리고, 레벨만큼 받은 포인트를 스탯에 나눠 줌
-//   · 총합 상한: 최고 레벨 12 = 포인트 12개, 스탯 3종 × 최대 6 = 18칸 → 전부 최대로는 못 채움 (어디에 줄지 고르는 재미)
+//   · 총합 상한: 최고 레벨 15 = 포인트 15개, 스탯 4종 × 최대 6 = 24칸 → 전부 최대로는 못 채움 (어디에 줄지 고르는 재미)
 //   · 다시 나누기는 언제든 무료 (대기화면 「내 선수」의 −/＋)
 //   · 효과는 AI 대전·커리어에만 적용. 친선게임·일일 챌린지·훈련은 모두 기본 능력치로 공평하게
 //   · 저장: 브라우저(badminton.stats.v1) · 로그인하면 wallets 표 gear 칸의 _stats에 함께 저장 (경험치는 더 높은 쪽) — account.js
 //   수치는 모두 [게임]용으로 정한 값 (리치는 판정 거리만 늘고 몸 모델의 팔 길이는 그대로)
 
 const Stats3 = {
-  KEY: 'badminton.stats.v1', MAX_LV: 12, STAT_MAX: 6,
+  KEY: 'badminton.stats.v1', MAX_LV: 15, STAT_MAX: 6,
   XP: { win: 40, loss: 20, room: 20, daily: 30, levelUp: 50 },   // 패배는 × (내 점수 ÷ 목표 점수) · 일일 챌린지는 그날 첫 도전만 · 친선게임은 코인을 받는 경기(하루 5번)만
   STATS: {
     reach: { name: '리치',   sub: '팔 길이',      color: '#FFD23F', per: 0.025, text: n => `타격 판정 거리 +${(0.025 * n * 100).toFixed(1)}cm` },
     speed: { name: '스피드', sub: '다리·순발력',  color: '#3DD9FF', per: 0.02,  text: n => `이동 속도 +${2 * n}%` },
-    jump:  { name: '점프',   sub: '도약',         color: '#7CFF6B', per: 0.04,  text: n => `점프 초기속도 +${4 * n}% (높이 약 +${Math.round(((1 + 0.04 * n) ** 2 - 1) * 100)}%)` }
+    jump:  { name: '점프',   sub: '도약',         color: '#7CFF6B', per: 0.04,  text: n => `점프 초기속도 +${4 * n}% (높이 약 +${Math.round(((1 + 0.04 * n) ** 2 - 1) * 100)}%)` },
+    sta:   { name: '체력',   sub: '지구력',       color: '#FF7A45', per: 5,     text: n => `최대 체력 +${5 * n} (기본 100)` }
   },
-  xp: 0, alloc: { reach: 0, speed: 0, jump: 0 }, day: '', listeners: [],
+  xp: 0, alloc: { reach: 0, speed: 0, jump: 0, sta: 0 }, day: '', listeners: [],
 
-  need(L) { return 100 + 50 * L; },   // 레벨 L → L+1에 필요한 경험치 (1레벨 100, 그 뒤로 50씩 증가 · 12레벨까지 합계 4,500)
+  need(L) { return 100 + 50 * L; },   // 레벨 L → L+1에 필요한 경험치 (1레벨 100, 그 뒤로 50씩 증가 · 15레벨까지 합계 6,750)
   // { lv, cur, need }: 현재 레벨, 이번 레벨에서 쌓은 경험치, 다음 레벨까지 필요한 양 (최고 레벨이면 need 0)
   info() {
     let lv = 0, x = this.xp;
@@ -4182,9 +4218,9 @@ const Stats3 = {
   dump() { return { xp: this.xp, alloc: { ...this.alloc } }; },
   // 다른 곳(서버) 값 받기: 경험치는 더 높은 쪽. keepAlloc = 내 분배를 그대로 둘지 (같은 계정이면 유지, 아니면 서버 것)
   take(v, keepAlloc) {
-    if (!v || typeof v !== 'object') { if (!keepAlloc) { this.xp = 0; this.alloc = { reach: 0, speed: 0, jump: 0 }; } this.fix(); return; }
+    if (!v || typeof v !== 'object') { if (!keepAlloc) { this.xp = 0; this.alloc = { reach: 0, speed: 0, jump: 0, sta: 0 }; } this.fix(); return; }
     this.xp = keepAlloc ? Math.max(this.xp, Number(v.xp) || 0) : Number(v.xp) || 0;
-    if (!keepAlloc || !this.used()) this.alloc = { reach: 0, speed: 0, jump: 0, ...(v.alloc && typeof v.alloc === 'object' ? v.alloc : {}) };
+    if (!keepAlloc || !this.used()) this.alloc = { reach: 0, speed: 0, jump: 0, sta: 0, ...(v.alloc && typeof v.alloc === 'object' ? v.alloc : {}) };
     this.fix();
   },
 
@@ -4217,8 +4253,8 @@ const Stats3 = {
     this.alloc[id] = n; this.save(); return true;
   },
   // 경기에 적용할 효과: reach = 판정 거리 추가(m) · speed·jump = 추가 비율
-  effects() { const S = this.STATS, a = this.alloc; return { reach: S.reach.per * a.reach, speed: S.speed.per * a.speed, jump: S.jump.per * a.jump }; },
-  label() { const a = this.alloc; return this.used() ? `선수 Lv.${this.level()} (리치 ${a.reach} · 스피드 ${a.speed} · 점프 ${a.jump})` : ''; }
+  effects() { const S = this.STATS, a = this.alloc; return { reach: S.reach.per * a.reach, speed: S.speed.per * a.speed, jump: S.jump.per * a.jump, sta: S.sta.per * a.sta }; },
+  label() { const a = this.alloc; return this.used() ? `선수 Lv.${this.level()} (리치 ${a.reach} · 스피드 ${a.speed} · 점프 ${a.jump} · 체력 ${a.sta})` : ''; }
 };
 Stats3.load();
 </script>
@@ -4799,11 +4835,13 @@ class Game3D {
     if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
+    this.roomSta = true;   // 친선게임 체력: 방에 들어갈 때마다 기본 켜짐
     // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
     const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
     this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
     // 선수 스탯도 같은 범위에서만
     this.me.stat = this.mode === 'ai' && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
+    this.resetStamina();
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -4828,7 +4866,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null; this.maxRally = 0;
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.resetStamina();
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -4865,6 +4903,7 @@ class Game3D {
       a.vel = { x: 0, z: 0 }; a.y = 0; a.vy = 0; a.extT = 0; a.recoverT = 0; a.coolT = 0; a.charge = null; a.swingS = null;
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
+    for (const a of [this.me, this.opp]) if (a.sta && (m.pts || m.opts)) a.sta.v = Math.min(a.sta.max, a.sta.v + C3.STAMINA.REST);   // 점수 사이 숨 고르기
     this.lastShot = null;
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
@@ -5006,11 +5045,13 @@ class Game3D {
     try { land = localStorage.getItem('badminton.c3.showLand') !== '0'; sh = localStorage.getItem('badminton.c3.shadow') !== '0'; } catch (e) { /* 무시 */ }
     this.applyLand(land); this.applyShadow(sh);
   }
-  sendViewOpts() { if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow }); }
+  sendViewOpts() { if (this.mode === 'room' && this.net.connected) this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false }); }
   netOpt(m) {
     const land = !!m.land, sh = !!m.shadow, txt = [];
     if (land !== this.showLand) txt.push('낙하 표시 ' + (land ? '켬' : '끔'));
     if (sh !== this.showShadow) txt.push('그림자 ' + (sh ? '켬' : '끔'));
+    const sta = m.sta !== false;   // 예전 버전 상대는 값이 없음 → 켜짐으로
+    if (sta !== (this.roomSta !== false)) { txt.push('체력 ' + (sta ? '켬' : '무한')); this.roomSta = sta; this.resetStamina(true); }
     this.applyLand(land); this.applyShadow(sh);
     if (txt.length && !m.sync) this.hud.banner('상대가 ' + txt.join(' · ') + ' (둘 다 적용)', '#9FD8FF', 1.2);
   }
@@ -5020,6 +5061,20 @@ class Game3D {
     try { localStorage.setItem('badminton.c3.shadow', this.showShadow ? '1' : '0'); } catch (e) { /* 무시 */ }
     this.sendViewOpts();
     this.hud.banner((this.showShadow ? '셔틀 그림자 켬' : '셔틀 그림자 끔 — 인/아웃은 눈으로!') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.9);
+  }
+
+  // ── 체력 ── AI 대전·커리어는 항상 켜짐(상대 AI도 같은 규칙). 친선게임은 기본 켜짐, 방 설정에서 '무한'으로 끌 수 있고 두 사람에게 함께 적용
+  //   훈련·일일 챌린지·튜토리얼·로컬 2인은 무한. 체력 스탯(최대치 +)은 AI 대전·커리어에서만
+  staOn() { return this.mode === 'ai' || (this.mode === 'room' && this.roomSta !== false); }
+  resetStamina(keep) {
+    const on = this.staOn(), M = C3.STAMINA.MAX, mk = (a, max) => { a.sta = on && max ? (keep && a.sta ? a.sta : { v: max, max, spent: 0 }) : null; };
+    mk(this.me, M + (this.me.stat ? this.me.stat.sta || 0 : 0)); mk(this.opp, this.mode === 'ai' ? M : 0);   // 친선게임 상대의 체력은 상대 컴퓨터가 계산
+    this.hud.setStaBtn(this.mode === 'room', this.roomSta !== false);
+  }
+  toggleSta() {
+    if (this.mode !== 'room') return;
+    this.roomSta = this.roomSta === false; this.resetStamina(true); this.sendViewOpts();
+    this.hud.banner((this.roomSta ? '체력 켬' : '체력 무한') + (this.online ? ' (둘 다 적용)' : ''), '#9FD8FF', 0.9);
   }
 
   toggleLand() {
@@ -5046,7 +5101,7 @@ class Game3D {
       const m = this.match, R = this.roomRec;
       this.net.send({ t: 'resume', live: !!away.live, pts: m.opts, opts: m.pts, server: flip3(m.server), win: m.win,
         sets: { me: R.sets.opp, opp: R.sets.me }, end: this.myEnd ^ 1, mid: this.midSwapped, swapNext: this.swapNext });
-      this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true });
+      this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false, sync: true });
       this.hud.banner('상대방이 다시 참여했습니다', '#5BFFB0', 1.8);
       this.resumeAfterRejoin(away.live);
       return;
@@ -5058,7 +5113,7 @@ class Game3D {
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
-    if (this.net.host) { this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sync: true }); setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600); }   // 방장 설정으로 맞추고 시작 신호
+    if (this.net.host) { this.net.send({ t: 'opt', land: this.showLand, shadow: this.showShadow, sta: this.roomSta !== false, sync: true }); setTimeout(() => { if (this.net.peer === peer) this.start(); }, 600); }   // 방장 설정으로 맞추고 시작 신호
     else this.hud.showMessage(escHtml(peer.name) + '의 방에 들어왔어요<br>곧 시작합니다…');
   }
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
@@ -5418,6 +5473,7 @@ class Game3D {
         if (d < best) { best = d; target = q; }
       }
     }
+    if (me === this.me && me.sta && me.sta.v < C3.STAMINA.LUNGE && me.extReady() && me.onGround()) return this.hud.banner('체력 부족 — 런지 불가', '#FF9B9B', 0.7);
     if (me.extend(target)) { Sound3.whoosh(); Sound3.squeak(); this.view.dust(me.pos, me.extDir); }
   }
 }
@@ -6400,6 +6456,7 @@ class App {
     $('c3menuBtn').addEventListener('click', () => this.toMenu());
     $('c3tutBtn').addEventListener('click', () => this.openTutorial('court3d'));
     $('c3startBtn').addEventListener('click', () => this.court3d && this.court3d.start());
+    $('c3staBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleSta(); e.currentTarget.blur(); });
     $('c3landBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleLand(); e.currentTarget.blur(); });
     $('c3shadowBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleShadow(); e.currentTarget.blur(); });
     $('clRoom').addEventListener('click', () => { const c = $('clRoomCode').textContent; try { navigator.clipboard.writeText(c); this.classic.fx.show('방 코드 복사됨: ' + c, COLORS.ok, 0.9); this.classic.renderer.draw(); } catch (e) { /* 무시 */ } });

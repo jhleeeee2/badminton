@@ -102,10 +102,18 @@ class Athlete3D {
   }
 
   // ───── 동작 ─────
-  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
+  jump() { if (this.onGround() && this.extT <= 0 && this.staUse(C3.STAMINA.JUMP, true)) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
   // 스플릿 스텝: 상대가 치는 순간 가볍게 뛰어 다음 첫 발을 준비 (실제 배드민턴 풋워크) — 여기선 보이는 동작만
   splitStep() { if (this.onGround() && this.extT <= 0 && !this.charge && !this.swingS) this.vy = 1.25; }
   react(kind) { this.mood = { kind, t: 1.3 }; if (kind === 'win' && this.onGround()) this.vy = 2.3; }
+  // ── 체력 (this.sta = { v, max, spent } · null이면 무한) ──
+  // need = true면 n만큼 남아 있을 때만 쓰고(모자라면 false), 아니면 있는 만큼만 씀
+  staUse(n, need) {
+    const s = this.sta; if (!s) return true;
+    if (need && s.v < n) return false;
+    const u = Math.min(s.v, n); s.v -= u; s.spent += u; return true;
+  }
+  staK() { const s = this.sta; return !s || s.v >= C3.STAMINA.LOW ? 1 : s.v / C3.STAMINA.LOW; }   // 1 = 멀쩡, 0 = 바닥
   // 런지 가능 여부 (0 = 바로 가능, 0~1 = 재충전 진행도)
   extReady() { return this.extT <= 0 && this.recoverT <= 0 && this.coolT <= 0; }
   extCharge() {
@@ -119,6 +127,7 @@ class Athlete3D {
     let dx = this.moveDir.x, dz = this.moveDir.z;
     if ((targetFirst || Math.hypot(dx, dz) < 0.05) && target) { dx = target.x - this.pos.x; dz = target.z - this.pos.z; }
     if (Math.hypot(dx, dz) < 0.05) { dx = 0; dz = this.facing; }
+    if (!this.staUse(C3.STAMINA.LUNGE, true)) return false;   // 체력이 모자라면 런지 불가
     const L = Math.hypot(dx, dz);
     this.extDir = { x: dx / L, z: dz / L };
     this.extT = C3.BODY.EXT_TIME;
@@ -133,12 +142,13 @@ class Athlete3D {
       ch.c += ch.dir * realDt / C3.CHARGE.SERVE_CYCLE;
       if (ch.c >= M) { ch.c = M; ch.dir = -1; }
       if (ch.c <= 0) { ch.c = 0; ch.dir = 1; }
-    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1)));   // 채 효과: 충전 시간 배율
+    } else ch.c = Math.min(M, ch.c + realDt / (C3.CHARGE.TIME * (this.gear ? this.gear.charge : 1) * (1 + (C3.STAMINA.CHARGE_SLOW - 1) * (1 - this.staK()))));   // 채 효과 · 체력이 바닥나면 충전도 느려짐
   }
   takeCharge() { const c = this.charge; this.charge = null; return c; }
 
   swing(type, c, sp, defaultCat) {
     const k = sp ? this.classify(sp) : { cat: defaultCat || 'side', hand: 'FH' };
+    if (type !== 'serve') this.staUse(C3.STAMINA.SWING + C3.STAMINA.CHARGE * Math.max(0, Math.min(1, c)));   // 스윙: 세게 충전할수록 체력 소모
     const w0 = Athlete3D.hitWindow(type, c);   // tight: 강한 충전으로 정타 구간이 좁아진 스윙 (채 효과와 무관하게 판단)
     this.swingS = { t: 0, dur: C3.BODY.SWING_TIME, window: w0 * (this.gear ? this.gear.win : 1), tight: w0 < C3.BODY.HIT_WINDOW - 0.01, type, c, cat: k.cat, hand: k.hand, hitPose: null, hit: false };
     return this.swingS;
@@ -168,7 +178,7 @@ class Athlete3D {
       const v = p < 1 ? (B.EXT_LUNGE / (B.EXT_TIME * 0.6)) * 2 * (1 - p) : 0;
       this.vel.x = this.extDir.x * v; this.vel.z = this.extDir.z * v;
     } else {
-      const maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
+      const ST = C3.STAMINA, maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1) * (ST.SLOW + (1 - ST.SLOW) * this.staK());
       const L = Math.hypot(this.moveDir.x, this.moveDir.z) || 1;
       const tx = this.moveDir.x / L * maxV, tz = this.moveDir.z / L * maxV;
       const acc = B.ACCEL * (this.onGround() ? 1 : 0.2) * dt;
@@ -182,6 +192,11 @@ class Athlete3D {
       if (this.y <= 0) { this.y = 0; this.vy = 0; }
     }
     if (this.swingS) { this.swingS.t += dt; if (this.swingS.t >= this.swingS.dur) this.swingS = null; }
+    if (this.sta) {   // 체력: 달리면 줄고, 쉬면 참 (많이 쓴 경기일수록 천천히)
+      const ST = C3.STAMINA, st = this.sta, run = Math.min(1, Math.hypot(this.vel.x, this.vel.z) / B.SPEED);
+      if (this.extT <= 0 && run > 0.3) this.staUse(ST.RUN * run * dt);
+      if (this.extT <= 0 && !this.charge) st.v = Math.min(st.max, st.v + ST.REGEN * (run > 0.3 ? ST.REGEN_MOVE : 1) * Math.max(ST.REGEN_MIN, 1 - st.spent / ST.FATIGUE) * dt);
+    }
     this.stride += Math.hypot(this.vel.x, this.vel.z) * dt * 2.4;
     if (this.mood) { this.mood.t -= dt; if (this.mood.t <= 0) this.mood = null; }
   }

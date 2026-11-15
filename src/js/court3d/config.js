@@ -34,6 +34,11 @@ const C3 = Object.freeze({
   //           슬로우 범위는 −SLOW_STEP 비율씩 줄어듦 (최소 SLOW_MIN배). 훈련에는 적용 안 함   // [게임]
   RALLY_TEMPO: Object.freeze({ START: 3, SPEED_STEP: 0.03, SPEED_MAX: 1.4, SLOW_STEP: 0.04, SLOW_MIN: 0.55, AI_ERR_K: 2 }),   // AI_ERR_K: AI 실수 배율 = 1 + K×(속도배율−1)
 
+  // 체력 [게임]: 달리기(초당 RUN × 속도 비율)·런지·점프·스윙(SWING + CHARGE × 충전량)으로 소모
+  //   회복: 초당 REGEN (움직이는 중엔 ×REGEN_MOVE, 충전·런지 중엔 없음) × 피로 배율. 피로 배율 = 1 − (그 경기에서 쓴 총량 ÷ FATIGUE), 최소 REGEN_MIN → 많이 쓸수록 회복이 느려짐
+  //   LOW 아래로 떨어지면 0에 가까울수록 이동 속도 ×SLOW·충전 시간 ×CHARGE_SLOW까지 나빠짐. 런지·점프는 그만큼 남아 있어야 가능. 점수 사이 쉬는 동안 +REST
+  STAMINA: Object.freeze({ MAX: 100, RUN: 6, LUNGE: 10, JUMP: 5, SWING: 2, CHARGE: 7, REGEN: 8, REGEN_MOVE: 0.25, FATIGUE: 2000, REGEN_MIN: 0.4, LOW: 25, SLOW: 0.8, CHARGE_SLOW: 1.3, REST: 10 }),
+
   // 충전: 현실 시간 기준 (슬로우 중에도 같은 속도로 차오름)
   CHARGE: Object.freeze({ TIME: 0.65, MAX: 1.35, FAULT: 1.15, SERVE_NET: 0.1, SERVE_CYCLE: 0.85 }),   // SERVE_CYCLE: 서브 게이지 0→최대 한 번 가는 시간             // [게임]
   // 정타 타이밍: Q·E를 FROM 이상 충전하면, 떼고 나서 맞을 수 있는 시간(HIT_WINDOW 0.32초)이 줄어듦

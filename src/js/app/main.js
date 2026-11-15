@@ -22,6 +22,7 @@ class App {
     $('c3menuBtn').addEventListener('click', () => this.toMenu());
     $('c3tutBtn').addEventListener('click', () => this.openTutorial('court3d'));
     $('c3startBtn').addEventListener('click', () => this.court3d && this.court3d.start());
+    $('c3staBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleSta(); e.currentTarget.blur(); });
     $('c3landBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleLand(); e.currentTarget.blur(); });
     $('c3shadowBtn').addEventListener('click', e => { this.court3d && this.court3d.toggleShadow(); e.currentTarget.blur(); });
     $('clRoom').addEventListener('click', () => { const c = $('clRoomCode').textContent; try { navigator.clipboard.writeText(c); this.classic.fx.show('방 코드 복사됨: ' + c, COLORS.ok, 0.9); this.classic.renderer.draw(); } catch (e) { /* 무시 */ } });
