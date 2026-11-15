@@ -85,7 +85,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.resetStamina();
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.topKmh = 0; this.setShare(null); this.resetStamina();
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -103,6 +103,7 @@ class Game3D {
   }
   stop() {
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
+    this.setShare(null);
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -192,6 +193,7 @@ class Game3D {
       if (save) { Sound3.applause(save); this.view.cheer(save); }
     }
     this.lastShot = { side: a.side, smash: !isServe && /스매시/.test(plan.name) && plan.kmh >= 150, kmh: plan.kmh };
+    if (a === this.me && !isServe && /스매시/.test(plan.name)) this.topKmh = Math.max(this.topKmh || 0, plan.kmh);   // 결과 카드용: 이 경기 내 최고 스매시
     if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
       const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
       this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
@@ -474,6 +476,9 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
+      if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
+        me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
+        mode: this.mode === 'room' ? '친선게임' : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
@@ -492,6 +497,19 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 결과 카드 버튼: 경기가 끝나면 보이고, 누르면 그림을 만들어 공유 창 또는 PNG 저장
+  setShare(d) {
+    this.shareData = d || null;
+    const b = this.shareBtn || (this.shareBtn = document.getElementById('c3share')); if (!b) return;
+    if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.shareCard(); }); }
+    b.hidden = !d || typeof Share3 === 'undefined';
+  }
+  async shareCard() {
+    const d = this.shareData; if (!d || typeof Share3 === 'undefined') return;
+    const r = await Share3.send(Share3.card(d, this.view), `배드민턴 랠리 ${d.won ? '승리' : '패배'} ${d.pts}:${d.opts} — https://${Share3.URL}`);
+    this.hud.banner(r === 'saved' ? '결과 카드를 저장했어요 (다운로드 폴더)' : r === 'shared' ? '결과 카드 공유' : '결과 카드를 만들지 못했어요', r === 'fail' ? '#FF9B9B' : '#5BFFB0', 1.4);
   }
 
   // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음

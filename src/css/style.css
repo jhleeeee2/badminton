@@ -471,3 +471,6 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
 .skbtn .skn{color:var(--text);font-weight:600;white-space:nowrap;} .skbtn .skp{font-size:11px;color:var(--text3);}
 .skbtn.sel{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);} .skbtn.sel .skp{color:var(--ok);}
 .skbtn.lock i{opacity:.75;} .skbtn.lock .skp{color:#FFD23F;} .skbtn:disabled{opacity:.5;}
+/* ───── 결과 카드 버튼 ───── */
+.c3share{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);z-index:6;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:999px;background:rgba(14,10,40,.78);color:#FFD23F;border:1px solid rgba(255,210,63,.5);}
+.c3share:hover{background:rgba(40,30,90,.9);} .c3share[hidden]{display:none;}

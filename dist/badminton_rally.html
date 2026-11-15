@@ -495,6 +495,9 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
 .skbtn .skn{color:var(--text);font-weight:600;white-space:nowrap;} .skbtn .skp{font-size:11px;color:var(--text3);}
 .skbtn.sel{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);} .skbtn.sel .skp{color:var(--ok);}
 .skbtn.lock i{opacity:.75;} .skbtn.lock .skp{color:#FFD23F;} .skbtn:disabled{opacity:.5;}
+/* ───── 결과 카드 버튼 ───── */
+.c3share{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);z-index:6;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:999px;background:rgba(14,10,40,.78);color:#FFD23F;border:1px solid rgba(255,210,63,.5);}
+.c3share:hover{background:rgba(40,30,90,.9);} .c3share[hidden]{display:none;}
 </style>
 </head>
 <body>
@@ -676,6 +679,7 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
     <div class="c3banner" id="c3banner"></div>
     <div class="c3hint" id="c3hint"></div>
     <button id="c3skip" class="c3skip" hidden>튜토리얼 건너뛰기 ›</button>
+    <button id="c3share" class="c3share" hidden>📸 결과 카드 저장 · 공유</button>
     <div class="c3bottom">
       <div class="c3hand" id="c3hand"></div>
       <div class="c3sta" id="c3sta" hidden><span class="k">체력</span><span class="eb"><span></span></span></div>
@@ -4370,6 +4374,71 @@ const Skin3 = {
 Skin3.load();
 </script>
 <script>
+// court3d/share.js — 하이라이트 공유: 경기 결과 카드(1200×630 그림) 만들기 → 공유 창 또는 PNG 저장
+//   · 배경은 그 순간의 3D 코트 화면(없으면 색 배경) · 점수·상대·가장 긴 랠리·내 최고 스매시 속도
+//   · 휴대폰처럼 공유 창이 있는 기기는 그 창으로, 없으면 파일로 내려받음 (인터넷·서버 필요 없음)
+//   배치·문구는 [게임]용
+
+const Share3 = {
+  W: 1200, H: 630, URL: 'badminton-src.vercel.app',
+
+  // d = { won, pts, opts, me, opp, mode, maxRally, topKmh }, view = CourtView3D (없어도 됨)
+  card(d, view) {
+    const W = this.W, H = this.H, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'), F = (w, px) => `${w} ${px}px "Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif`;
+    const g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#2A2466'); g.addColorStop(1, '#0B0D1C'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    try {   // 3D 화면을 방금 그린 직후에만 복사할 수 있음 → 한 번 그리고 바로 가져옴
+      if (view && view.renderer) {
+        view.render(); const el = view.renderer.domElement, k = Math.max(W / el.width, H / el.height);
+        c.drawImage(el, (W - el.width * k) / 2, (H - el.height * k) / 2, el.width * k, el.height * k);
+        const sh = c.createLinearGradient(0, 0, 0, H); sh.addColorStop(0, 'rgba(8,9,24,.78)'); sh.addColorStop(0.55, 'rgba(8,9,24,.55)'); sh.addColorStop(1, 'rgba(8,9,24,.9)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
+      }
+    } catch (e) { /* 화면 복사가 막힌 환경 → 색 배경 그대로 */ }
+    const col = d.won ? '#5BFFB0' : '#FF8A8A';
+    c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+    c.fillStyle = '#FFFFFF'; c.font = F(700, 34); c.fillText('배드민턴 랠리', 60, 78);
+    c.fillStyle = '#FFB13B'; c.beginPath(); c.arc(60 + c.measureText('배드민턴 랠리').width + 22, 66, 10, 0, 7); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = F(500, 24); c.textAlign = 'right'; c.fillText(d.mode || '', W - 60, 76);
+    c.textAlign = 'center';
+    c.fillStyle = col; c.font = F(800, 64); c.fillText(d.won ? '승리!' : '패배', W / 2, 178);
+    c.fillStyle = '#FFFFFF'; c.font = F(800, 170); c.fillText(d.pts + ' : ' + d.opts, W / 2, 350);
+    c.font = F(600, 30); c.fillStyle = 'rgba(255,255,255,.92)';
+    c.textAlign = 'center'; c.fillText(this.fit(c, d.me || '나', 420) + '   vs   ' + this.fit(c, d.opp || '상대', 420), W / 2, 414);
+    // 기록 칸
+    const stats = [['가장 긴 랠리', (d.maxRally | 0) + '타'], ['내 최고 스매시', d.topKmh ? d.topKmh + ' km/h' : '—']].concat(d.extra || []);
+    const bw = 300, gap = 24, x0 = (W - (bw * stats.length + gap * (stats.length - 1))) / 2;
+    stats.forEach(([k, v], i) => {
+      const x = x0 + i * (bw + gap), y = 448;
+      c.fillStyle = 'rgba(255,255,255,.1)'; this.rr(c, x, y, bw, 104, 18); c.fill();
+      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.65)'; c.font = F(500, 22); c.fillText(k, x + bw / 2, y + 38);
+      c.fillStyle = '#FFD23F'; c.font = F(800, 38); c.fillText(v, x + bw / 2, y + 84);
+    });
+    const dt = new Date(), ds = dt.getFullYear() + '.' + (dt.getMonth() + 1) + '.' + dt.getDate();
+    c.font = F(500, 22); c.fillStyle = 'rgba(255,255,255,.6)'; c.textAlign = 'left'; c.fillText(ds, 60, H - 36);
+    c.textAlign = 'right'; c.fillText(this.URL, W - 60, H - 36);
+    return cv;
+  },
+  rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); },
+  fit(c, t, max) { t = String(t); while (t.length > 1 && c.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; },
+
+  // 공유 창(있으면) 또는 PNG 저장 → 'shared' | 'saved' | 'fail'
+  async send(cv, text) {
+    const blob = await new Promise(res => { try { cv.toBlob(res, 'image/png'); } catch (e) { res(null); } });
+    if (!blob) return 'fail';
+    const name = 'badminton-rally-' + new Date().toISOString().slice(0, 10) + '.png';
+    try {
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '배드민턴 랠리', text }); return 'shared'; }
+    } catch (e) { if (e && e.name === 'AbortError') return 'shared'; }   // 공유 창을 그냥 닫음
+    try {
+      const a = document.createElement('a'), url = URL.createObjectURL(blob);
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return 'saved';
+    } catch (e) { return 'fail'; }
+  }
+};
+</script>
+<script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
 //   str 근력: 높은 공 → 내 스매시가 상대 코트 표적 안에 떨어지면 성공
 //   agi 순발력: AI 스매시 → 상대 코트 안으로 받아 넘기면 성공
@@ -4978,7 +5047,7 @@ class Game3D {
       if (!this.net.connected) return;   // 친구가 들어와야 시작
       if (!fromNet) this.net.send({ t: 'restart', win: this.match.win });
     }
-    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.resetStamina();
+    this.match.reset(); this.awayPeer = null; this.maxRally = 0; this.topKmh = 0; this.setShare(null); this.resetStamina();
     if (this.mode === 'room' && !this.net.host) this.match.server = 'opp';   // 첫 서브는 방장
     // 엔드: 이전 경기가 끝까지 갔으면 서로 엔드를 바꿈 (실제 규칙: 게임마다 엔드 교대). 친선게임 첫 경기는 방장 A·친구 B
     if (this.swapNext) this.myEnd ^= 1;
@@ -4996,6 +5065,7 @@ class Game3D {
   }
   stop() {
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
+    this.setShare(null);
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -5085,6 +5155,7 @@ class Game3D {
       if (save) { Sound3.applause(save); this.view.cheer(save); }
     }
     this.lastShot = { side: a.side, smash: !isServe && /스매시/.test(plan.name) && plan.kmh >= 150, kmh: plan.kmh };
+    if (a === this.me && !isServe && /스매시/.test(plan.name)) this.topKmh = Math.max(this.topKmh || 0, plan.kmh);   // 결과 카드용: 이 경기 내 최고 스매시
     if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
       const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
       this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
@@ -5367,6 +5438,9 @@ class Game3D {
         if (typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: 'room', target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me', opponent: R.name || '친구', sets: R.sets.me + ':' + R.sets.opp }, { localOnly: true });
       } else if (!this.trainer.active && !this.duo && typeof Account !== 'undefined') Account.recordMatch({ game_type: 'court3d', difficulty: this.diffId, target_score: m.win, player_score: m.pts, ai_score: m.opts, won: w === 'me' });
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
+      if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
+        me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
+        mode: this.mode === 'room' ? '친선게임' : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
@@ -5385,6 +5459,19 @@ class Game3D {
       if (mp) { this.hud.banner(this.duo ? (mp === 'me' ? 'P1' : 'P2') + ' 매치 포인트!' : mp === 'me' ? '매치 포인트!' : '상대 매치 포인트', mp === 'me' ? '#FFD23F' : '#C9B8FF', 1.6); Sound3.chime(mp === 'me'); }
       else if (m.isDeuce()) this.hud.banner('듀스! ' + m.pts + ' : ' + m.opts, '#F2A93B', 1.4);
     }
+  }
+
+  // 결과 카드 버튼: 경기가 끝나면 보이고, 누르면 그림을 만들어 공유 창 또는 PNG 저장
+  setShare(d) {
+    this.shareData = d || null;
+    const b = this.shareBtn || (this.shareBtn = document.getElementById('c3share')); if (!b) return;
+    if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.shareCard(); }); }
+    b.hidden = !d || typeof Share3 === 'undefined';
+  }
+  async shareCard() {
+    const d = this.shareData; if (!d || typeof Share3 === 'undefined') return;
+    const r = await Share3.send(Share3.card(d, this.view), `배드민턴 랠리 ${d.won ? '승리' : '패배'} ${d.pts}:${d.opts} — https://${Share3.URL}`);
+    this.hud.banner(r === 'saved' ? '결과 카드를 저장했어요 (다운로드 폴더)' : r === 'shared' ? '결과 카드 공유' : '결과 카드를 만들지 못했어요', r === 'fail' ? '#FF9B9B' : '#5BFFB0', 1.4);
   }
 
   // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음
