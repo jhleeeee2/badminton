@@ -18,24 +18,25 @@ const Share3 = {
         const sh = c.createLinearGradient(0, 0, 0, H); sh.addColorStop(0, 'rgba(8,9,24,.78)'); sh.addColorStop(0.55, 'rgba(8,9,24,.55)'); sh.addColorStop(1, 'rgba(8,9,24,.9)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
       }
     } catch (e) { /* 화면 복사가 막힌 환경 → 색 배경 그대로 */ }
+    const tr = s => typeof I18N !== 'undefined' ? I18N.t(String(s)) : s;   // 영어 모드면 카드 글자도 영어로
     const col = d.won ? '#5BFFB0' : '#FF8A8A';
     c.textBaseline = 'alphabetic'; c.textAlign = 'left';
-    c.fillStyle = '#FFFFFF'; c.font = F(700, 34); c.fillText('배드민턴 랠리', 60, 78);
-    c.fillStyle = '#FFB13B'; c.beginPath(); c.arc(60 + c.measureText('배드민턴 랠리').width + 22, 66, 10, 0, 7); c.fill();
-    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = F(500, 24); c.textAlign = 'right'; c.fillText(d.mode || '', W - 60, 76);
+    c.fillStyle = '#FFFFFF'; c.font = F(700, 34); c.fillText(tr('배드민턴 랠리'), 60, 78);
+    c.fillStyle = '#FFB13B'; c.beginPath(); c.arc(60 + c.measureText(tr('배드민턴 랠리')).width + 22, 66, 10, 0, 7); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = F(500, 24); c.textAlign = 'right'; c.fillText(tr(d.mode || ''), W - 60, 76);
     c.textAlign = 'center';
-    c.fillStyle = col; c.font = F(800, 64); c.fillText(d.won ? '승리!' : '패배', W / 2, 178);
+    c.fillStyle = col; c.font = F(800, 64); c.fillText(tr(d.won ? '승리!' : '패배'), W / 2, 178);
     c.fillStyle = '#FFFFFF'; c.font = F(800, 170); c.fillText(d.pts + ' : ' + d.opts, W / 2, 350);
     c.font = F(600, 30); c.fillStyle = 'rgba(255,255,255,.92)';
-    c.textAlign = 'center'; c.fillText(this.fit(c, d.me || '나', 420) + '   vs   ' + this.fit(c, d.opp || '상대', 420), W / 2, 414);
+    c.textAlign = 'center'; c.fillText(this.fit(c, tr(d.me || '나'), 420) + '   vs   ' + this.fit(c, tr(d.opp || '상대'), 420), W / 2, 414);
     // 기록 칸
     const stats = [['가장 긴 랠리', (d.maxRally | 0) + '타'], ['내 최고 스매시', d.topKmh ? d.topKmh + ' km/h' : '—']].concat(d.extra || []);
     const bw = 300, gap = 24, x0 = (W - (bw * stats.length + gap * (stats.length - 1))) / 2;
     stats.forEach(([k, v], i) => {
       const x = x0 + i * (bw + gap), y = 448;
       c.fillStyle = 'rgba(255,255,255,.1)'; this.rr(c, x, y, bw, 104, 18); c.fill();
-      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.65)'; c.font = F(500, 22); c.fillText(k, x + bw / 2, y + 38);
-      c.fillStyle = '#FFD23F'; c.font = F(800, 38); c.fillText(v, x + bw / 2, y + 84);
+      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.65)'; c.font = F(500, 22); c.fillText(tr(k), x + bw / 2, y + 38);
+      c.fillStyle = '#FFD23F'; c.font = F(800, 38); c.fillText(tr(v), x + bw / 2, y + 84);
     });
     const dt = new Date(), ds = dt.getFullYear() + '.' + (dt.getMonth() + 1) + '.' + dt.getDate();
     c.font = F(500, 22); c.fillStyle = 'rgba(255,255,255,.6)'; c.textAlign = 'left'; c.fillText(ds, 60, H - 36);

@@ -496,8 +496,15 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
 .skbtn.sel{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);} .skbtn.sel .skp{color:var(--ok);}
 .skbtn.lock i{opacity:.75;} .skbtn.lock .skp{color:#FFD23F;} .skbtn:disabled{opacity:.5;}
 /* ───── 결과 카드 버튼 ───── */
-.c3share{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);z-index:6;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:999px;background:rgba(14,10,40,.78);color:#FFD23F;border:1px solid rgba(255,210,63,.5);}
+.c3over{position:absolute;left:0;right:0;bottom:136px;z-index:6;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;pointer-events:none;} .c3over button{pointer-events:auto;}
+.c3share{font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:999px;background:rgba(14,10,40,.78);color:#FFD23F;border:1px solid rgba(255,210,63,.5);}
 .c3share:hover{background:rgba(40,30,90,.9);} .c3share[hidden]{display:none;}
+/* ───── 빠른 대전 ───── */
+.quickinfo{font-size:13.5px;color:var(--text2);line-height:1.6;} .quickinfo b{color:#FFD23F;font-size:16px;} .quickinfo small{color:var(--text3);}
+.quickrank{margin-top:10px;max-width:520px;}
+/* ───── 언어 전환 ───── */
+.langbtn{float:right;font-size:12.5px;font-weight:500;padding:5px 12px;border-radius:999px;margin-top:4px;}
+html[lang=en] .c3board.srvMe .me .nm::after,html[lang=en] .c3board.srvOpp .opp .nm::after{content:' · serve';}
 </style>
 </head>
 <body>
@@ -558,6 +565,11 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
       <input id="roomCode" class="roomcode" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false" lang="en" inputmode="latin" autocapitalize="characters">
       <button id="roomJoin" class="roombtn">입장</button>
     </div>
+  </section>
+  <section class="lsec" id="quickSettings" hidden>
+    <div class="lhead">빠른 대전 <span class="lsub">인터넷 필요 · 매칭 점수가 비슷한 사람을 자동으로 찾아요 · 11점 경기 · 채·선수 스탯 효과 없이 같은 조건</span></div>
+    <div class="cards roomrow nickrow"><span class="quickinfo" id="quickInfo"></span></div>
+    <div class="dailycard quickrank" id="quickRank"></div>
   </section>
   <section class="lsec" id="careerSettings" hidden>
     <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
@@ -679,7 +691,7 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
     <div class="c3banner" id="c3banner"></div>
     <div class="c3hint" id="c3hint"></div>
     <button id="c3skip" class="c3skip" hidden>튜토리얼 건너뛰기 ›</button>
-    <button id="c3share" class="c3share" hidden>📸 결과 카드 저장 · 공유</button>
+    <div class="c3over"><button id="c3replay" class="c3share" hidden>▶ 마지막 랠리 다시 보기</button><button id="c3share" class="c3share" hidden>📸 결과 카드 저장 · 공유</button></div>
     <div class="c3bottom">
       <div class="c3hand" id="c3hand"></div>
       <div class="c3sta" id="c3sta" hidden><span class="k">체력</span><span class="eb"><span></span></span></div>
@@ -745,6 +757,269 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
   </div>
 </div>
 <!-- 로드 순서 중요: 클래식 게임 → (Three.js) 3D 코트 → 대기화면 → 진입점 -->
+<script>
+// app/i18n.js — 영어 지원: 화면에 그려진 글자를 문장 단위로 바꿔 줌 (게임 코드는 한국어 그대로)
+//   · 언어: localStorage badminton.lang ('ko' 기본 · 'en'). 대기화면 제목 옆 버튼으로 전환(새로고침)
+//   · 방식: 글자 조각(텍스트 노드)마다 ① 통째로 사전(EX) ② 규칙(RX) ③ ' · ' ' — ' ' / ' 로 나눠 각각 ④ "A (B)"·"A 숫자"·단위 규칙
+//     → 한 조각이 전부 옮겨질 때만 바꿈. 하나라도 모르는 말이 있으면 그 조각은 한국어 그대로 (한글·영어가 섞이지 않게)
+//   · 3D 본편 기준. 레트로 모드와 README는 한국어. 사용자 닉네임 등 사전에 없는 말은 그대로
+//   · 긴 글 튜토리얼은 TUTORIAL_3D_PAGES_EN을 따로 둠 (main.js가 언어에 따라 고름)
+//   새 문구를 추가하면 여기 EX(또는 RX)에도 넣을 것. 빠진 문구는 I18N.missing()으로 확인
+
+const I18N = {
+  KEY: 'badminton.lang', lang: 'ko', cache: new Map(), miss: new Set(), HAN: /[가-힣]/,
+  EX: {
+    // ── 대기화면 ──
+    '배드민턴 랠리': 'Badminton Rally',
+    '실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.': '3D badminton on a regulation court with real singles rules — right in your browser, no install.',
+    '게임 종류': 'Game', '대전 모드': 'Mode', 'AI 대전 설정': 'AI match settings', '대전 설정': 'Match settings', '커리어 설정': 'Career settings', '일일 챌린지 설정': 'Daily challenge settings', '빠른 대전 설정': 'Quick match settings',
+    '난이도': 'Difficulty', '쉬움': 'Easy', '중간': 'Normal', '어려움': 'Hard', '지옥': 'Hell', '임파서블': 'Impossible',
+    '상대 성향': 'Opponent style', '기본': 'Default', '수비형': 'Defender', '네트형': 'Net player', '스매시형': 'Smasher',
+    '목표 점수': 'Play to', '주 손': 'Hand', '오른손': 'Right', '왼손': 'Left',
+    '친선게임': 'Friendly', '빠른 대전': 'Quick match', '커리어': 'Career', '일일 챌린지': 'Daily challenge', '훈련': 'Training', 'AI 대전': 'vs AI', '랭크전': 'Ranked', '복식': 'Doubles', '레트로 모드': 'Retro mode', '3D 코트': '3D Court',
+    '인터넷 필요 · 한 명이 방을 만들고, 친구는 그 코드로 입장 · 둘 다 같은 게임 종류를 골라야 해요 · 목표 점수는 방장 설정': 'Needs internet · one player creates a room, the friend joins with its code · both must pick the same game · the host sets the target score',
+    '닉네임': 'Nickname', '한 번 적으면 다음 판에도 그대로 남아 있어요': 'Saved for next time', '방 만들기': 'Create room', '또는': 'or', '입장': 'Join',
+    '인터넷 필요 · 매칭 점수가 비슷한 사람을 자동으로 찾아요 · 11점 경기 · 채·선수 스탯 효과 없이 같은 조건': 'Needs internet · finds a player with a similar rating automatically · first to 11 · no racket or player-stat effects, equal conditions',
+    '커리어 — 대회를 차례로 우승': 'Career — win each tournament in turn', '이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용': 'Win to unlock the next opponent · lose and retry just that match · training levels apply',
+    '처음부터 다시': 'Start over', '내 채': 'My racket', '코인으로 구매·강화 · 강화할수록 장단점이 함께 커짐 · 효과는 AI 대전·커리어에만 적용': 'Buy and upgrade with coins · upgrades grow both the upside and the downside · effects apply in vs AI and Career only',
+    '내 선수': 'My player', '경기·훈련으로 레벨 업 → 레벨마다 스탯 포인트 1 · 다시 나누기 무료 · 효과는 AI 대전·커리어에만 적용': 'Level up by playing and training → 1 stat point per level · free to redistribute · effects apply in vs AI and Career only',
+    '꾸미기': 'Customize', '코인으로 구매 · 겉모습만 바뀜(능력치 없음) · 친선게임에서 상대에게도 유니폼·채 색이 보여요': 'Buy with coins · looks only (no stats) · opponents see your kit and racket color in online matches',
+    '날마다 종목이 바뀜 · 누구에게나 같은 공 15개 · 여러 번 도전, 최고 점수만 인정': 'A new drill every day · the same 15 shuttles for everyone · retry freely, best score counts',
+    '훈련 — 선수 키우기': 'Training — build your player', '연속 성공으로 레벨업 · 레벨 효과는 AI 대전에 적용': 'Level up with streaks · level effects apply in vs AI',
+    '직접 해 보기': 'Try it', '30초': '30s', '튜토리얼': 'Tutorial', '시작': 'Start', '← 메뉴': '← Menu', '방': 'Room', '상대': 'Opp', '서브': 'Serve', '나': 'Me', '랠리': 'Rally', '최근 샷': 'Last shot', '설정': 'Setup',
+    '💪 체력 켬': '💪 Stamina on', '💪 체력 무한': '💪 Stamina ∞', '📍 낙하 표시 켬': '📍 Landing on', '📍 낙하 표시 끔': '📍 Landing off', '🌑 그림자 켬': '🌑 Shadow on', '🌑 그림자 끔': '🌑 Shadow off', '🔊 소리': '🔊 Sound', '🔇 소리': '🔇 Sound',
+    '다시 시작': 'Restart', '이동': 'Move', '튜토리얼 건너뛰기 ›': 'Skip tutorial ›', '▶ 마지막 랠리 다시 보기': '▶ Replay last rally', '■ 리플레이 끝내기': '■ Stop replay', '📸 결과 카드 저장 · 공유': '📸 Save / share result card',
+    '체력': 'Stamina', '런지': 'Lunge', '방향': 'Aim', '올리기': 'Lift', '찍기': 'Smash', '직선': 'Flat', '클릭': 'Click', '점프': 'Jump', 'Q · 서브': 'Q · Serve',
+    'WASD 이동 · 마우스 = 치는 방향(커서 쪽)': 'WASD to move · mouse = shot direction (toward the cursor)',
+    'Q 올리기 · E 찍기 · 좌클릭 직선 — 꾹 눌러 충전, 떼면 스윙': 'Q lift · E smash · left click flat — hold to charge, release to swing',
+    'Space 점프 · Shift 런지(셔틀 쪽으로 크게 한 발)': 'Space jump · Shift lunge (a big step toward the shuttle)',
+    'T 꾹 = 감정표현 (마우스로 고르고 떼기)': 'Hold T = emotes (pick with the mouse, release)',
+    '이전': 'Back', '닫기': 'Close', '다음': 'Next', '로그인': 'Log in', '회원가입': 'Sign up', '이메일': 'Email', '비밀번호': 'Password', '6자 이상': '6+ characters', '2~16자 · 다른 사람과 겹치면 안 돼요': '2–16 characters · must be unique',
+    '상대에게 보일 이름': 'Name shown to opponents', '방 코드 5자리': '5-letter code', '메뉴로': 'Back to menu', '클릭하면 코드 복사': 'Click to copy the code', '친선게임 방 설정: 체력 켬 / 무한 (둘 다 적용)': 'Room setting: stamina on / infinite (applies to both)', '이동 패드': 'Move pad', '감정표현': 'Emotes',
+    '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.': 'Regulation court, real singles rules. Move with WASD, aim with the mouse, and swing as the shuttle reaches your racket.',
+    '본편': 'Main', '이 게임의 첫 버전. 옆에서 보는 2D 코트에서 키보드로 샷을 골라 칩니다.': 'The original version: a side-view 2D court where you pick shots on the keyboard.', '2D 클래식': '2D classic',
+    '난이도 5단계': '5 difficulty levels', '대회 4개 · 성향이 다른 상대 12명': '4 tournaments · 12 opponents with different styles', '오늘의 종목 · 점수 순위': "Today's drill · score ranking", '선수 키우기 · 근력/순발력/판단력': 'Build your player · power / agility / judgment',
+    '비슷한 실력과 자동 매칭': 'Auto-match with similar skill', '방 코드로 온라인 대전': 'Online match by room code', '구글 로그인 · 레이팅': 'Google login · rating', '2 대 2': '2 vs 2', '준비 중': 'Coming soon',
+    '커리어 진행을 처음으로 되돌릴까요? (훈련 레벨은 그대로)': 'Reset career progress? (Training levels are kept)',
+    '아직 도전하지 않았어요': 'Not attempted yet', '순위표를 불러오는 중…': 'Loading leaderboard…', '순위표는 아직 준비 중이에요. 내 최고 기록은 이 브라우저에 저장됩니다.': 'The leaderboard is not ready yet. Your best score is saved in this browser.',
+    '순위표를 불러오지 못했어요 (인터넷 연결 확인).': 'Could not load the leaderboard (check your connection).', '아직 기록이 없어요 — 첫 번째로 올려 보세요!': 'No scores yet — be the first!', '로그인하면 내 점수도 순위표에 올라가요.': 'Log in to put your score on the leaderboard.',
+    '순위표는 아직 준비 중이에요. 매칭은 그대로 됩니다.': 'The leaderboard is not ready yet. Matchmaking still works.', '로그인하면 내 매칭 점수도 순위표에 올라가요.': 'Log in to put your rating on the leaderboard.',
+    '오늘의 순위': "Today's ranking", '상위 10명': 'Top 10', '매칭 점수 순위': 'Rating leaderboard', '상위 10명 · 빠른 대전을 1경기 이상 한 사람': 'Top 10 · players with at least 1 quick match', '모든 대회 우승!': 'All tournaments won!',
+    '장착 중': 'Equipped', '보유': 'Owned', '사용 중': 'In use', '장착': 'Equip', '최고 레벨': 'Max level', '최대 레벨': 'Max level', '효과 없음': 'No effect', '없음': 'None', '남은 포인트': 'Points left',
+    '입장 전에 닉네임을 적어 주세요.': 'Enter a nickname before joining.', '방 코드는 5자리예요.': 'Room codes have 5 characters.',
+    '3D를 시작할 수 없어요 (WebGL 미지원 브라우저일 수 있음).': 'Could not start 3D (your browser may not support WebGL).', '게스트': 'Guest', '방을 만드는 중…': 'Creating room…', '연결하는 중…': 'Connecting…', '상대를 찾았어요!': 'Opponent found!',
+    '방 코드': 'Room code', '친구에게 이 코드를 알려주세요 — 들어오면 바로 시작합니다': 'Share this code with your friend — the match starts when they join', '오래 걸리면 코드를 다시 확인해 주세요': 'If this takes long, double-check the code',
+    // ── 계정 ──
+    '닉네임은 2~16자로 정해주세요.': 'Nickname must be 2–16 characters.', '이미 쓰고 있는 닉네임이에요.': 'That nickname is taken.', '이메일 또는 비밀번호가 맞지 않아요.': 'Wrong email or password.', '이미 가입된 이메일이에요. 로그인해 주세요.': 'That email is already registered. Please log in.',
+    '비밀번호는 6자 이상이어야 해요.': 'Password must be at least 6 characters.', '메일 인증이 아직 안 됐어요. 받은편지함의 인증 링크를 눌러주세요.': 'Email not confirmed yet. Click the link in your inbox.', '이메일 형식을 확인해 주세요.': 'Check the email format.',
+    '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.': 'Too many requests. Try again shortly.', '서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.': 'Cannot reach the server. Check your connection.', '온라인 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.': 'Cannot reach the online server. Check your connection.',
+    '계정 기능을 불러오지 못했어요 — 게스트로 플레이 (기록은 이 브라우저에만 저장)': 'Account features failed to load — playing as guest (records stay in this browser)', '내 기록': 'My records', '계정 확인 중…': 'Checking account…',
+    '게스트 — 기록은 이 브라우저에만 저장돼요': 'Guest — records are saved in this browser only', '로그인 / 회원가입': 'Log in / Sign up', '· 기록이 계정에 저장돼요': '· records are saved to your account', '로그아웃': 'Log out', '가입하기': 'Sign up', '처리 중…': 'Working…',
+    '가입 완료! 메일로 온 인증 링크를 누른 뒤 로그인해 주세요.': 'Signed up! Click the confirmation link in your email, then log in.', '가입 완료! 로그인됐어요.': 'Signed up and logged in!',
+    '코인': 'Coins', '지금까지 번 코인': 'Total earned', '서버 저장 준비 중 — 지금은 이 브라우저에만 저장돼요': 'Server storage not ready — saved in this browser for now', '계정에 저장돼요': 'Saved to your account', '이 브라우저에 저장 — 로그인하면 계정으로 옮겨져요': 'Saved in this browser — moves to your account when you log in',
+    'AI 대전 승리': 'vs AI win', '패배': 'Loss', '오늘의 첫 승': 'First win of the day', '긴 랠리': 'Long rally', '훈련 레벨업': 'Training level-up', '(오늘 받음)': '(claimed today)', '(경기당 한 번)': '(once per match)',
+    '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면의 「내 채」(AI 대전·커리어)와 「꾸미기」': 'Only finished matches pay out · spend them in "My racket" (vs AI / Career) and "Customize" on the menu',
+    '최근 내역': 'Recent', '불러오는 중…': 'Loading…', '승률': 'Win rate', '계정에 저장된 기록 (AI 대전만 · 최근 10경기)': 'Records in your account (vs AI only · last 10)', '이 브라우저에 저장된 AI 대전 기록 (최근 10경기 표시)': 'vs AI records in this browser (last 10)',
+    '아직 AI 대전 기록이 없어요. AI 대전을 끝까지 해보세요!': 'No vs AI records yet. Finish a match against the AI!', '친구': 'Friend', '레트로': 'Retro', '승': 'W', '패': 'L', '전': 'played', '선수': 'Player',
+    // ── 경기 화면 ──
+    '매치 포인트': 'Match point', '상대 매치 포인트': 'Opponent match point', '매치 포인트!': 'Match point!', '연속': 'Streak', '목표': 'Goal', '(최대)': '(max)', '점수': 'Score', '남은 공': 'Shuttles left', '단계': 'Step', '전체': 'All', '세트': 'Sets',
+    '— 네트!': '— Net!', '— 아웃!': '— Out!', '포핸드': 'Forehand', '백핸드': 'Backhand', '라운드 더 헤드': 'Round the head', '머리 위': 'overhead', '옆': 'side', '아래': 'low',
+    '상대 서브': 'Opponent serving', '셔틀 그림자 켬': 'Shuttle shadow on', '셔틀 그림자 끔 — 인/아웃은 눈으로!': 'Shuttle shadow off — judge in/out by eye!', '체력 켬': 'Stamina on', '체력 무한': 'Stamina infinite', '낙하 지점 표시 켬': 'Landing marker on', '낙하 지점 표시 끔': 'Landing marker off',
+    '상대방이 다시 참여했습니다': 'Opponent rejoined', '경기에 다시 참여했습니다': 'You rejoined the match', '상대방이 나갔습니다': 'Opponent left', '곧 시작합니다…': 'Starting soon…', 'Esc = 메뉴': 'Esc = menu', 'Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)': 'Esc = menu (start Quick match again to find a new opponent)',
+    '네트!': 'Net!', '범실': 'Fault', '서브 에이스!': 'Service ace!', '서브 폴트 (서비스 코트 밖)': 'Service fault (outside the service court)', '득점': 'Point', '아웃': 'Out', '득점!': 'Point!', '실점': 'Point lost', '네트': 'Net',
+    '득점! 네트!': 'Point! Net!', '득점! 범실': 'Point! Opponent fault', '득점! 아웃': 'Point! Out', '득점! 서브 에이스!': 'Point! Service ace!', '득점! 서브 폴트 (서비스 코트 밖)': 'Point! Service fault',
+    '코트 체인지!': 'Change of ends!', '듀스!': 'Deuce!', '결과 카드를 저장했어요 (다운로드 폴더)': 'Result card saved (Downloads folder)', '결과 카드 공유': 'Result card shared', '결과 카드를 만들지 못했어요': 'Could not create the result card',
+    '모든 대회를 우승했습니다 — 커리어 완주!': 'You won every tournament — career complete!', '다시 한번 정상에 섰습니다': 'On top once again', '▶ 마지막 랠리 리플레이 — 버튼을 다시 누르면 끝': '▶ Last rally replay — press the button again to stop',
+    '헛스윙! 풀차징은 정확한 타이밍에만': 'Whiff! Full charge needs exact timing', '체력 부족 — 런지 불가': 'Not enough stamina — cannot lunge', '승리!': 'Win!', '패배...': 'Lost...', '승리': 'Win', '첫 승리': 'First win', '대회 우승': 'Tournament win', '참가': 'Played', '레벨업': 'Level up', '오늘 첫 도전': 'First try today',
+    'Enter 또는 다시 시작 = 재대결': 'Enter or Restart = rematch', 'Enter 또는 다시 시작 = 재대결 (둘 중 누가 눌러도 함께 시작)': 'Enter or Restart = rematch (either player can start it)', 'Enter 또는 다시 시작 = 재도전': 'Enter or Restart = retry', 'Enter 또는 다시 시작 = 다음 경기': 'Enter or Restart = next match',
+    'Enter 또는 다시 시작 = 다음 경기 (둘 중 누가 눌러도 함께 시작)': 'Enter or Restart = next match (either player can start it)', 'Enter 또는 다시 시작 = 결승 다시 하기': 'Enter or Restart = replay the final', 'Enter 또는 다시 시작 = 다시 도전': 'Enter or Restart = try again',
+    // ── 샷·훈련·튜토리얼 ──
+    '숏 서브': 'Short serve', '롱 서브': 'Long serve', '헤어핀': 'Hairpin', '리프트': 'Lift', '클리어': 'Clear', '드롭': 'Drop', '점프 스매시': 'Jump smash', '스매시': 'Smash', '푸시': 'Push', '드라이브': 'Drive',
+    '피딩 · 리프트': 'Feed · lift', '피딩 · 스매시': 'Feed · smash', '피딩': 'Feed', '아웃 공을 건드렸어요': 'You touched an out shuttle', '못 쳤어요': 'Missed', '스매시가 아니에요 (E를 길게)': 'Not a smash (hold E longer)', '표적 명중!': 'On target!', '표적 밖': 'Off target',
+    '못 받았어요': 'Not returned', '받아냈다!': 'Returned!', '아웃 공이었어요': 'That one was out', '아웃 판단 정확!': 'Good leave — it was out!', '인 공이었어요': 'That one was in', '인 판단 + 리턴 성공!': 'Good call + returned!', '리턴 아웃': 'Return went out', '연속 끊김': 'streak broken',
+    '오늘 내 최고 기록!': 'Your best today!', '근력 훈련 — 높은 공을 E(길게)로 스매시해 노란 표적에 꽂기': 'Power drill — smash high shuttles (hold E) into the yellow target', '순발력 훈련 — 상대 스매시를 받아 넘기기': 'Agility drill — return the opponent\'s smashes', '판단력 훈련 — 아웃은 보내고, 인은 받아 넘기기': 'Judgment drill — leave the outs, return the ins',
+    'W A S D로 노란 칸까지 걸어가 보세요': 'Walk to the yellow square with W A S D', '왼쪽 패드로 노란 칸까지 걸어가 보세요': 'Walk to the yellow square with the left pad',
+    'Q를 누르고 있다가, 셔틀이 몸 가까이 와서 화면이 느려지면 떼세요': 'Hold Q, and release when the shuttle gets close and time slows down', '올리기를 누르고 있다가, 셔틀이 몸 가까이 와서 화면이 느려지면 떼세요': 'Hold Lift, and release when the shuttle gets close and time slows down',
+    '높이 뜬 공이 옵니다. E를 누르고 있다가 셔틀이 머리 위로 오면 떼세요': 'A high one is coming. Hold E and release when the shuttle is above your head', '높이 뜬 공이 옵니다. 찍기를 누르고 있다가 셔틀이 머리 위로 오면 떼세요': 'A high one is coming. Hold Smash and release when the shuttle is above your head',
+    '높은 공이 옵니다. Space로 뛰어오른 다음 E(찍기)로 쳐 보세요 — 점프 스매시': 'A high one is coming. Jump with Space, then hit with E — a jump smash', '높은 공이 옵니다. 점프를 누르고 뛰어오른 다음 찍기로 쳐 보세요 — 점프 스매시': 'A high one is coming. Tap Jump, then hit with Smash — a jump smash',
+    '먼 공이 옵니다. Shift를 누르면 셔틀 쪽으로 크게 한 발 — 런지하고 Q(올리기)로 받아 보세요': 'A wide one is coming. Shift takes a big step toward the shuttle — lunge and return it with Q', '먼 공이 옵니다. 런지를 누르면 셔틀 쪽으로 크게 한 발 — 런지하고 올리기로 받아 보세요': 'A wide one is coming. Lunge takes a big step toward the shuttle — lunge and return it with Lift',
+    'Q를 꾹 누르면 게이지가 왕복합니다. 가운데쯤에서 떼세요 (마우스 = 방향)': 'Hold Q and the gauge swings back and forth. Release near the middle (mouse = direction)', '올리기를 꾹 누르면 게이지가 왕복합니다. 가운데쯤에서 떼세요': 'Hold Lift and the gauge swings back and forth. Release near the middle',
+    '완료': 'Done', '좋아요!': 'Nice!', '한 번 더': 'One more', '네트 — 조금 더 세게': 'Net — a bit harder', '서브 성공!': 'Good serve!', '서비스 코트 밖 — 게이지 가운데쯤에서': 'Outside the service court — release near the middle', '놓쳤어요 — 누르고 있다가, 닿을 때 떼기': 'Missed — hold, then release on contact',
+    '이번엔 Space(점프)로 뛰어서!': 'This time jump with Space!', '이번엔 점프로 뛰어서!': 'This time use Jump!', '이번엔 Shift(런지)를 써서!': 'This time use Shift (lunge)!', '이번엔 런지를 써서!': 'This time use Lunge!', '이번엔 Q(올리기)로!': 'This time with Q (lift)!', '이번엔 올리기로!': 'This time with Lift!', '이번엔 E(찍기)로!': 'This time with E (smash)!', '이번엔 찍기로!': 'This time with Smash!',
+    '네트 — 충전을 조금만': 'Net — charge a little less', '네트 — 한 번 더': 'Net — once more', '맞혔어요! (길어서 아웃 — 충전은 짧게)': 'You hit it! (long, so out — charge less)', '괜찮아요 — 다음 단계로 넘어갈게요': "That's fine — moving on", '튜토리얼 완료!': 'Tutorial complete!', '곧 경기를 시작합니다…': 'The match starts soon…',
+    '좌클릭 직선 샷 · T 감정표현도 있어요 (자세한 건 튜토리얼 버튼)': 'There is also left click for flat shots and T for emotes (see the Tutorial button)', '= 경기 시작 · Esc = 메뉴': '= start the match · Esc = menu',
+    '연결 시간 초과': 'Connection timed out', '방이 꽉 찼어요 (1:1 방).': 'The room is full (1 v 1).', '같은 코드의 방이 이미 있어요. 다시 만들어 주세요.': 'A room with this code already exists. Create a new one.', '상대도 입장하는 쪽이에요. 한 명은 방 만들기를 눌러야 해요.': 'Your opponent is also joining. One of you must create the room.',
+    // ── 성장 ──
+    '근력': 'Power', '스매시 노가다': 'Smash grind', '순발력': 'Agility', '스매시 받기': 'Smash defense', '판단력': 'Judgment', '인/아웃 판단': 'In/out calls',
+    '높게 올라오는 공을': 'Hit the high feeds with', 'E 스매시': 'E smash', '로 상대 코트의': 'into the', '노란 표적': 'yellow target', '안에 연속으로 꽂으세요.': "on the opponent's court, several in a row.",
+    '상대가 계속': 'The opponent keeps hitting', '를 꽂습니다. 연속으로': 'es. Return them', '상대 코트 안으로': "into the opponent's court", '받아 넘기세요.': 'several times in a row.',
+    '라인 근처로 오는 공을 판단하세요.': 'Judge shuttles landing near the lines.', '아웃 공은 건드리지 말고': 'Leave the outs', '인 공은 받아 넘기기': 'return the ins', '. 낙하 지점 표시는 없습니다.': '. No landing marker.',
+    '8강': 'Quarterfinal', '준결승': 'Semifinal', '결승': 'Final', '동네 대회': 'Local Open', '시 대회': 'City Open', '전국 대회': 'National Open', '세계 대회': 'World Open',
+    '한도윤': 'Han Doyun', '서지우': 'Seo Jiwoo', '문태오': 'Moon Taeo', '강라온': 'Kang Raon', '윤세찬': 'Yoon Sechan', '백이든': 'Baek Eden', '차민혁': 'Cha Minhyuk', '남궁설': 'Namgung Seol', '도하준': 'Do Hajun', '올레 린드': 'Ole Lind', '아리사와 켄': 'Ken Arisawa', '카이 로웬': 'Kai Rowen',
+    '고르게 치는 상대': 'A balanced opponent', '실수가 적고 높고 깊게 넘김 · 결정타가 약함': 'Few errors, sends it high and deep · weak finishing shots', '드롭·헤어핀으로 앞을 노림 · 깊은 공에 약함': 'Attacks the front with drops and hairpins · weak against deep shots', '기회만 오면 스매시 · 실수가 잦고 네트 앞이 약함': 'Smashes at every chance · error-prone and weak at the net',
+    '따봉': 'Thumbs up', '역따봉': 'Thumbs down', '웃음': 'Laugh', '울음': 'Cry', '자신만만': 'Confident', '짜증': 'Annoyed', '우웩': 'Yuck', '눈을 뜨세요': 'Open your eyes', '화이팅~': 'Let\'s go~', '안돼!': 'No!', '하하하': 'Hahaha', '나이스~': 'Nice~', '취소': 'Cancel',
+    '균형형': 'Balanced', '기본 채. 장단점 없이 고르게.': 'The default racket. Even all round.', '헤드 헤비': 'Head-heavy', '스매시에 힘이 실리지만 스윙이 무거움.': 'More power on smashes, but a heavier swing.', '헤드 라이트': 'Head-light', '빠르게 다뤄 수비·타이밍이 편하지만 스매시가 약함.': 'Quick to handle for defense and timing, but weaker smashes.',
+    '효과 없음 (친선게임·일일 챌린지와 같은 조건)': 'No effect (same as online matches and the daily challenge)',
+    '유니폼': 'Kit', '채 색': 'Racket', '코트': 'Court', '네이비 스톰': 'Navy Storm', '민트 러시': 'Mint Rush', '체리 블라썸': 'Cherry Blossom', '화이트 아이스': 'White Ice', '블랙 골드': 'Black Gold', '기본 (유니폼 포인트 색)': 'Default (kit accent)', '네온 라임': 'Neon Lime', '핫 핑크': 'Hot Pink', '아이스 블루': 'Ice Blue', '골드': 'Gold',
+    '그린 (기본)': 'Green (default)', '블루 코트': 'Blue Court', '퍼플 나이트': 'Purple Night', '클레이 오렌지': 'Clay Orange', '그레이 프로': 'Gray Pro',
+    '리치': 'Reach', '팔 길이': 'arm length', '스피드': 'Speed', '다리·순발력': 'legs', '도약': 'leap', '지구력': 'endurance',
+    '가장 긴 랠리': 'Longest rally', '내 최고 스매시': 'My top smash', '빨강팀': 'Red team', '파랑팀': 'Blue team', '스매시!': 'SMASH!', '배드민턴': 'BADMINTON',
+    '오른쪽': 'right', '왼쪽': 'left', '켬': 'on', '끔': 'off', '무한': 'infinite', '그림자': 'shadow', '낙하 표시': 'landing marker', '(둘 다 적용)': '(applies to both)', '오른손잡이': 'Right-handed',
+    '방향키 이동 ·': 'Arrows move ·', '런지 · 조준 ←→': 'lunge · aim ←→', '올리기 ·': 'lift ·', '찍기 ·': 'smash ·', '직선 ·': 'flat ·', '점프 ·': 'jump ·',
+    '한국어': '한국어'
+  },
+  U: { '점': ' pts', '타': ' hits', '경기': ' games', '명': ' players', '초': 's', '전': ' played', '승': 'W', '패': 'L', '코인': ' coins', '번': '×', '개': '' },
+  RX: null,
+  rules() {
+    const T = s => this.core(s), N = '([\\d,.]+)';
+    const R = (re, fn) => [new RegExp('^' + re + '$'), fn];
+    return [
+      R(N + '위', m => '#' + m[1]),
+      R('([+\\-−±×]?[\\d,.]+)(점|타|경기|명|초|전|승|패|코인|번|개)', m => m[1] + this.U[m[2]]),
+      R('(\\d+)승 (\\d+)패', m => `${m[1]}W ${m[2]}L`), R('(\\d+)전 (\\d+)승', m => `${m[1]} played, ${m[2]} won`),
+      R('(승리!|패배\\.\\.\\.) (\\d+) : (\\d+)', m => `${m[1] === '승리!' ? 'Win!' : 'Lost...'} ${m[2]} : ${m[3]}`),
+      R('(P[12]) 승리! P1 (\\d+) : (\\d+) P2', m => `${m[1]} wins! P1 ${m[2]} : ${m[3]} P2`),
+      R('세트 스코어 (\\d+) : (\\d+)', m => `Sets ${m[1]} : ${m[2]}`), R('세트 스코어', () => 'Sets'), R('\\(vs (.+)\\)', m => `(vs ${T(m[1]) || m[1]})`), R('vs (.+)', m => `vs ${T(m[1]) || m[1]}`),
+      R('(.+) 서브 \\((오른쪽|왼쪽) 코트\\)', m => `${m[1] === '내' ? 'Your' : m[1]} serve (${m[2] === '오른쪽' ? 'right' : 'left'} court)`),
+      R('Q 꾹, 원하는 세기에서 떼기', () => 'hold Q, release at the power you want'), R('I 꾹, 원하는 세기에서 떼기', () => 'hold I, release at the power you want'),
+      R('Q를 꾹: 게이지가 왕복, 원하는 세기에서 떼기', () => 'hold Q: the gauge swings, release at the power you want'), R('올리기를 꾹: 게이지가 왕복, 원하는 세기에서 떼기', () => 'hold Lift: the gauge swings, release at the power you want'),
+      R('마우스로 방향', () => 'aim with the mouse'), R('←→로 방향', () => 'aim with ←→'), R('◀ ● ▶로 방향', () => 'aim with ◀ ● ▶'),
+      R('랠리 (\\d+)!(?: 속도 x([\\d.]+))?', m => `Rally ${m[1]}!` + (m[2] ? ` Speed x${m[2]}` : '')), R('랠리 (\\d+)타', m => `${m[1]}-hit rally`),
+      R('(나|상대|P1|P2)?\\s?(포핸드|백핸드|라운드 더 헤드)? ?(숏 서브|롱 서브|헤어핀|리프트|클리어|드롭|점프 스매시|스매시|푸시|드라이브)(!?)(?: (\\d+)km/h)?', m => [m[2] && this.EX[m[2]], this.EX[m[3]] + (m[4] || ''), m[5] && m[5] + 'km/h'].filter(Boolean).join(' ')),
+      R('(.*\\S)! (\\d+)km/h', m => { const a = T(m[1]); return a && `${a}! ${m[2]}km/h`; }),
+      R('(포핸드|백핸드|라운드 더 헤드) (머리 위|옆|아래)', m => `${this.EX[m[1]]} · ${this.EX[m[2]]}`),
+      R('(득점|실점) · (.+)', m => { const b = T(m[2]); return b && `${m[1] === '득점' ? 'Point' : 'Point lost'} · ${b}`; }), R('(P[12]) 득점!?', m => `${m[1]} scores!`), R('(P[12]) 매치 포인트!', m => `${m[1]} match point!`),
+      R('듀스! (\\d+) : (\\d+)', m => `Deuce! ${m[1]} : ${m[2]}`), R('코트 체인지! (\\d+) : (\\d+)', m => `Change of ends! ${m[1]} : ${m[2]}`),
+      R('방 코드 복사됨: (.+)', m => `Room code copied: ${m[1]}`), R('(.+) 입장!', m => `${m[1]} joined!`), R('(.+)의 방에 들어왔어요', m => `Joined ${m[1]}'s room`),
+      R('상대가 (.+)', m => { const b = T(m[1]); return b && `Opponent set ${b}`; }), R('(낙하 표시|그림자|체력) (켬|끔|무한)', m => `${this.EX[m[1]].toLowerCase()} ${this.EX[m[2]]}`),
+      R('점수 (\\d+) : (\\d+)에서 멈춤', m => `paused at ${m[1]} : ${m[2]}`), R('같은 방 코드\\(', () => 'Rejoin with the same room code ('), R('\\)로 다시 들어오면 이어서 경기합니다', () => ') to continue the match'), R('\\)로 다시 들어오면 세트 스코어가 이어집니다', () => ') to keep the set score'),
+      R('방', () => 'Room'), R('에 들어가는 중…', () => '— joining…'), R('에서 방장을 기다리는 중…', () => '— waiting for the host…'),
+      R('상대를 찾는 중…', () => 'Finding an opponent…'), R('내 매칭 점수', () => 'My rating'), R('매칭 점수 (\\d+)', m => `rating ${m[1]}`), R('매칭 점수 (\\d+) →', m => `Rating ${m[1]} →`), R('찾는 범위 ±(\\d+)점', m => `range ±${m[1]}`), R('대기 중인 사람 (\\d+)명', m => `${m[1]} waiting`),
+      R('(\\d+)초 동안 아무도 없으면 AI와 대전합니다', m => `If nobody shows up in ${m[1]}s you play the AI`), R('Esc = 취소', () => 'Esc = cancel'), R('선수 Lv\\.(\\d+)', m => `player Lv.${m[1]}`), R('\\(([+\\-]?\\d+)\\)', m => `(${m[1]})`), R('상대 (\\d+)', m => `opponent ${m[1]}`),
+      R('대기 중인 사람이 없어 AI\\((.+)\\)와 대전합니다', m => `Nobody is waiting — playing the AI (${T(m[1])})`),
+      R('빠른 대전 (\\d+)전 (\\d+)승', m => `quick matches ${m[1]}, won ${m[2]}`),
+      R('이기면 오르고 지면 내려가요\\. 처음엔 ±(\\d+)점 안에서 찾고, 기다릴수록 범위가 넓어져요\\. (\\d+)초 동안 아무도 없으면 AI와 대전', m => `goes up when you win, down when you lose. The search starts within ±${m[1]} and widens as you wait. After ${m[2]}s with nobody, you play the AI`),
+      R('(.+) — 이 모드는 아직 준비 중이에요\\.', m => `${T(m[1]) || m[1]} — this mode is not ready yet.`),
+      R('오늘의 종목', () => "Today's drill"), R('성공 1번 = (\\d+)점 \\+ 연속 보너스\\(2번째부터 \\+(\\d+)씩, 최대 \\+(\\d+)\\)', m => `1 success = ${m[1]} pts + streak bonus (+${m[2]} each from the 2nd, up to +${m[3]})`), R('만점 ' + N + '점', m => `max ${m[1]} pts`),
+      R('오늘 최고', () => 'Best today'), R('오늘 내 최고 ' + N + '점', m => `Your best today: ${m[1]} pts`), R('도전 (\\d+)번', m => `${m[1]} tries`), R('(\\d+)번 도전', m => `${m[1]} tries`),
+      R('(쉬움|중간|어려움|지옥|임파서블)\\+? (기본|수비형|네트형|스매시형)', m => `${this.EX[m[1]]}${/\+/.test(m[0]) ? '+' : ''} ${this.EX[m[2]]}`), R('(쉬움|중간|어려움|지옥|임파서블) (\\d+)', m => `${this.EX[m[1]]} ${m[2]}`),
+      R('(동네|시|전국|세계) 대회 (8강|준결승|결승)', m => `${this.EX[m[1] + ' 대회']} ${this.EX[m[2]]}`), R('(동네|시|전국|세계) 대회 우승!', m => `${this.EX[m[1] + ' 대회']} champion!`), R('🏆 ?(.*)', m => { const b = T(m[1]); return b != null && `🏆 ${b}`; }),
+      R('통과', () => 'cleared'), R('([^—]+)에게 졌어요', m => `lost to ${T(m[1]) || m[1]}`), R('다음 상대:', () => 'Next opponent:'),
+      R('(.+) \\((기본|수비형|네트형|스매시형): (.+)\\)', m => `${T(m[1]) || m[1]} (${this.EX[m[2]]}: ${T(m[3])})`), R('(.+) \\((기본|수비형|네트형|스매시형)\\)', m => `${T(m[1]) || m[1]} (${this.EX[m[2]]})`),
+      R('구매 🪙 ?' + N + '?', m => 'Buy 🪙 ' + (m[1] || '')), R('코인 부족 \\(' + N + ' 더 필요\\)', m => `Not enough coins (${m[1]} more)`), R('\\(' + N + ' 더 필요\\)', m => `(${m[1]} more)`),
+      R('강화 \\+(\\d) 🪙 ' + N, m => `Upgrade +${m[1]} 🪙 ${m[2]}`), R('강화 \\+(\\d) — 코인 부족 \\(' + N + ' 더 필요\\)', m => `Upgrade +${m[1]} — not enough coins (${m[2]} more)`),
+      R('(.+) 채를 (\\d+)코인에 살까요\\?', m => `Buy the ${T(m[1])} racket for ${m[2]} coins?`), R('(.+) 「(.+)」을\\(를\\) (\\d+)코인에 살까요\\?', m => `Buy ${T(m[1])} "${T(m[2])}" for ${m[3]} coins?`),
+      R('(.+) \\+(\\d) 강화 \\((\\d+)코인\\)', m => `${T(m[1])} +${m[2]} upgrade (${m[3]} coins)`), R('장점: (.+)', m => { const b = T(m[1]); return b && `Upside: ${b}`; }), R('단점: (.+)', m => { const b = T(m[1]); return b && `Downside: ${b}`; }), R('강화 단계는 나중에 낮춰 쓸 수 있어요\\.', () => 'You can use a lower upgrade level later.'),
+      R('(균형형|헤드 헤비|헤드 라이트)(?: \\+(\\d))?', m => this.EX[m[1]] + (m[2] ? ' +' + m[2] : '')),
+      R('스매시 각 ([+\\-−][\\d.]+)° \\(더 가파르고 빠르게\\)', m => `smash angle ${m[1]}° (steeper, faster)`), R('스매시 각 ([+\\-−][\\d.]+)° \\(더 날카롭고 빠르게\\)', m => `smash angle ${m[1]}° (sharper, faster)`), R('스매시 각 ([+\\-−][\\d.]+)° \\(더 완만하고 느리게\\)', m => `smash angle ${m[1]}° (flatter, slower)`),
+      R('상대 반응 \\+(\\d+)ms', m => `opponent reacts +${m[1]}ms later`), R('상대 리턴 오차 \\+(\\d+)%', m => `opponent return error +${m[1]}%`), R('충전 시간 ([+\\-−]\\d+%)', m => `charge time ${m[1]}`), R('정타 여유 ([+\\-−]\\d+%)', m => `timing window ${m[1]}`),
+      R('내 슬로우 범위 \\+([\\d.]+)m \\(기본 ([\\d.]+)m → ([\\d.]+)m\\)', m => `my slow-motion radius +${m[1]}m (${m[2]}m → ${m[3]}m)`), R('경기 중 (\\d+)% 확률로 낙하 지점 힌트\\(하늘색\\)가 일찍 보임', m => `${m[1]}% chance of an early landing hint (light blue) in matches`),
+      R('다음 레벨: 연속 (\\d+)번 성공', m => `Next level: ${m[1]} in a row`), R('현재 효과: (.+)', m => { const b = T(m[1]); return b && `Current effect: ${b}`; }), R('다음 레벨까지 ' + N + ' 경험치', m => `${m[1]} XP to next level`),
+      R('타격 판정 거리 \\+([\\d.]+)cm', m => `hit reach +${m[1]}cm`), R('이동 속도 \\+(\\d+)%', m => `move speed +${m[1]}%`), R('점프 초기속도 \\+(\\d+)% \\(높이 약 \\+(\\d+)%\\)', m => `jump speed +${m[1]}% (height about +${m[2]}%)`), R('최대 체력 \\+(\\d+) \\(기본 100\\)', m => `max stamina +${m[1]} (base 100)`),
+      R('경험치: 승리 (\\d+)', m => `XP: win ${m[1]}`), R('패배 최대 (\\d+)\\(점수 비례\\)', m => `loss up to ${m[1]} (by score)`), R('훈련 레벨업 (\\d+)', m => `training level-up ${m[1]}`), R('일일 챌린지 첫 도전 (\\d+)', m => `first daily challenge ${m[1]}`), R('친선게임 (\\d+)', m => `online match ${m[1]}`),
+      R('스탯마다 최대 (\\d+), 포인트는 모두 (\\d+)개라 전부 채울 수는 없어요', m => `max ${m[1]} per stat, and only ${m[2]} points in total, so you cannot max everything`),
+      R('(리치|스피드|점프|체력) (올리기|내리기)', m => `${this.EX[m[1]]} ${m[2] === '올리기' ? 'up' : 'down'}`), R('(.+) — (\\d+)코인', m => `${T(m[1])} — ${m[2]} coins`), R('🪙 ' + N, m => `🪙 ${m[1]}`),
+      R('\\+' + N + ' 코인', m => `+${m[1]} coins`), R('보유 ' + N, m => `balance ${m[1]}`), R('🪙 친선게임 코인은 하루 (\\d+)경기까지 \\(오늘은 다 받았어요\\)', m => `🪙 Online-match coins are limited to ${m[1]} games a day (all claimed today)`),
+      R('(승리|참가) · 오늘 (\\d)/(\\d)', m => `${m[1] === '승리' ? 'win' : 'played'} · today ${m[2]}/${m[3]}`), R('오늘 (\\d+)/(\\d+)', m => `today ${m[1]}/${m[2]}`), R('\\((.+)\\)', m => { const b = T(m[1]); return b && `(${b})`; }),
+      R('선수 경험치 \\+(\\d+)', m => `Player XP +${m[1]}`), R('Lv\\.(\\d+)(?: \\((\\d+)/(\\d+)\\))?', m => m[0]), R('Lv\\.(\\d+) \\(최고 레벨\\)', m => `Lv.${m[1]} (max level)`), R('레벨 업! 스탯 포인트 \\+(\\d+)', m => `Level up! +${m[1]} stat point`), R('\\(대기화면 「내 선수」\\)', () => '("My player" on the menu)'), R('—', () => '—'),
+      R('· 업로드 대기 (\\d+)경기', m => `· ${m[1]} games waiting to upload`), R('15점 ×([\\d.]+)', m => `to 15 ×${m[1]}`), R('21점 ×([\\d.]+)', m => `to 21 ×${m[1]}`), R('승리 보상의 (\\d+)% × \\(내 점수 ÷ 목표 점수\\)', m => `${m[1]}% of the win reward × (your points ÷ target)`),
+      R('(\\d+)타 \\+(\\d+)', m => `${m[1]} hits +${m[2]}`), R('(\\d+)타 \\+(\\d+) \\(경기당 한 번\\)', m => `${m[1]} hits +${m[2]} (once per match)`), R('처음 깨는 경기 ×(\\d+)', m => `first clear ×${m[1]}`), R('대회 첫 우승 \\+(.+)', m => `first tournament win +${m[1]}`),
+      R('첫 도전 \\+(\\d+)', m => `first try +${m[1]}`), R('최고 점수 (\\d+)점당 1(?: \\(오늘 (\\d+) 받음\\))?', m => `1 per ${m[1]} pts of your best` + (m[2] ? ` (${m[2]} claimed today)` : '')), R('승 (\\d+)', m => `win ${m[1]}`), R('패 (\\d+) \\(오늘 (\\d)/(\\d)경기\\)', m => `loss ${m[1]} (today ${m[2]}/${m[3]})`),
+      R('AI 대전 (승|패)', m => `vs AI ${m[1] === '승' ? 'win' : 'loss'}`), R('친선게임 (승|패)', m => `Online ${m[1] === '승' ? 'win' : 'loss'}`), R('(커리어|훈련 레벨업|채 구매|채 강화|스킨) · (.+)', m => `${{ '커리어': 'Career', '훈련 레벨업': 'Level-up', '채 구매': 'Racket', '채 강화': 'Upgrade', '스킨': 'Skin' }[m[1]]} · ${T(m[2]) || m[2]}`),
+      R('(유니폼|채 색|코트) (.+)', m => { const b = T(m[2]); return b && `${this.EX[m[1]]}: ${b}`; }),
+      R('(일일 챌린지|튜토리얼|친선게임|빠른 대전|커리어|AI 대전) ·', m => this.EX[m[1]] + ' ·'), R('(근력|순발력|판단력) 훈련', m => `${this.EX[m[1]]} training`), R('(근력|순발력|판단력) Lv\\.(\\d) 달성!(.*)', m => `${this.EX[m[1]]} Lv.${m[2]} reached!${m[3]}`),
+      R('일일 챌린지 끝', () => 'Daily challenge finished'), R('\\(성공 (\\d+)/(\\d+)', m => `(${m[1]}/${m[2]} hit`), R('최고 연속 (\\d+)\\)', m => `best streak ${m[1]})`), R('오늘 순위', () => "Today's rank"), R('\\(연속 (\\d+)\\)', m => `(streak ${m[1]})`), R('· 연속 끊김', () => '· streak broken'),
+      R('(.+) \\+(\\d+)', m => { const a = T(m[1]); return a && `${a} +${m[2]}`; }), R('(.+) \\((\\d+)/(\\d+)\\)', m => { const a = T(m[1]); return a && `${a} (${m[2]}/${m[3]})`; }),
+      R('(\\d+)/(\\d+)월? ?.*', m => null),
+      R('배드민턴 랠리 (승리|패배) (\\d+):(\\d+)', m => `Badminton Rally ${m[1] === '승리' ? 'win' : 'loss'} ${m[2]}:${m[3]}`), R('AI (쉬움|중간|어려움|지옥|임파서블)', m => `AI ${this.EX[m[1]]}`),
+      R('(대기열|방 채널) 연결 실패 \\((.+)\\)', m => `Connection failed (${m[2]})`), R('(\\d+)점', m => `${m[1]} pts`)
+    ];
+  },
+
+  // 한 조각(구분 기호 없는 단위) 번역 → 못 하면 null
+  one(s) {
+    if (!this.HAN.test(s)) return s;
+    if (Object.prototype.hasOwnProperty.call(this.EX, s)) return this.EX[s];
+    for (const [re, fn] of this.RX) { const m = re.exec(s); if (m) { const r = fn(m); if (r != null && r !== false && !this.HAN.test(r)) return r; } }
+    return null;
+  },
+  // 문장 번역(앞뒤 공백 없는 글) → 못 하면 null
+  core(s, depth) {
+    depth = depth || 0;
+    if (!this.HAN.test(s)) return s;
+    let r = this.one(s); if (r != null) return r;
+    if (depth > 4) return null;
+    for (const sep of ['\n', ' — ', ' · ', ' / ']) {
+      if (!s.includes(sep)) continue;
+      const out = s.split(sep).map(p => { const lead = /^\s*/.exec(p)[0], tail = /\s*$/.exec(p)[0], c = p.trim(); if (!c) return p; const x = this.core(c, depth + 1); return x == null ? null : lead + x + tail; });
+      if (out.every(x => x != null)) return out.join(sep);
+    }
+    let m = /^([·—]) (.+)$/.exec(s); if (m) { r = this.core(m[2], depth + 1); if (r != null) return m[1] + ' ' + r; }
+    m = /^(.+) ([·—])$/.exec(s); if (m) { r = this.core(m[1], depth + 1); if (r != null) return r + ' ' + m[2]; }
+    if (/^\([^)]*$/.test(s)) { r = this.core(s.slice(1), depth + 1); if (r != null) return '(' + r; }   // 괄호가 조각 경계에서 갈린 경우
+    if (/^[^(]*\)$/.test(s)) { r = this.core(s.slice(0, -1), depth + 1); if (r != null) return r + ')'; }
+    m = /^(.*\S) \(([^()]+)\)$/.exec(s); if (m) { const a = this.core(m[1], depth + 1), b = this.core(m[2], depth + 1); if (a != null && b != null) return `${a} (${b})`; }
+    m = /^(.*[가-힣)!])\s([^가-힣]+)$/.exec(s); if (m) { const a = this.core(m[1], depth + 1); if (a != null) return a + ' ' + m[2]; }
+    m = /^([^가-힣]+)\s([가-힣].*)$/.exec(s); if (m) { const b = this.core(m[2], depth + 1); if (b != null) return m[1] + ' ' + b; }
+    return null;
+  },
+  t(s) {
+    if (this.lang !== 'en' || typeof s !== 'string' || !this.HAN.test(s)) return s;
+    if (this.cache.has(s)) return this.cache.get(s);
+    const c = s.trim(), r = this.core(c);
+    const out = r == null ? s : s.replace(c, () => r);
+    if (r == null) this.miss.add(c);
+    if (this.cache.size > 4000) this.cache.clear();
+    this.cache.set(s, out); return out;
+  },
+  missing() { return [...this.miss]; },
+
+  // ── 화면 적용 ──
+  node(n) {
+    if (n.nodeType === 3) { const p = n.parentNode; if (p && (p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE' || p.nodeName === 'TEXTAREA')) return; const v = n.nodeValue, r = this.t(v); if (r !== v) n.nodeValue = r; return; }
+    if (n.nodeType !== 1 || n.id === 'classic' || n.id === 'langBtn') return;
+    for (const a of ['placeholder', 'title', 'aria-label']) { const v = n.getAttribute && n.getAttribute(a); if (v && this.HAN.test(v)) { const r = this.t(v); if (r !== v) n.setAttribute(a, r); } }
+    for (let c = n.firstChild; c; c = c.nextSibling) this.node(c);
+  },
+  start() {
+    try { this.lang = localStorage.getItem(this.KEY) === 'en' ? 'en' : 'ko'; } catch (e) { /* 무시 */ }
+    this.RX = this.rules();
+    const h1 = document.querySelector('#lobby h1');
+    if (h1) {
+      const b = document.createElement('button'); b.id = 'langBtn'; b.className = 'langbtn'; b.textContent = this.lang === 'en' ? '한국어' : 'English'; b.title = this.lang === 'en' ? '한국어로 보기' : 'Switch to English';
+      b.addEventListener('click', () => { try { localStorage.setItem(this.KEY, this.lang === 'en' ? 'ko' : 'en'); } catch (e) { /* 무시 */ } location.reload(); });
+      h1.appendChild(b);
+    }
+    if (this.lang !== 'en') return;
+    document.documentElement.lang = 'en'; document.title = 'Badminton Rally — 3D badminton in your browser';
+    const oc = window.confirm; window.confirm = m => oc.call(window, this.t(String(m)));
+    this.node(document.body);
+    new MutationObserver(list => {
+      for (const m of list) {
+        if (m.type === 'characterData') this.node(m.target);
+        else if (m.type === 'attributes') { const v = m.target.getAttribute(m.attributeName); if (v && this.HAN.test(v)) { const r = this.t(v); if (r !== v) m.target.setAttribute(m.attributeName, r); } }
+        else for (const n of m.addedNodes) this.node(n);
+      }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label'] });
+  }
+};
+
+const TUTORIAL_3D_PAGES_EN = [
+  { t: '1. Basic controls (3D Court)', b: '<b>WASD</b> move · <b>mouse</b> = shot direction (the dotted line at your feet points to the cursor)<br><b>Q</b> lift · <b>E</b> smash · <b>left click</b> flat — all are <b>hold to charge, swing on release</b><br><b>Space</b> jump · <b>Shift</b> lunge · <b>Esc</b> menu' },
+  { t: '2. Charge = shot type', b: 'The <b>mouse</b> sets the direction; the <b>charge</b> sets distance and shot type.<br><b>Q lift</b>: short → hairpin/lift, long → clear<br><b>E smash</b>: short → drop, long → smash (jump smash in the air)<br><b>Left click flat</b>: short → push, long → drive<br>Holding into the <b>red zone</b> at the right of the gauge fails: lift and flat go <b>out</b>, smash goes into the <b>net</b>.' },
+  { t: '3. Slow-motion timing', b: 'When the shuttle comes <b>right next to your racket arm</b> (about 1.4 m) the whole game briefly slows down (the screen edges darken).<br>The slow-down is short, so <b>hold to charge early</b> and <b>release as the shuttle reaches your racket</b>.<br>Release too early and you whiff!<br>The longer the rally, the <b>faster the shuttle and the game</b> (up to 1.4×) and the <b>smaller the slow-motion radius</b>.<br><b>Right at the net</b> the radius shrinks by up to 30%.<br>Charging Q or E <b>past 80%</b> shortens the hit window; at 100% you must release at <b>exactly the right moment</b>.' },
+  { t: '4. Forehand · backhand (automatic)', b: 'On your racket side it is a <b>forehand</b>, on the other side a <b>backhand</b> — shown at the bottom of the screen in advance.<br>Backhands travel less far and are less accurate. A close overhead shuttle on the backhand side is taken <b>round the head</b> (as a forehand).<br>You can switch to <b>left-handed</b> on the menu.' },
+  { t: '5. Serving and rules (real singles rules)', b: 'Serve from the <b>right court on even scores, the left on odd</b>, into the <b>diagonal</b> service court (past the short service line, up to the baseline).<br>Your serve: <b>hold Q</b> — the gauge swings <b>back and forth</b>. Release low for a short serve, high for a long serve. Releasing in the red zones at either end (net/out) is a fault.<br>On the line is in. 21 points, win by 2 from 20–20, first to 30 at 29–29.' },
+  { t: '6. You cannot smash a low shuttle', b: 'The smash (E) only works from a <b>high contact point</b> — hit down from below net height and it goes straight into the net.<br>Take low shuttles with Q (lift) or left click (push). Use <b>Space to jump</b> for a higher contact point.' },
+  { t: '7. Shift lunge', b: '<b>Shift</b> takes one big step (about 1.1 m) with your arm stretched out, adding 0.45 m of reach.<br>Direction: <b>your movement keys if held</b>, otherwise <b>automatically toward where the shuttle is going</b>.<br>A <b>lunge at the net + Q (hairpin/lift) or left click (push)</b> is actually more accurate — that is how real players take net shots.<br>Lunging for a deep shuttle sends it a bit shorter. Ready again about 1 second after use (shown bottom left). Lunges, jumps, running and charged swings use <b>stamina</b>.' },
+  { t: '8. Training — build your player', b: 'Pick <b>3D Court → Training</b> on the menu. Fill the streak to level up (max Lv.5); level effects apply in <b>vs AI and Career</b>.<br><b>Power</b>: smash high shuttles into the yellow target → steeper, faster smashes and slower opponent reactions<br><b>Agility</b>: return the opponent\'s smashes → a much larger slow-motion radius<br><b>Judgment</b>: call in/out near the lines → occasional early landing hints (light blue) in matches' },
+  { t: '9. Online: Friendly and Quick match', b: '<b>Friendly</b>: one player presses <b>Create room</b> and shares the <b>5-letter code</b>; the friend enters it and presses <b>Join</b>.<br><b>Quick match</b>: finds a player with a similar rating automatically (first to 11). If nobody is waiting you play the AI.<br>Both players see themselves at the front of the screen. The host serves first and sets the target score.<br>You need internet; with high latency the opponent may look slightly delayed. Keep the window visible during a match — a hidden tab pauses your side.' },
+  { t: '10. Landing marker', b: 'Press <b>L</b> or the <b>📍 Landing</b> button to toggle the shuttle landing marker (remembered in your browser).<br>When off, no landing marker or light-blue hints appear at any difficulty. <b>In online matches a change by either player applies to both</b> (same for the shuttle shadow, G, and stamina).' },
+  { t: '11. Emotes · shadow · change of ends', b: '<b>Hold T</b> to open the wheel. <b>Move the mouse</b> to choose (inner = faces, outer = phrases) and <b>release T</b> to send. Release in the middle to cancel.<br><b>G</b> or the 🌑 button hides the shuttle shadow and drop line (then you judge in/out by eye).<br>In games to 15 or more, the players <b>change ends</b> when one reaches half (8 of 15, 11 of 21).<br>If your opponent leaves a Friendly match it pauses; <b>rejoining with the same code from the same browser continues from that score</b>.' },
+  { t: '12. Career · daily challenge · coins', b: '<b>Career</b>: win the Local → City → National → World Open in turn. Each has 3 matches (quarterfinal, semifinal, final) against opponents with different styles and strength. Lose and you retry just that match.<br><b>Daily challenge</b>: one drill per day (resets at midnight Korea time) with the <b>same 15 shuttles</b> for everyone. 100 pts per success plus a streak bonus (up to +100). Best score counts; log in to appear on the leaderboard.<br><b>Coins</b> come from finished matches, the daily challenge, long rallies and training level-ups. Spend them on rackets (vs AI / Career only) and looks.<br>There is no music; the crowd applauds only for <b>smash winners, rallies over 10 hits and dramatic saves</b>. <b>M</b> = mute.' }
+];
+I18N.start();
+</script>
 <script>
 // app/touch.js — 모바일(터치) 버튼 조작 공용 도구
 //   터치 기기면 <body class="touch"> → CSS가 코트 양옆에 버튼 패드를 보여줌 (PC 화면은 그대로)
@@ -2246,15 +2521,15 @@ const C3 = Object.freeze({
   // 쉬움은 '엉뚱한 실수가 잦은 AI'가 아니라 '느리고 순한 AI' — 실수는 적고, 대신 공이 순하고 예측 가능
   AI: Object.freeze({
     //        chaseOut: 아웃될 공도 받아치는 확률 (라인 0.35m 안쪽 애매한 공은 +0.3)
-    easy:   { spd: 2.15, react: 0.58, err: 1.65, over: 0.03,  smash: 0.05, edge: 0.0,  jump: 0.0,  misread: 0.04,  chaseOut: 0.3,  soft: 0.75 },
-    normal: { spd: 2.75, react: 0.43, err: 1.65, over: 0.05,  smash: 0.27, edge: 0.3,  jump: 0.05, misread: 0.05,  chaseOut: 0.25, soft: 0.3 },
-    hard:   { spd: 4.0,  react: 0.23, err: 1.2,  over: 0.045, smash: 0.65, edge: 0.78, jump: 0.4,  misread: 0.035, chaseOut: 0.2,  soft: 0 },
-    hell:   { spd: 4.5,  react: 0.16, err: 0.95, over: 0.025, smash: 0.75, edge: 0.9,  jump: 0.6,  misread: 0.02,  chaseOut: 0.15, soft: 0 },
-    imp:    { spd: 5.0,  react: 0.11, err: 0.72, over: 0.012, smash: 0.83, edge: 0.97,  jump: 0.75, misread: 0.008, chaseOut: 0.1,  soft: 0 }
+    easy:   { spd: 2.05, react: 0.61, err: 1.78, over: 0.03,  smash: 0.05, edge: 0.0,  jump: 0.0,  misread: 0.05,  chaseOut: 0.3,  soft: 0.75 },
+    normal: { spd: 2.6,  react: 0.46, err: 1.78, over: 0.05,  smash: 0.24, edge: 0.3,  jump: 0.05, misread: 0.06,  chaseOut: 0.25, soft: 0.3 },
+    hard:   { spd: 3.8,  react: 0.26, err: 1.3,  over: 0.045, smash: 0.6,  edge: 0.78, jump: 0.4,  misread: 0.045, chaseOut: 0.2,  soft: 0 },
+    hell:   { spd: 4.3,  react: 0.19, err: 1.03, over: 0.025, smash: 0.7,  edge: 0.9,  jump: 0.6,  misread: 0.028, chaseOut: 0.15, soft: 0 },
+    imp:    { spd: 4.75, react: 0.14, err: 0.78, over: 0.012, smash: 0.78, edge: 0.97,  jump: 0.75, misread: 0.014, chaseOut: 0.1,  soft: 0 }
   }),
   // AI 전술·성향 [게임]
   //   AI_TACT: 내 위치를 보고 샷을 고르는 확률 (뒤에 있으면 짧게, 네트 앞이면 길게). 쉬움은 0 = 예전처럼 순한 공
-  AI_TACT: Object.freeze({ easy: 0, normal: 0.3, hard: 0.65, hell: 0.85, imp: 0.97 }),
+  AI_TACT: Object.freeze({ easy: 0, normal: 0.25, hard: 0.58, hell: 0.78, imp: 0.9 }),
   AI_AIM_MAX: 0.9,                       // AI 조준 최대 각 (±52°, 플레이어 AIM_YAW_MAX와 같음. 예전엔 ±31°)
   //   AI_STYLE: 난이도 수치에 곱/더해지는 성향. smashMul 스매시 선택 배율, front 짧은 공(드롭·헤어핀) 추가 확률, deepP 스매시 대신 클리어로 바꿀 확률,
   //             overMul 과충전 실수 배율, misMul 오판 배율, jumpAdd 점프 확률 가산, baseZ 기본 대기 위치(네트에서 거리 m)
@@ -4394,24 +4669,25 @@ const Share3 = {
         const sh = c.createLinearGradient(0, 0, 0, H); sh.addColorStop(0, 'rgba(8,9,24,.78)'); sh.addColorStop(0.55, 'rgba(8,9,24,.55)'); sh.addColorStop(1, 'rgba(8,9,24,.9)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
       }
     } catch (e) { /* 화면 복사가 막힌 환경 → 색 배경 그대로 */ }
+    const tr = s => typeof I18N !== 'undefined' ? I18N.t(String(s)) : s;   // 영어 모드면 카드 글자도 영어로
     const col = d.won ? '#5BFFB0' : '#FF8A8A';
     c.textBaseline = 'alphabetic'; c.textAlign = 'left';
-    c.fillStyle = '#FFFFFF'; c.font = F(700, 34); c.fillText('배드민턴 랠리', 60, 78);
-    c.fillStyle = '#FFB13B'; c.beginPath(); c.arc(60 + c.measureText('배드민턴 랠리').width + 22, 66, 10, 0, 7); c.fill();
-    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = F(500, 24); c.textAlign = 'right'; c.fillText(d.mode || '', W - 60, 76);
+    c.fillStyle = '#FFFFFF'; c.font = F(700, 34); c.fillText(tr('배드민턴 랠리'), 60, 78);
+    c.fillStyle = '#FFB13B'; c.beginPath(); c.arc(60 + c.measureText(tr('배드민턴 랠리')).width + 22, 66, 10, 0, 7); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = F(500, 24); c.textAlign = 'right'; c.fillText(tr(d.mode || ''), W - 60, 76);
     c.textAlign = 'center';
-    c.fillStyle = col; c.font = F(800, 64); c.fillText(d.won ? '승리!' : '패배', W / 2, 178);
+    c.fillStyle = col; c.font = F(800, 64); c.fillText(tr(d.won ? '승리!' : '패배'), W / 2, 178);
     c.fillStyle = '#FFFFFF'; c.font = F(800, 170); c.fillText(d.pts + ' : ' + d.opts, W / 2, 350);
     c.font = F(600, 30); c.fillStyle = 'rgba(255,255,255,.92)';
-    c.textAlign = 'center'; c.fillText(this.fit(c, d.me || '나', 420) + '   vs   ' + this.fit(c, d.opp || '상대', 420), W / 2, 414);
+    c.textAlign = 'center'; c.fillText(this.fit(c, tr(d.me || '나'), 420) + '   vs   ' + this.fit(c, tr(d.opp || '상대'), 420), W / 2, 414);
     // 기록 칸
     const stats = [['가장 긴 랠리', (d.maxRally | 0) + '타'], ['내 최고 스매시', d.topKmh ? d.topKmh + ' km/h' : '—']].concat(d.extra || []);
     const bw = 300, gap = 24, x0 = (W - (bw * stats.length + gap * (stats.length - 1))) / 2;
     stats.forEach(([k, v], i) => {
       const x = x0 + i * (bw + gap), y = 448;
       c.fillStyle = 'rgba(255,255,255,.1)'; this.rr(c, x, y, bw, 104, 18); c.fill();
-      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.65)'; c.font = F(500, 22); c.fillText(k, x + bw / 2, y + 38);
-      c.fillStyle = '#FFD23F'; c.font = F(800, 38); c.fillText(v, x + bw / 2, y + 84);
+      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.65)'; c.font = F(500, 22); c.fillText(tr(k), x + bw / 2, y + 38);
+      c.fillStyle = '#FFD23F'; c.font = F(800, 38); c.fillText(tr(v), x + bw / 2, y + 84);
     });
     const dt = new Date(), ds = dt.getFullYear() + '.' + (dt.getMonth() + 1) + '.' + dt.getDate();
     c.font = F(500, 22); c.fillStyle = 'rgba(255,255,255,.6)'; c.textAlign = 'left'; c.fillText(ds, 60, H - 36);
@@ -4696,7 +4972,7 @@ class Guide3D {
   }
   advance() {
     this.step++; this.fails = 0; this.moveDone = false;
-    if (this.step >= GUIDE_STEPS.length) { this.step = GUIDE_STEPS.length - 1; this.finished = true; Guide3D.markSeen(); }
+    if (this.step >= GUIDE_STEPS.length) { this.step = GUIDE_STEPS.length - 1; this.finished = true; Guide3D.markSeen(); if (typeof Account !== 'undefined') Account.track('guide', { done: true }); }
   }
   // 마지막 단계가 끝난 뒤 (game.setupPoint가 호출)
   finish() {
@@ -4713,6 +4989,7 @@ class Guide3D {
     g.hud.el.startBtn.textContent = '시작';
   }
   skip() {
+    if (typeof Account !== 'undefined') Account.track('guide', { done: false, step: this.step });
     Guide3D.markSeen(); this.finished = true;
     if (this.g.onGuideDone) this.g.onGuideDone();
   }
@@ -4854,6 +5131,135 @@ class Net3D {
     a.extT = s.e; if (s.e > 0) a.extDir = { x: s.dx, z: s.dz };
     a.charge = s.ch ? (a.charge && a.charge.type === s.ch ? a.charge : { type: s.ch, c: 0.5, dir: 1 }) : null;
   }
+}
+</script>
+<script>
+// court3d/quick.js — 빠른 대전: 매칭 점수가 비슷한 사람을 자동으로 찾아 1:1 방을 만들어 줌 (Supabase Realtime, 별도 서버 없음)
+//   Rate3 — 매칭 점수 [게임]
+//     · 처음엔 1000 + 20 × 선수 레벨로 시작, 그 뒤로는 빠른 대전 승패로만 변함 (엘로 방식, K = 32: 강한 상대를 이기면 많이, 약한 상대를 이기면 조금 오름)
+//     · 빠른 대전은 채·선수 스탯 효과가 없는 같은 조건이라, '비슷한 스탯' = 실력을 나타내는 이 점수로 맞춤. 점수가 같으면 선수 레벨이 가까운 쪽
+//     · 저장: 브라우저(badminton.rating.v1) · 로그인하면 wallets 표 gear 칸의 _rate (경기 수가 많은 쪽)
+//     · 점수는 각자 브라우저가 계산 — 조작 방지(서버 판정)는 랭크전에서. 중간에 나가도 지금은 점수 변화 없음
+//   Quick3 — 대기열
+//     · 대기 채널 bm3d-queue의 presence에 { 점수, 레벨, 이름, 대기 시작 시각 }을 올림
+//     · 허용 차이: 처음 ±100, 3초마다 +50씩 넓어짐 (둘 중 오래 기다린 쪽 기준) → 사람이 적어도 결국 잡힘
+//     · 허용 범위 안에서 점수 차가 가장 작은 사람이 '내 최선'. 두 사람 중 id가 작은 쪽이 초대(inv) → 받은 쪽이 대기 중이면 수락(ok) → 둘 다 대기열을 나가 같은 방 코드로 입장
+//     · 초대가 4초 안에 수락되지 않거나 거절(no)되면 그 사람은 잠시 건너뛰고 다시 찾음
+//     · AI_AFTER초 동안 아무도 없으면 onNoOne (AI와 대전으로 넘어감)
+
+const Rate3 = {
+  KEY: 'badminton.rating.v1', K: 32, BASE: 1000, PER_LV: 20,
+  r: null, n: 0, w: 0,
+  load() { try { const v = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (v && typeof v === 'object') this.take(v, true); } catch (e) { /* 무시 */ } },
+  save(quiet) {
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.dump())); } catch (e) { /* 무시 */ }
+    if (!quiet && this.onChange) { try { this.onChange(); } catch (e) { console.error(e); } }
+  },
+  dump() { return { r: this.r, n: this.n, w: this.w }; },
+  // 다른 곳(서버) 값: 경기 수가 더 많으면(또는 force) 그쪽을 씀
+  take(v, force) {
+    if (!v || typeof v !== 'object' || !(Number(v.r) > 0)) { if (force) { this.r = null; this.n = 0; this.w = 0; } return; }
+    const n = Math.max(0, v.n | 0);
+    if (force || n > this.n) { this.r = Math.max(100, Math.min(4000, Math.round(Number(v.r)))); this.n = n; this.w = Math.max(0, Math.min(n, v.w | 0)); }
+  },
+  seed() { return this.BASE + this.PER_LV * (typeof Stats3 !== 'undefined' ? Stats3.level() : 0); },
+  get() { return this.r == null ? this.seed() : this.r; },
+  expect(mine, opp) { return 1 / (1 + Math.pow(10, (opp - mine) / 400)); },   // 내가 이길 것으로 보는 확률
+  // 한 경기 반영 → { before, after, diff }
+  update(oppR, won) {
+    const before = this.get(), o = Number(oppR) > 0 ? Number(oppR) : before;
+    const after = Math.max(100, Math.round(before + this.K * ((won ? 1 : 0) - this.expect(before, o))));
+    this.r = after; this.n++; if (won) this.w++; this.save();
+    return { before, after, diff: after - before };
+  },
+  aiDiff() { const r = this.get(); return r < 950 ? 'easy' : r < 1100 ? 'normal' : r < 1250 ? 'hard' : 'hell'; }   // 대기자가 없을 때 붙일 AI 난이도
+};
+Rate3.load();
+
+const QUICK3 = Object.freeze({ CH: 'bm3d-queue', RANGE0: 100, RANGE_STEP: 50, RANGE_EVERY: 3, INVITE_WAIT: 4, SKIP: 6, AI_AFTER: 25, TICK: 500, WIN: 11 });
+
+class Quick3 {
+  constructor() { this.id = Math.random().toString(36).slice(2, 10); this.ch = null; this.state = 'idle'; }
+  get active() { return !!this.ch; }
+  range(at, now) { return QUICK3.RANGE0 + QUICK3.RANGE_STEP * Math.floor(Math.max(0, now - at) / 1000 / QUICK3.RANGE_EVERY); }
+
+  // me = { r, lv, name } · cb = { onStatus({ waited, range, others }), onMatch({ code, host, opp:{ r, lv, name } }), onNoOne(), onError(msg) }
+  async start(me, cb) {
+    this.stop();
+    const sb = typeof Account !== 'undefined' ? Account.sb : null;
+    if (!sb) throw new Error('온라인 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
+    Object.assign(this, { me: { r: Math.round(me.r), lv: me.lv | 0, name: String(me.name || '게스트').slice(0, 12) }, cb, at: Date.now(), state: 'wait', target: null, skip: {} });
+    const ch = sb.channel(QUICK3.CH, { config: { broadcast: { self: false }, presence: { key: this.id } } });
+    this.ch = ch;
+    ch.on('broadcast', { event: 'q' }, ({ payload }) => { try { this.recv(payload); } catch (e) { console.error(e); } });
+    ch.on('presence', { event: 'sync' }, () => {});
+    await new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error('연결 시간 초과')), 10000);
+      ch.subscribe(async st => {
+        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ r: this.me.r, lv: this.me.lv, name: this.me.name, at: this.at }); } catch (e) { /* 무시 */ } res(); }
+        else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { clearTimeout(to); rej(new Error('대기열 연결 실패 (' + st + ')')); }
+      });
+    });
+    if (this.ch !== ch) return;   // 그사이 취소함
+    this.timer = setInterval(() => { try { this.tick(); } catch (e) { console.error(e); } }, QUICK3.TICK);
+    this.tick();
+  }
+  stop() {
+    const ch = this.ch; this.ch = null; this.state = 'idle';
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (ch) { try { ch.unsubscribe(); Account.sb.removeChannel(ch); } catch (e) { /* 무시 */ } }
+  }
+  send(m) { if (this.ch) { m.from = this.id; this.ch.send({ type: 'broadcast', event: 'q', payload: m }).catch(() => {}); } }
+
+  // 지금 대기 중인 다른 사람들 [{ id, r, lv, name, at }]
+  others() {
+    const st = this.ch ? this.ch.presenceState() : {}, out = [];
+    for (const k in st) {
+      const p = st[k] && st[k][0];
+      if (k === this.id || !p || !(Number(p.r) > 0)) continue;
+      out.push({ id: k, r: Number(p.r), lv: p.lv | 0, name: String(p.name || '게스트').slice(0, 12), at: Number(p.at) || Date.now() });
+    }
+    return out;
+  }
+  // 내 최선의 상대: 허용 범위 안에서 점수 차가 가장 작은 사람 (같으면 레벨 차 → id 순)
+  best(list, now) {
+    const mine = this.range(this.at, now);
+    let b = null, bk = null;
+    for (const p of list) {
+      if ((this.skip[p.id] || 0) > now) continue;
+      const d = Math.abs(p.r - this.me.r);
+      if (d > Math.max(mine, this.range(p.at, now))) continue;
+      const k = [d, Math.abs(p.lv - this.me.lv), p.id];
+      if (!b || k[0] < bk[0] || (k[0] === bk[0] && (k[1] < bk[1] || (k[1] === bk[1] && k[2] < bk[2])))) { b = p; bk = k; }
+    }
+    return b;
+  }
+  tick() {
+    if (!this.ch) return;
+    const now = Date.now(), list = this.others(), waited = (now - this.at) / 1000;
+    if (this.state === 'inviting' && now > this.inviteUntil) { this.skip[this.target.id] = now + QUICK3.SKIP * 1000; this.state = 'wait'; this.target = null; }
+    if (this.state === 'wait') {
+      const b = this.best(list, now);
+      if (b && this.id < b.id) {   // id가 작은 쪽이 초대
+        this.state = 'inviting'; this.target = b; this.code = Net3D.makeCode(); this.inviteUntil = now + QUICK3.INVITE_WAIT * 1000;
+        this.send({ t: 'inv', to: b.id, code: this.code, r: this.me.r, lv: this.me.lv, name: this.me.name });
+      } else if (!list.length && waited >= QUICK3.AI_AFTER) { const cb = this.cb; this.stop(); cb.onNoOne && cb.onNoOne(); return; }
+    }
+    if (this.cb.onStatus) this.cb.onStatus({ waited, range: this.range(this.at, now), others: list.length });
+  }
+  recv(m) {
+    if (!this.ch || !m || m.to !== this.id) return;
+    if (m.t === 'inv') {
+      if (this.state !== 'wait' || !/^[A-Z0-9]{5}$/.test(String(m.code))) return this.send({ t: 'no', to: m.from });
+      this.send({ t: 'ok', to: m.from });
+      this.matched({ code: m.code, host: false, opp: { r: Number(m.r) > 0 ? Number(m.r) : this.me.r, lv: m.lv | 0, name: String(m.name || '게스트').slice(0, 12) } });
+    } else if (m.t === 'ok' && this.state === 'inviting' && this.target && m.from === this.target.id) {
+      this.matched({ code: this.code, host: true, opp: { r: this.target.r, lv: this.target.lv, name: this.target.name } });
+    } else if (m.t === 'no' && this.state === 'inviting' && this.target && m.from === this.target.id) {
+      this.skip[m.from] = Date.now() + 3000; this.state = 'wait'; this.target = null;
+    }
+  }
+  matched(r) { const cb = this.cb; setTimeout(() => this.stop(), 300); this.state = 'matched'; if (this.timer) { clearInterval(this.timer); this.timer = null; } cb.onMatch && cb.onMatch(r); }   // 'ok'가 나간 뒤 채널을 닫음
 }
 </script>
 <script>
@@ -5000,7 +5406,9 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career, daily }) {
+  configure({ diff, win, hand, mode, train, style, career, daily, quick }) {
+    if (this.qm) this.qm.stop(); else if (typeof Quick3 !== 'undefined') this.qm = new Quick3();
+    this.quick = mode === 'room' && quick ? (typeof quick === 'object' ? quick : {}) : null;   // 빠른 대전: 친선게임과 같은 연결에 매칭 점수만 얹음 (상대를 찾으면 { r, lv, name })
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -5026,7 +5434,7 @@ class Game3D {
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
-      : this.mode === 'room' ? '친선게임 · ' + win + '점 · ' + hn
+      : this.mode === 'room' ? (this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
@@ -5065,7 +5473,7 @@ class Game3D {
   }
   stop() {
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
-    this.setShare(null);
+    this.setShare(null); if (this.qm) this.qm.stop();
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -5086,6 +5494,7 @@ class Game3D {
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
     for (const a of [this.me, this.opp]) if (a.sta && (m.pts || m.opts)) a.sta.v = Math.min(a.sta.max, a.sta.v + C3.STAMINA.REST);   // 점수 사이 숨 고르기
+    this.rec = null;   // 리플레이 기록은 랠리마다 새로
     this.lastShot = null;
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
@@ -5293,7 +5702,7 @@ class Game3D {
     // 새 상대 (또는 처음): 다른 사람이면 세트 스코어 새로
     if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
     this.roomRec.name = peer.name; this.awayPeer = null;
-    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room' });
+    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick });
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
@@ -5303,7 +5712,7 @@ class Game3D {
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
   netResume(m) {
     const M = this.match;
-    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room' });
+    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick });
     M.pts = m.pts | 0; M.opts = m.opts | 0; M.server = m.server === 'opp' ? 'opp' : 'me'; M.rally = 0;
     this.roomRec.sets = { me: (m.sets && m.sets.me) | 0, opp: (m.sets && m.sets.opp) | 0 };
     this.myEnd = m.end ? 1 : 0; this.midSwapped = !!m.mid; this.swapNext = !!m.swapNext; this.view.setEnd(this.myEnd ^ 1);
@@ -5336,7 +5745,7 @@ class Game3D {
     if (live && !this.running) { this.running = true; this.lastTs = 0; requestAnimationFrame(this.loop); }
     this.hud.banner('상대방이 나갔습니다', '#FF6B6B', 2);
     this.hud.showMessage('상대방이 나갔습니다' + (live ? ` — 점수 ${this.match.pts} : ${this.match.opts}에서 멈춤` : '')
-      + `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`);
+      + (this.quick ? '<br>Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)' : `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`));
   }
   netEmote(m) { this.emote.show('opp', String(m.id || '')); }
   netError(msg) {
@@ -5440,7 +5849,8 @@ class Game3D {
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
       if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
         me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
-        mode: this.mode === 'room' ? '친선게임' : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+        mode: this.mode === 'room' ? (this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
@@ -5467,6 +5877,8 @@ class Game3D {
     const b = this.shareBtn || (this.shareBtn = document.getElementById('c3share')); if (!b) return;
     if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.shareCard(); }); }
     b.hidden = !d || typeof Share3 === 'undefined';
+    if (!d) { if (this.replay) this.endReplay(); const rb = document.getElementById('c3replay'); if (rb) rb.hidden = true; }
+    else setTimeout(() => this.setReplayBtn(), 1700);   // 득점 뒤 장면까지 기록된 다음에 버튼을 보여 줌
   }
   async shareCard() {
     const d = this.shareData; if (!d || typeof Share3 === 'undefined') return;
@@ -5478,7 +5890,11 @@ class Game3D {
   payMatch(won) {
     if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
     const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
-    if (this.mode === 'room') { const r = Wallet.room(won); return r.html + (XP && r.sum ? XP.gain('room').html : ''); }
+    if (this.mode === 'room') {
+      const r = Wallet.room(won); let rate = '';
+      if (this.quick && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
+      return rate + r.html + (XP && r.sum ? XP.gain('room').html : '');
+    }
     const m = this.match, c = this.career;
     const xp = XP ? XP.gain(won ? 'win' : 'loss', m.pts / m.win).html : '';   // 선수 경험치
     return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
@@ -5507,6 +5923,7 @@ class Game3D {
   }
 
   frame(real) {
+    if (this.replay) return this.replayFrame(real);
     const s = this.sh, STEP = C3.PHYS.STEP;
     // 슬로우: 셔틀이 칠 차례인 선수의 라켓 팔 어깨 근처면
     let slow = false;
@@ -5561,6 +5978,68 @@ class Game3D {
     this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
     this.hud.update(real, this.me, s, this.duo ? this.opp : null);
     this.view.render();
+    this.recTick(real);
+  }
+
+  // ───── 마지막 랠리 리플레이 [게임 연출] ─────
+  //   서브 직전부터 득점 뒤 1.6초까지, 두 선수의 상태(위치·점프·런지·스윙·충전·세리머니)와 셔틀을 초당 30번 기록 (최대 80초)
+  //   경기가 끝나면 '마지막 랠리 다시 보기'로 그대로 되돌려 재생. 마지막 1.5초는 절반 속도. 소리·타격 이펙트는 다시 나오지 않음
+  recSnap() {
+    const s = this.sh, A = a => ({ px: a.pos.x, pz: a.pos.z, vx: a.vel.x, vz: a.vel.z, y: a.y, vy: a.vy, extT: a.extT, recoverT: a.recoverT, ex: a.extDir.x, ez: a.extDir.z,
+      stride: a.stride, charge: a.charge ? { ...a.charge } : null, sw: a.swingS ? { ...a.swingS } : null, mood: a.mood ? { ...a.mood } : null });
+    return { sp: { ...s.p }, sv: { ...s.v }, live: s.live, held: s.held, me: A(this.me), opp: A(this.opp) };
+  }
+  recApply(f, n, k) {   // f → n 사이를 k(0~1)만큼 이어서 적용
+    const L = (a, b) => a + (b - a) * k, s = this.sh;
+    s.p = { x: L(f.sp.x, n.sp.x), y: L(f.sp.y, n.sp.y), z: L(f.sp.z, n.sp.z) }; s.v = { ...f.sv }; s.live = f.live; s.held = f.held;
+    for (const [a, x, y] of [[this.me, f.me, n.me], [this.opp, f.opp, n.opp]]) {
+      a.pos.x = L(x.px, y.px); a.pos.z = L(x.pz, y.pz); a.vel = { x: x.vx, z: x.vz }; a.y = L(x.y, y.y); a.vy = x.vy;
+      a.extT = x.extT; a.recoverT = x.recoverT; a.extDir = { x: x.ex, z: x.ez }; a.stride = L(x.stride, y.stride);
+      a.charge = x.charge ? { ...x.charge } : null; a.mood = x.mood ? { ...x.mood } : null;
+      a.swingS = x.sw ? { ...x.sw } : null;
+      if (a.swingS && y.sw && y.sw.t > x.sw.t && y.sw.type === x.sw.type) a.swingS.t = L(x.sw.t, y.sw.t);
+    }
+  }
+  recTick(real) {
+    if (this.replay || this.trainer.active) return;
+    const ph = this.phase, R = this.rec || (this.rec = { f: [], acc: 0, post: 0 });
+    if (ph !== 'serve' && ph !== 'rally' && ph !== 'point' && ph !== 'over') return;
+    if (ph === 'point' || ph === 'over') { R.post += real; if (R.post > 1.6) return; }
+    R.acc += real; if (R.acc < 1 / 30) return; R.acc = 0;
+    if (ph === 'serve' && R.f.length >= 25) R.f.shift();   // 서브 전에는 마지막 0.8초쯤만 남김
+    R.f.push(this.recSnap()); if (R.f.length > 2400) R.f.shift();
+  }
+  canReplay() { return this.phase === 'over' && !this.trainer.active && !!this.rec && this.rec.f.length > 30; }
+  toggleReplay() {
+    if (this.replay) return this.endReplay();
+    if (!this.canReplay()) return;
+    const el = this.hud.el.msg;
+    this.replay = { f: this.rec.f, t: 0, save: this.recSnap(), msg: el.innerHTML, msgHidden: el.hidden };
+    el.hidden = true; this.view.clearTrail(); this.timeScale = 1; this.setReplayBtn();
+    this.hud.setHint('▶ 마지막 랠리 리플레이 — 버튼을 다시 누르면 끝');
+  }
+  endReplay() {
+    const r = this.replay; if (!r) return; this.replay = null;
+    this.recApply(r.save, r.save, 0); this.view.clearTrail();
+    const el = this.hud.el.msg; el.innerHTML = r.msg; el.hidden = r.msgHidden; this.hud.setHint(''); this.setReplayBtn();
+  }
+  replayFrame(real) {
+    const r = this.replay, F = r.f, dur = (F.length - 1) / 30;
+    r.t += real * (dur - r.t < 1.5 ? 0.5 : 1);
+    if (r.t >= dur) return this.endReplay();
+    const i = Math.min(F.length - 2, Math.floor(r.t * 30)), k = r.t * 30 - i, s = this.sh;
+    this.recApply(F[i], F[i + 1], k);
+    this.me.animate(real || 0.016, s.p, s.live); this.opp.animate(real || 0.016, s.p, s.live);
+    this.view.setShuttle(s.p, s.live ? s.v : { x: 0, y: 0, z: 0 }, true);
+    this.view.setAim(this.me.pos.x, this.me.pos.z, 0, false, null);
+    this.view.updateFx(real || 0.016);
+    this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
+    this.view.render();
+  }
+  setReplayBtn() {
+    const b = this.replayBtn || (this.replayBtn = document.getElementById('c3replay')); if (!b) return;
+    if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.toggleReplay(); }); }
+    b.hidden = !(this.replay || this.canReplay()); b.textContent = this.replay ? '■ 리플레이 끝내기' : '▶ 마지막 랠리 다시 보기';
   }
 
   step(dt) {
@@ -5870,7 +6349,7 @@ const GAME_TYPES = [
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
-    modes: ['ai', 'career', 'daily', 'train', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'career', 'daily', 'train', 'quick', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
     id: 'classic', name: '레트로 모드',
@@ -5884,6 +6363,7 @@ const MODES = [
   { id: 'career',  name: '커리어',      desc: '대회 4개 · 성향이 다른 상대 12명' },
   { id: 'daily',   name: '일일 챌린지', desc: '오늘의 종목 · 점수 순위' },
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
+  { id: 'quick',   name: '빠른 대전',   desc: '비슷한 실력과 자동 매칭' },
   { id: 'room',    name: '친선게임', desc: '방 코드로 온라인 대전' },
   { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
   { id: 'doubles', name: '복식',        desc: '2 대 2' }
@@ -6099,7 +6579,9 @@ const Account = {
       if (ST) { ST.take(sg._stats, !other); ST.save(true); }   // 선수 스탯: gear 칸의 _stats에 함께 저장
       const SK = typeof Skin3 !== 'undefined' ? Skin3 : null;
       if (SK) { if (other) SK.reset(); SK.merge(sg._skins); SK.save(true); }   // 스킨: 가진 목록을 합침
-      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}), ...(SK ? { _skins: SK.own } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      const RT = typeof Rate3 !== 'undefined' ? Rate3 : null;
+      if (RT) { RT.take(sg._rate, other); RT.save(true); }   // 매칭 점수: 경기 수가 많은 쪽
+      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}), ...(SK ? { _skins: SK.own } : {}), ...(RT && RT.r != null ? { _rate: RT.dump() } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
       if (!r.data || d || dT || gearNew) {
         const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
@@ -6111,6 +6593,47 @@ const Account = {
       this.walletBusy = false;
       if (this.walletAgain) { this.walletAgain = false; this.syncWallet(); }
     }
+  },
+
+  // ───── 빠른 대전 순위표 (ratings 표: user_id 한 줄, sql/ratings.sql) ─────
+  //   표가 없으면 { ok:false, missing:true } — 매칭은 그대로 되고 순위표만 '준비 중'
+  async rateTop() {
+    try {
+      const r = await Promise.race([
+        this.sb.from('ratings').select('user_id,nickname,rating,games,wins').gte('games', 1).order('rating', { ascending: false }).order('updated_at', { ascending: true }).limit(10),
+        new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))
+      ]);
+      if (r.error) return { ok: false, missing: r.error.code === '42P01' || r.error.code === 'PGRST205' || /ratings/.test(r.error.message || '') };
+      const me = this.user && this.user.id;
+      return { ok: true, rows: (r.data || []).map(x => ({ nickname: x.nickname, rating: x.rating, games: x.games, wins: x.wins, mine: x.user_id === me })) };
+    } catch (e) { return { ok: false }; }
+  },
+  async pushRate() {
+    if (!this.loggedIn || typeof Rate3 === 'undefined' || Rate3.r == null || this.rateOff) return;
+    try {
+      const { error } = await this.sb.from('ratings').upsert({ user_id: this.user.id, nickname: (this.nickname || '선수').slice(0, 16), rating: Rate3.r, games: Rate3.n, wins: Rate3.w, updated_at: new Date().toISOString() });
+      if (error) { this.rateOff = true; console.warn('매칭 점수 업로드 실패', error); }
+    } catch (e) { console.warn(e); }
+  },
+
+  // ───── 접속 통계 (events 표, sql/events.sql) — 이름·이메일 없이 이 브라우저의 무작위 id만 보냄 ─────
+  //   표가 없거나 막혀 있으면 한 번 실패한 뒤로는 보내지 않음. 게임 진행에는 영향 없음
+  track(name, props) {
+    if (!this.sb || this.trackOff) return;
+    try {
+      const anon = typeof NET3_CID !== 'undefined' ? NET3_CID : 'x';
+      Promise.resolve(this.sb.from('events').insert({ name: String(name).slice(0, 32), anon_id: anon, user_id: this.user ? this.user.id : null, props: props || {} }))
+        .then(r => { if (r && r.error) this.trackOff = true; }, () => { this.trackOff = true; });
+    } catch (e) { this.trackOff = true; }
+  },
+  // 하루에 한 번 '방문' 기록 (한국 시간 기준)
+  trackVisit() {
+    try {
+      const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10), K = 'badminton.visit';
+      if (localStorage.getItem(K) === d) return;
+      localStorage.setItem(K, d);
+      this.track('visit', { touch: typeof TouchUI !== 'undefined' && !!TouchUI.on, pwa: !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches), ref: (document.referrer || '').slice(0, 80) });
+    } catch (e) { /* 무시 */ }
   },
 
   // ───── 훈련 레벨 동기화 ─────
@@ -6318,10 +6841,12 @@ const AccountUI = {
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
 if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));
+if (typeof Rate3 !== 'undefined') Rate3.onChange = () => { Account.syncWallet(true); Account.pushRate(); };
 if (typeof Skin3 !== 'undefined') Skin3.on(() => Account.syncWallet(true));
 if (typeof Stats3 !== 'undefined') Stats3.on(() => Account.syncWallet(true));   // 경험치·스탯 분배도   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();
+Account.trackVisit();
 </script>
 <script>
 // app/lobby.js — 대기화면: 게임 종류·모드·난이도·목표 점수 선택 후 시작
@@ -6364,7 +6889,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
-    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox');
+    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
@@ -6463,10 +6988,13 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    const daily = this.sel.mode === 'daily';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily) || !this.canStart();
-    this.diffBox.hidden = room || career || daily; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career || daily;
+    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick) || !this.canStart();
+    this.diffBox.hidden = room || career || daily || quick; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily || quick;
+    this.quickBox.hidden = !quick || !this.canStart() || typeof Rate3 === 'undefined';
+    if (!this.quickBox.hidden) this.quickInfo.innerHTML = `내 매칭 점수 <b>${Rate3.get()}</b> · 선수 Lv.${Stats3.level()} · 빠른 대전 ${Rate3.n}전 ${Rate3.w}승 <small>— 이기면 오르고 지면 내려가요. 처음엔 ±${QUICK3.RANGE0}점 안에서 찾고, 기다릴수록 범위가 넓어져요. ${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전</small>`;
+    if (!this.quickBox.hidden) this.renderQuickRank();
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
@@ -6538,6 +7066,26 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 빠른 대전 순위표: 매칭 점수 상위 10명 (로그인한 사람만 올라감, 30초 동안은 받아 둔 것을 다시 씀)
+  renderQuickRank() {
+    const R = this.quickRank, logged = typeof Account !== 'undefined' && Account.loggedIn;
+    const draw = r => {
+      R.innerHTML = '<span class="dn">매칭 점수 순위 <small>상위 10명 · 빠른 대전을 1경기 이상 한 사람</small></span>';
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; R.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '순위표는 아직 준비 중이에요. 매칭은 그대로 됩니다.' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 기록이 없어요 — 첫 번째로 올려 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname + ' · ' + x.games + '전 ' + x.wins + '승', String(x.rating)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+      if (r && r.ok && !logged) add('dd', '로그인하면 내 매칭 점수도 순위표에 올라가요.');
+    };
+    const C = this.quickCache;
+    if (C && C.logged === logged && Date.now() - C.at < 30000) return draw(C.r);
+    draw(null);
+    if (typeof Account === 'undefined' || !Account.online) return draw({ ok: false });
+    this.quickCache = { logged, at: Date.now(), r: null };
+    Account.rateTop().then(r => { this.quickCache = { logged, at: Date.now(), r }; if (this.sel.mode === 'quick' && !this.quickBox.hidden) draw(r); });
   }
 
   // 내 채: 채 3종 카드 — 구매 / 장착 / 강화(장단점이 함께 커짐) / 쓰는 강화 단계 고르기
@@ -6698,7 +7246,7 @@ class App {
   }
 
   openTutorial(type) {
-    this.tutorial.use(type === 'court3d' ? TUTORIAL_3D_PAGES : TUTORIAL_PAGES);
+    this.tutorial.use(type === 'court3d' ? (typeof I18N !== 'undefined' && I18N.lang === 'en' ? TUTORIAL_3D_PAGES_EN : TUTORIAL_3D_PAGES) : TUTORIAL_PAGES);
     this.tutorial.open();
   }
 
@@ -6726,6 +7274,7 @@ class App {
   launch(sel) {
     const T = GAME_TYPES.find(t => t.id === sel.type);
     if (!T || !T.modes.includes(sel.mode)) return;
+    if (typeof Account !== 'undefined') Account.track('start', { type: sel.type, mode: sel.mode, diff: sel.mode === 'ai' ? sel.diff : null });
     if (sel.type === 'classic') {
       const g = this.classic;
       g.setMode(sel.mode);
@@ -6740,6 +7289,7 @@ class App {
       if (!this.ensure3D()) return;
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
       if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
+      if (sel.mode === 'quick') return this.openQuick(sel);
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -6747,6 +7297,34 @@ class App {
       if (sel.mode === 'room') this.openRoom(sel);
       else this.court3d.start();
     }
+  }
+
+  // 빠른 대전: 대기열에서 비슷한 매칭 점수의 상대를 찾음 → 찾으면 친선게임과 같은 방식으로 연결. 아무도 없으면 AI와
+  openQuick(sel) {
+    const g = this.court3d, name = this.nickOf({ nick: this.lobby.nick ? this.lobby.nick.value.trim() : '' }), me = { r: Rate3.get(), lv: Stats3.level(), name };
+    g.configure({ ...sel, mode: 'room', quick: true, win: QUICK3.WIN });
+    Sound3.unlock(); this.show('court3d');
+    g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(null);
+    const wait = s => g.hud.showMessage(`상대를 찾는 중… <b>${Math.floor(s ? s.waited : 0)}초</b><br>내 매칭 점수 <b>${me.r}</b> · 찾는 범위 ±${s ? s.range : QUICK3.RANGE0}점 · 대기 중인 사람 ${s ? s.others : 0}명<br><small>${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전합니다 · Esc = 취소</small>`);
+    const live = () => this.screen === 'court3d' && g.mode === 'room' && g.quick;
+    wait(null);
+    g.qm.start(me, {
+      onStatus: s => { if (live() && g.qm.state !== 'matched' && !g.net.active) wait(s); },
+      onMatch: r => {
+        if (!live()) return;
+        g.quick = { r: r.opp.r, lv: r.opp.lv, name: r.opp.name };
+        Account.track('quick_match', { wait: Math.round((Date.now() - g.qm.at) / 1000), diff: Math.round(Math.abs(r.opp.r - me.r)) });
+        g.hud.showMessage(`상대를 찾았어요!<br><b>${escHtml(r.opp.name)}</b> · 매칭 점수 ${Math.round(r.opp.r)} · 선수 Lv.${r.opp.lv}<br><small>연결하는 중…</small>`);
+        g.net.open(g, r.code, r.host, { hand: sel.hand, win: QUICK3.WIN, name }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+      },
+      onNoOne: () => {
+        if (!live()) return;
+        const diff = Rate3.aiDiff();
+        Account.track('quick_ai', { diff });
+        g.configure({ type: 'court3d', mode: 'ai', diff, style: 'base', win: QUICK3.WIN, hand: sel.hand }); g.start();
+        g.hud.banner(`대기 중인 사람이 없어 AI(${DIFF_NAMES[diff]})와 대전합니다`, '#9FD8FF', 2.6);
+      }
+    }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
   }
 
   // 체험형 튜토리얼 → 끝나거나 건너뛰면 원래 고른 설정으로 AI 대전 시작

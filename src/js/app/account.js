@@ -193,7 +193,9 @@ const Account = {
       if (ST) { ST.take(sg._stats, !other); ST.save(true); }   // 선수 스탯: gear 칸의 _stats에 함께 저장
       const SK = typeof Skin3 !== 'undefined' ? Skin3 : null;
       if (SK) { if (other) SK.reset(); SK.merge(sg._skins); SK.save(true); }   // 스킨: 가진 목록을 합침
-      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}), ...(SK ? { _skins: SK.own } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      const RT = typeof Rate3 !== 'undefined' ? Rate3 : null;
+      if (RT) { RT.take(sg._rate, other); RT.save(true); }   // 매칭 점수: 경기 수가 많은 쪽
+      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}), ...(SK ? { _skins: SK.own } : {}), ...(RT && RT.r != null ? { _rate: RT.dump() } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
       if (!r.data || d || dT || gearNew) {
         const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
@@ -205,6 +207,47 @@ const Account = {
       this.walletBusy = false;
       if (this.walletAgain) { this.walletAgain = false; this.syncWallet(); }
     }
+  },
+
+  // ───── 빠른 대전 순위표 (ratings 표: user_id 한 줄, sql/ratings.sql) ─────
+  //   표가 없으면 { ok:false, missing:true } — 매칭은 그대로 되고 순위표만 '준비 중'
+  async rateTop() {
+    try {
+      const r = await Promise.race([
+        this.sb.from('ratings').select('user_id,nickname,rating,games,wins').gte('games', 1).order('rating', { ascending: false }).order('updated_at', { ascending: true }).limit(10),
+        new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))
+      ]);
+      if (r.error) return { ok: false, missing: r.error.code === '42P01' || r.error.code === 'PGRST205' || /ratings/.test(r.error.message || '') };
+      const me = this.user && this.user.id;
+      return { ok: true, rows: (r.data || []).map(x => ({ nickname: x.nickname, rating: x.rating, games: x.games, wins: x.wins, mine: x.user_id === me })) };
+    } catch (e) { return { ok: false }; }
+  },
+  async pushRate() {
+    if (!this.loggedIn || typeof Rate3 === 'undefined' || Rate3.r == null || this.rateOff) return;
+    try {
+      const { error } = await this.sb.from('ratings').upsert({ user_id: this.user.id, nickname: (this.nickname || '선수').slice(0, 16), rating: Rate3.r, games: Rate3.n, wins: Rate3.w, updated_at: new Date().toISOString() });
+      if (error) { this.rateOff = true; console.warn('매칭 점수 업로드 실패', error); }
+    } catch (e) { console.warn(e); }
+  },
+
+  // ───── 접속 통계 (events 표, sql/events.sql) — 이름·이메일 없이 이 브라우저의 무작위 id만 보냄 ─────
+  //   표가 없거나 막혀 있으면 한 번 실패한 뒤로는 보내지 않음. 게임 진행에는 영향 없음
+  track(name, props) {
+    if (!this.sb || this.trackOff) return;
+    try {
+      const anon = typeof NET3_CID !== 'undefined' ? NET3_CID : 'x';
+      Promise.resolve(this.sb.from('events').insert({ name: String(name).slice(0, 32), anon_id: anon, user_id: this.user ? this.user.id : null, props: props || {} }))
+        .then(r => { if (r && r.error) this.trackOff = true; }, () => { this.trackOff = true; });
+    } catch (e) { this.trackOff = true; }
+  },
+  // 하루에 한 번 '방문' 기록 (한국 시간 기준)
+  trackVisit() {
+    try {
+      const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10), K = 'badminton.visit';
+      if (localStorage.getItem(K) === d) return;
+      localStorage.setItem(K, d);
+      this.track('visit', { touch: typeof TouchUI !== 'undefined' && !!TouchUI.on, pwa: !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches), ref: (document.referrer || '').slice(0, 80) });
+    } catch (e) { /* 무시 */ }
   },
 
   // ───── 훈련 레벨 동기화 ─────
@@ -412,7 +455,9 @@ const AccountUI = {
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
 if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));
+if (typeof Rate3 !== 'undefined') Rate3.onChange = () => { Account.syncWallet(true); Account.pushRate(); };
 if (typeof Skin3 !== 'undefined') Skin3.on(() => Account.syncWallet(true));
 if (typeof Stats3 !== 'undefined') Stats3.on(() => Account.syncWallet(true));   // 경험치·스탯 분배도   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();
+Account.trackVisit();

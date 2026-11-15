@@ -38,7 +38,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
-    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox');
+    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
@@ -137,10 +137,13 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    const daily = this.sel.mode === 'daily';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily) || !this.canStart();
-    this.diffBox.hidden = room || career || daily; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career || daily;
+    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick) || !this.canStart();
+    this.diffBox.hidden = room || career || daily || quick; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily || quick;
+    this.quickBox.hidden = !quick || !this.canStart() || typeof Rate3 === 'undefined';
+    if (!this.quickBox.hidden) this.quickInfo.innerHTML = `내 매칭 점수 <b>${Rate3.get()}</b> · 선수 Lv.${Stats3.level()} · 빠른 대전 ${Rate3.n}전 ${Rate3.w}승 <small>— 이기면 오르고 지면 내려가요. 처음엔 ±${QUICK3.RANGE0}점 안에서 찾고, 기다릴수록 범위가 넓어져요. ${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전</small>`;
+    if (!this.quickBox.hidden) this.renderQuickRank();
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
@@ -212,6 +215,26 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 빠른 대전 순위표: 매칭 점수 상위 10명 (로그인한 사람만 올라감, 30초 동안은 받아 둔 것을 다시 씀)
+  renderQuickRank() {
+    const R = this.quickRank, logged = typeof Account !== 'undefined' && Account.loggedIn;
+    const draw = r => {
+      R.innerHTML = '<span class="dn">매칭 점수 순위 <small>상위 10명 · 빠른 대전을 1경기 이상 한 사람</small></span>';
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; R.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '순위표는 아직 준비 중이에요. 매칭은 그대로 됩니다.' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 기록이 없어요 — 첫 번째로 올려 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname + ' · ' + x.games + '전 ' + x.wins + '승', String(x.rating)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+      if (r && r.ok && !logged) add('dd', '로그인하면 내 매칭 점수도 순위표에 올라가요.');
+    };
+    const C = this.quickCache;
+    if (C && C.logged === logged && Date.now() - C.at < 30000) return draw(C.r);
+    draw(null);
+    if (typeof Account === 'undefined' || !Account.online) return draw({ ok: false });
+    this.quickCache = { logged, at: Date.now(), r: null };
+    Account.rateTop().then(r => { this.quickCache = { logged, at: Date.now(), r }; if (this.sel.mode === 'quick' && !this.quickBox.hidden) draw(r); });
   }
 
   // 내 채: 채 3종 카드 — 구매 / 장착 / 강화(장단점이 함께 커짐) / 쓰는 강화 단계 고르기

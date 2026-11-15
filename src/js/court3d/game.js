@@ -38,7 +38,9 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career, daily }) {
+  configure({ diff, win, hand, mode, train, style, career, daily, quick }) {
+    if (this.qm) this.qm.stop(); else if (typeof Quick3 !== 'undefined') this.qm = new Quick3();
+    this.quick = mode === 'room' && quick ? (typeof quick === 'object' ? quick : {}) : null;   // 빠른 대전: 친선게임과 같은 연결에 매칭 점수만 얹음 (상대를 찾으면 { r, lv, name })
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -64,7 +66,7 @@ class Game3D {
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
-      : this.mode === 'room' ? '친선게임 · ' + win + '점 · ' + hn
+      : this.mode === 'room' ? (this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
@@ -103,7 +105,7 @@ class Game3D {
   }
   stop() {
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
-    this.setShare(null);
+    this.setShare(null); if (this.qm) this.qm.stop();
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
     this.hud.showMessage(this.hud.introMsg); this.hud.setGauge(null);
   }
@@ -124,6 +126,7 @@ class Game3D {
       a.bounds = { xMin: b.xMin + 0.15, xMax: b.xMax - 0.15, zMin: b.zMin + 0.15, zMax: b.zMax - 0.1 };
     }
     for (const a of [this.me, this.opp]) if (a.sta && (m.pts || m.opts)) a.sta.v = Math.min(a.sta.max, a.sta.v + C3.STAMINA.REST);   // 점수 사이 숨 고르기
+    this.rec = null;   // 리플레이 기록은 랠리마다 새로
     this.lastShot = null;
     Object.assign(this.sh, { live: false, held: server === 'me' ? this.me : this.opp, lastHitter: null, serve: false, netted: false, pred: null, waitNet: false });
     this.view.clearTrail(); this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
@@ -331,7 +334,7 @@ class Game3D {
     // 새 상대 (또는 처음): 다른 사람이면 세트 스코어 새로
     if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
     this.roomRec.name = peer.name; this.awayPeer = null;
-    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room' });
+    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick });
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
@@ -341,7 +344,7 @@ class Game3D {
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
   netResume(m) {
     const M = this.match;
-    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room' });
+    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick });
     M.pts = m.pts | 0; M.opts = m.opts | 0; M.server = m.server === 'opp' ? 'opp' : 'me'; M.rally = 0;
     this.roomRec.sets = { me: (m.sets && m.sets.me) | 0, opp: (m.sets && m.sets.opp) | 0 };
     this.myEnd = m.end ? 1 : 0; this.midSwapped = !!m.mid; this.swapNext = !!m.swapNext; this.view.setEnd(this.myEnd ^ 1);
@@ -374,7 +377,7 @@ class Game3D {
     if (live && !this.running) { this.running = true; this.lastTs = 0; requestAnimationFrame(this.loop); }
     this.hud.banner('상대방이 나갔습니다', '#FF6B6B', 2);
     this.hud.showMessage('상대방이 나갔습니다' + (live ? ` — 점수 ${this.match.pts} : ${this.match.opts}에서 멈춤` : '')
-      + `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`);
+      + (this.quick ? '<br>Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)' : `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`));
   }
   netEmote(m) { this.emote.show('opp', String(m.id || '')); }
   netError(msg) {
@@ -478,7 +481,8 @@ class Game3D {
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
       if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
         me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
-        mode: this.mode === 'room' ? '친선게임' : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+        mode: this.mode === 'room' ? (this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
@@ -505,6 +509,8 @@ class Game3D {
     const b = this.shareBtn || (this.shareBtn = document.getElementById('c3share')); if (!b) return;
     if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.shareCard(); }); }
     b.hidden = !d || typeof Share3 === 'undefined';
+    if (!d) { if (this.replay) this.endReplay(); const rb = document.getElementById('c3replay'); if (rb) rb.hidden = true; }
+    else setTimeout(() => this.setReplayBtn(), 1700);   // 득점 뒤 장면까지 기록된 다음에 버튼을 보여 줌
   }
   async shareCard() {
     const d = this.shareData; if (!d || typeof Share3 === 'undefined') return;
@@ -516,7 +522,11 @@ class Game3D {
   payMatch(won) {
     if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
     const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
-    if (this.mode === 'room') { const r = Wallet.room(won); return r.html + (XP && r.sum ? XP.gain('room').html : ''); }
+    if (this.mode === 'room') {
+      const r = Wallet.room(won); let rate = '';
+      if (this.quick && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
+      return rate + r.html + (XP && r.sum ? XP.gain('room').html : '');
+    }
     const m = this.match, c = this.career;
     const xp = XP ? XP.gain(won ? 'win' : 'loss', m.pts / m.win).html : '';   // 선수 경험치
     return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
@@ -545,6 +555,7 @@ class Game3D {
   }
 
   frame(real) {
+    if (this.replay) return this.replayFrame(real);
     const s = this.sh, STEP = C3.PHYS.STEP;
     // 슬로우: 셔틀이 칠 차례인 선수의 라켓 팔 어깨 근처면
     let slow = false;
@@ -599,6 +610,68 @@ class Game3D {
     this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
     this.hud.update(real, this.me, s, this.duo ? this.opp : null);
     this.view.render();
+    this.recTick(real);
+  }
+
+  // ───── 마지막 랠리 리플레이 [게임 연출] ─────
+  //   서브 직전부터 득점 뒤 1.6초까지, 두 선수의 상태(위치·점프·런지·스윙·충전·세리머니)와 셔틀을 초당 30번 기록 (최대 80초)
+  //   경기가 끝나면 '마지막 랠리 다시 보기'로 그대로 되돌려 재생. 마지막 1.5초는 절반 속도. 소리·타격 이펙트는 다시 나오지 않음
+  recSnap() {
+    const s = this.sh, A = a => ({ px: a.pos.x, pz: a.pos.z, vx: a.vel.x, vz: a.vel.z, y: a.y, vy: a.vy, extT: a.extT, recoverT: a.recoverT, ex: a.extDir.x, ez: a.extDir.z,
+      stride: a.stride, charge: a.charge ? { ...a.charge } : null, sw: a.swingS ? { ...a.swingS } : null, mood: a.mood ? { ...a.mood } : null });
+    return { sp: { ...s.p }, sv: { ...s.v }, live: s.live, held: s.held, me: A(this.me), opp: A(this.opp) };
+  }
+  recApply(f, n, k) {   // f → n 사이를 k(0~1)만큼 이어서 적용
+    const L = (a, b) => a + (b - a) * k, s = this.sh;
+    s.p = { x: L(f.sp.x, n.sp.x), y: L(f.sp.y, n.sp.y), z: L(f.sp.z, n.sp.z) }; s.v = { ...f.sv }; s.live = f.live; s.held = f.held;
+    for (const [a, x, y] of [[this.me, f.me, n.me], [this.opp, f.opp, n.opp]]) {
+      a.pos.x = L(x.px, y.px); a.pos.z = L(x.pz, y.pz); a.vel = { x: x.vx, z: x.vz }; a.y = L(x.y, y.y); a.vy = x.vy;
+      a.extT = x.extT; a.recoverT = x.recoverT; a.extDir = { x: x.ex, z: x.ez }; a.stride = L(x.stride, y.stride);
+      a.charge = x.charge ? { ...x.charge } : null; a.mood = x.mood ? { ...x.mood } : null;
+      a.swingS = x.sw ? { ...x.sw } : null;
+      if (a.swingS && y.sw && y.sw.t > x.sw.t && y.sw.type === x.sw.type) a.swingS.t = L(x.sw.t, y.sw.t);
+    }
+  }
+  recTick(real) {
+    if (this.replay || this.trainer.active) return;
+    const ph = this.phase, R = this.rec || (this.rec = { f: [], acc: 0, post: 0 });
+    if (ph !== 'serve' && ph !== 'rally' && ph !== 'point' && ph !== 'over') return;
+    if (ph === 'point' || ph === 'over') { R.post += real; if (R.post > 1.6) return; }
+    R.acc += real; if (R.acc < 1 / 30) return; R.acc = 0;
+    if (ph === 'serve' && R.f.length >= 25) R.f.shift();   // 서브 전에는 마지막 0.8초쯤만 남김
+    R.f.push(this.recSnap()); if (R.f.length > 2400) R.f.shift();
+  }
+  canReplay() { return this.phase === 'over' && !this.trainer.active && !!this.rec && this.rec.f.length > 30; }
+  toggleReplay() {
+    if (this.replay) return this.endReplay();
+    if (!this.canReplay()) return;
+    const el = this.hud.el.msg;
+    this.replay = { f: this.rec.f, t: 0, save: this.recSnap(), msg: el.innerHTML, msgHidden: el.hidden };
+    el.hidden = true; this.view.clearTrail(); this.timeScale = 1; this.setReplayBtn();
+    this.hud.setHint('▶ 마지막 랠리 리플레이 — 버튼을 다시 누르면 끝');
+  }
+  endReplay() {
+    const r = this.replay; if (!r) return; this.replay = null;
+    this.recApply(r.save, r.save, 0); this.view.clearTrail();
+    const el = this.hud.el.msg; el.innerHTML = r.msg; el.hidden = r.msgHidden; this.hud.setHint(''); this.setReplayBtn();
+  }
+  replayFrame(real) {
+    const r = this.replay, F = r.f, dur = (F.length - 1) / 30;
+    r.t += real * (dur - r.t < 1.5 ? 0.5 : 1);
+    if (r.t >= dur) return this.endReplay();
+    const i = Math.min(F.length - 2, Math.floor(r.t * 30)), k = r.t * 30 - i, s = this.sh;
+    this.recApply(F[i], F[i + 1], k);
+    this.me.animate(real || 0.016, s.p, s.live); this.opp.animate(real || 0.016, s.p, s.live);
+    this.view.setShuttle(s.p, s.live ? s.v : { x: 0, y: 0, z: 0 }, true);
+    this.view.setAim(this.me.pos.x, this.me.pos.z, 0, false, null);
+    this.view.updateFx(real || 0.016);
+    this.view.followCamera(this.me.pos.x, real || 0.016, this.me.pos.z, s.live ? s.p : null);
+    this.view.render();
+  }
+  setReplayBtn() {
+    const b = this.replayBtn || (this.replayBtn = document.getElementById('c3replay')); if (!b) return;
+    if (!b.dataset.on) { b.dataset.on = '1'; b.addEventListener('click', e => { e.currentTarget.blur(); this.toggleReplay(); }); }
+    b.hidden = !(this.replay || this.canReplay()); b.textContent = this.replay ? '■ 리플레이 끝내기' : '▶ 마지막 랠리 다시 보기';
   }
 
   step(dt) {

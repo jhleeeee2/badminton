@@ -36,7 +36,7 @@ class App {
   }
 
   openTutorial(type) {
-    this.tutorial.use(type === 'court3d' ? TUTORIAL_3D_PAGES : TUTORIAL_PAGES);
+    this.tutorial.use(type === 'court3d' ? (typeof I18N !== 'undefined' && I18N.lang === 'en' ? TUTORIAL_3D_PAGES_EN : TUTORIAL_3D_PAGES) : TUTORIAL_PAGES);
     this.tutorial.open();
   }
 
@@ -64,6 +64,7 @@ class App {
   launch(sel) {
     const T = GAME_TYPES.find(t => t.id === sel.type);
     if (!T || !T.modes.includes(sel.mode)) return;
+    if (typeof Account !== 'undefined') Account.track('start', { type: sel.type, mode: sel.mode, diff: sel.mode === 'ai' ? sel.diff : null });
     if (sel.type === 'classic') {
       const g = this.classic;
       g.setMode(sel.mode);
@@ -78,6 +79,7 @@ class App {
       if (!this.ensure3D()) return;
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
       if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
+      if (sel.mode === 'quick') return this.openQuick(sel);
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -85,6 +87,34 @@ class App {
       if (sel.mode === 'room') this.openRoom(sel);
       else this.court3d.start();
     }
+  }
+
+  // 빠른 대전: 대기열에서 비슷한 매칭 점수의 상대를 찾음 → 찾으면 친선게임과 같은 방식으로 연결. 아무도 없으면 AI와
+  openQuick(sel) {
+    const g = this.court3d, name = this.nickOf({ nick: this.lobby.nick ? this.lobby.nick.value.trim() : '' }), me = { r: Rate3.get(), lv: Stats3.level(), name };
+    g.configure({ ...sel, mode: 'room', quick: true, win: QUICK3.WIN });
+    Sound3.unlock(); this.show('court3d');
+    g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(null);
+    const wait = s => g.hud.showMessage(`상대를 찾는 중… <b>${Math.floor(s ? s.waited : 0)}초</b><br>내 매칭 점수 <b>${me.r}</b> · 찾는 범위 ±${s ? s.range : QUICK3.RANGE0}점 · 대기 중인 사람 ${s ? s.others : 0}명<br><small>${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전합니다 · Esc = 취소</small>`);
+    const live = () => this.screen === 'court3d' && g.mode === 'room' && g.quick;
+    wait(null);
+    g.qm.start(me, {
+      onStatus: s => { if (live() && g.qm.state !== 'matched' && !g.net.active) wait(s); },
+      onMatch: r => {
+        if (!live()) return;
+        g.quick = { r: r.opp.r, lv: r.opp.lv, name: r.opp.name };
+        Account.track('quick_match', { wait: Math.round((Date.now() - g.qm.at) / 1000), diff: Math.round(Math.abs(r.opp.r - me.r)) });
+        g.hud.showMessage(`상대를 찾았어요!<br><b>${escHtml(r.opp.name)}</b> · 매칭 점수 ${Math.round(r.opp.r)} · 선수 Lv.${r.opp.lv}<br><small>연결하는 중…</small>`);
+        g.net.open(g, r.code, r.host, { hand: sel.hand, win: QUICK3.WIN, name }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+      },
+      onNoOne: () => {
+        if (!live()) return;
+        const diff = Rate3.aiDiff();
+        Account.track('quick_ai', { diff });
+        g.configure({ type: 'court3d', mode: 'ai', diff, style: 'base', win: QUICK3.WIN, hand: sel.hand }); g.start();
+        g.hud.banner(`대기 중인 사람이 없어 AI(${DIFF_NAMES[diff]})와 대전합니다`, '#9FD8FF', 2.6);
+      }
+    }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
   }
 
   // 체험형 튜토리얼 → 끝나거나 건너뛰면 원래 고른 설정으로 AI 대전 시작

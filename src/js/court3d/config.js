@@ -79,15 +79,15 @@ const C3 = Object.freeze({
   // 쉬움은 '엉뚱한 실수가 잦은 AI'가 아니라 '느리고 순한 AI' — 실수는 적고, 대신 공이 순하고 예측 가능
   AI: Object.freeze({
     //        chaseOut: 아웃될 공도 받아치는 확률 (라인 0.35m 안쪽 애매한 공은 +0.3)
-    easy:   { spd: 2.15, react: 0.58, err: 1.65, over: 0.03,  smash: 0.05, edge: 0.0,  jump: 0.0,  misread: 0.04,  chaseOut: 0.3,  soft: 0.75 },
-    normal: { spd: 2.75, react: 0.43, err: 1.65, over: 0.05,  smash: 0.27, edge: 0.3,  jump: 0.05, misread: 0.05,  chaseOut: 0.25, soft: 0.3 },
-    hard:   { spd: 4.0,  react: 0.23, err: 1.2,  over: 0.045, smash: 0.65, edge: 0.78, jump: 0.4,  misread: 0.035, chaseOut: 0.2,  soft: 0 },
-    hell:   { spd: 4.5,  react: 0.16, err: 0.95, over: 0.025, smash: 0.75, edge: 0.9,  jump: 0.6,  misread: 0.02,  chaseOut: 0.15, soft: 0 },
-    imp:    { spd: 5.0,  react: 0.11, err: 0.72, over: 0.012, smash: 0.83, edge: 0.97,  jump: 0.75, misread: 0.008, chaseOut: 0.1,  soft: 0 }
+    easy:   { spd: 2.05, react: 0.61, err: 1.78, over: 0.03,  smash: 0.05, edge: 0.0,  jump: 0.0,  misread: 0.05,  chaseOut: 0.3,  soft: 0.75 },
+    normal: { spd: 2.6,  react: 0.46, err: 1.78, over: 0.05,  smash: 0.24, edge: 0.3,  jump: 0.05, misread: 0.06,  chaseOut: 0.25, soft: 0.3 },
+    hard:   { spd: 3.8,  react: 0.26, err: 1.3,  over: 0.045, smash: 0.6,  edge: 0.78, jump: 0.4,  misread: 0.045, chaseOut: 0.2,  soft: 0 },
+    hell:   { spd: 4.3,  react: 0.19, err: 1.03, over: 0.025, smash: 0.7,  edge: 0.9,  jump: 0.6,  misread: 0.028, chaseOut: 0.15, soft: 0 },
+    imp:    { spd: 4.75, react: 0.14, err: 0.78, over: 0.012, smash: 0.78, edge: 0.97,  jump: 0.75, misread: 0.014, chaseOut: 0.1,  soft: 0 }
   }),
   // AI 전술·성향 [게임]
   //   AI_TACT: 내 위치를 보고 샷을 고르는 확률 (뒤에 있으면 짧게, 네트 앞이면 길게). 쉬움은 0 = 예전처럼 순한 공
-  AI_TACT: Object.freeze({ easy: 0, normal: 0.3, hard: 0.65, hell: 0.85, imp: 0.97 }),
+  AI_TACT: Object.freeze({ easy: 0, normal: 0.25, hard: 0.58, hell: 0.78, imp: 0.9 }),
   AI_AIM_MAX: 0.9,                       // AI 조준 최대 각 (±52°, 플레이어 AIM_YAW_MAX와 같음. 예전엔 ±31°)
   //   AI_STYLE: 난이도 수치에 곱/더해지는 성향. smashMul 스매시 선택 배율, front 짧은 공(드롭·헤어핀) 추가 확률, deepP 스매시 대신 클리어로 바꿀 확률,
   //             overMul 과충전 실수 배율, misMul 오판 배율, jumpAdd 점프 확률 가산, baseZ 기본 대기 위치(네트에서 거리 m)

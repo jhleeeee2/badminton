@@ -82,6 +82,11 @@
       <button id="roomJoin" class="roombtn">입장</button>
     </div>
   </section>
+  <section class="lsec" id="quickSettings" hidden>
+    <div class="lhead">빠른 대전 <span class="lsub">인터넷 필요 · 매칭 점수가 비슷한 사람을 자동으로 찾아요 · 11점 경기 · 채·선수 스탯 효과 없이 같은 조건</span></div>
+    <div class="cards roomrow nickrow"><span class="quickinfo" id="quickInfo"></span></div>
+    <div class="dailycard quickrank" id="quickRank"></div>
+  </section>
   <section class="lsec" id="careerSettings" hidden>
     <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
     <div class="careergrid" id="careerList"></div>
@@ -202,7 +207,7 @@
     <div class="c3banner" id="c3banner"></div>
     <div class="c3hint" id="c3hint"></div>
     <button id="c3skip" class="c3skip" hidden>튜토리얼 건너뛰기 ›</button>
-    <button id="c3share" class="c3share" hidden>📸 결과 카드 저장 · 공유</button>
+    <div class="c3over"><button id="c3replay" class="c3share" hidden>▶ 마지막 랠리 다시 보기</button><button id="c3share" class="c3share" hidden>📸 결과 카드 저장 · 공유</button></div>
     <div class="c3bottom">
       <div class="c3hand" id="c3hand"></div>
       <div class="c3sta" id="c3sta" hidden><span class="k">체력</span><span class="eb"><span></span></span></div>
@@ -268,6 +273,7 @@
   </div>
 </div>
 <!-- 로드 순서 중요: 클래식 게임 → (Three.js) 3D 코트 → 대기화면 → 진입점 -->
+<script src="js/app/i18n.js"></script>
 <script src="js/app/touch.js"></script>
 <script src="js/classic/config.js"></script>
 <script src="js/classic/core/shuttle.js"></script>
@@ -304,6 +310,7 @@
 <script src="js/court3d/train.js"></script>
 <script src="js/court3d/guide.js"></script>
 <script src="js/court3d/online.js"></script>
+<script src="js/court3d/quick.js"></script>
 <script src="js/court3d/emote.js"></script>
 <script src="js/court3d/game.js"></script>
 <script src="js/court3d/input.js"></script>

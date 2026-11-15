@@ -110,7 +110,7 @@ class Guide3D {
   }
   advance() {
     this.step++; this.fails = 0; this.moveDone = false;
-    if (this.step >= GUIDE_STEPS.length) { this.step = GUIDE_STEPS.length - 1; this.finished = true; Guide3D.markSeen(); }
+    if (this.step >= GUIDE_STEPS.length) { this.step = GUIDE_STEPS.length - 1; this.finished = true; Guide3D.markSeen(); if (typeof Account !== 'undefined') Account.track('guide', { done: true }); }
   }
   // 마지막 단계가 끝난 뒤 (game.setupPoint가 호출)
   finish() {
@@ -127,6 +127,7 @@ class Guide3D {
     g.hud.el.startBtn.textContent = '시작';
   }
   skip() {
+    if (typeof Account !== 'undefined') Account.track('guide', { done: false, step: this.step });
     Guide3D.markSeen(); this.finished = true;
     if (this.g.onGuideDone) this.g.onGuideDone();
   }
