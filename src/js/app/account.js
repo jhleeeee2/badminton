@@ -191,7 +191,9 @@ const Account = {
       const other = !!(W.uid && W.uid !== id), ST = typeof Stats3 !== 'undefined' ? Stats3 : null;
       if (G) { if (other) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
       if (ST) { ST.take(sg._stats, !other); ST.save(true); }   // 선수 스탯: gear 칸의 _stats에 함께 저장
-      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      const SK = typeof Skin3 !== 'undefined' ? Skin3 : null;
+      if (SK) { if (other) SK.reset(); SK.merge(sg._skins); SK.save(true); }   // 스킨: 가진 목록을 합침
+      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}), ...(SK ? { _skins: SK.own } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
       if (!r.data || d || dT || gearNew) {
         const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
@@ -348,7 +350,7 @@ const AccountUI = {
     ];
     const how = el('rlist coinhow', '');
     for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
-    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 AI 대전·커리어의 「내 채」').style.marginTop = '8px';
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면의 「내 채」(AI 대전·커리어)와 「꾸미기」').style.marginTop = '8px';
     if (!W.log.length) return;
     el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
     const list = el('rlist coinlog', '');
@@ -410,6 +412,7 @@ const AccountUI = {
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
 if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));
+if (typeof Skin3 !== 'undefined') Skin3.on(() => Account.syncWallet(true));
 if (typeof Stats3 !== 'undefined') Stats3.on(() => Account.syncWallet(true));   // 경험치·스탯 분배도   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();

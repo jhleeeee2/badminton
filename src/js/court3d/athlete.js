@@ -206,6 +206,13 @@ class Athlete3D {
     this.kit = Object.assign({}, this.kit, K);
     this.mShirt.color.setHex(this.kit.shirt); this.mShorts.color.setHex(this.kit.shorts);
     this.mAcc.color.setHex(this.kit.accent); this.mAcc.emissive.setHex(this.kit.accent).multiplyScalar(0.25);
+    this.setRacket(this.rkSkin);
+  }
+  // 채 색 (스킨): { frame, grip } · null이면 유니폼 포인트 색
+  setRacket(sk) {
+    this.rkSkin = sk || null;
+    const f = sk ? sk.frame : this.kit.accent;
+    this.mRing.color.setHex(f); this.mRing.emissive.setHex(f).multiplyScalar(0.25); this.mGrip.color.setHex(sk ? sk.grip : 0x30343E);
   }
 
   // ───── 몸 모델 ─────
@@ -240,9 +247,9 @@ class Athlete3D {
 
     // 라켓 (손잡이 → 샤프트 → 헤드), 로컬 +y 방향
     const rk = new THREE.Group(); this.model.add(rk); this.racket = rk;
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.2, 8), mat(0x30343E)); grip.position.y = 0.06; rk.add(grip);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.2, 8), this.mGrip = mat(0x30343E)); grip.position.y = 0.06; rk.add(grip);
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.26, 6), mat(0xB8BCC6)); shaft.position.y = 0.29; rk.add(shaft);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.01, 6, 28), this.mAcc); ring.scale.set(0.82, 1.12, 1); ring.position.y = 0.53; rk.add(ring);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.01, 6, 28), this.mRing = this.mAcc.clone());   // 채 테: 기본은 유니폼 포인트 색, 채 스킨이 있으면 그 색 ring.scale.set(0.82, 1.12, 1); ring.position.y = 0.53; rk.add(ring);
     const str = new THREE.Mesh(new THREE.CircleGeometry(0.1, 24), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
     str.scale.set(0.82, 1.12, 1); str.position.y = 0.53; rk.add(str);
 

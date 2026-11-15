@@ -49,7 +49,8 @@ class Game3D {
     else this.diffId = 'normal';
     // 커리어: AI 대전과 같은 규칙에 상대 이름·유니폼·섞은 난이도만 얹음
     this.career = this.mode === 'ai' && career ? career : null; this.careerNext = null;
-    this.opp.setKit(this.career ? this.career.kit : C3.KITS.opp);
+    this.opp.setKit(this.career ? this.career.kit : C3.KITS.opp); this.opp.setRacket(null);
+    if (typeof Skin3 !== 'undefined') { this.me.setKit(Skin3.kit()); this.me.setRacket(Skin3.racket()); this.view.setCourtSkin(Skin3.court()); }   // 내 스킨: 겉모습만, 모든 모드
     if (this.career) this.setOppName(this.career.name);
     if (this.mode === 'local2p') { this.diffId = 'normal'; this.opp.speedMul = 1; }
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
@@ -313,6 +314,7 @@ class Game3D {
   }
   netPeerJoined(peer, win) {
     this.opp.setHand(peer.hand);
+    if (peer.skin) { this.opp.setKit(peer.skin.k || C3.KITS.opp); this.opp.setRacket(peer.skin.r); }   // 상대의 유니폼·채 색
     const away = this.awayPeer;
     if (away && peer.cid && peer.cid === away.cid) {   // 나갔던 그 사람이 다시 들어옴 → 이어서
       this.awayPeer = null; this.setOppName(peer.name); this.roomRec.name = peer.name;

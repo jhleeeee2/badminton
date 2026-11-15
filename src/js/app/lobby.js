@@ -38,6 +38,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
@@ -151,6 +152,8 @@ class Lobby {
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
+    this.skinSec.hidden = this.sel.type !== 'court3d' || !this.canStart() || typeof Skin3 === 'undefined';
+    if (!this.skinSec.hidden) this.renderSkins();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
     const sb = document.getElementById('styleSeg');   // 상대 성향: 3D AI 대전에서만
     if (sb) { sb.hidden = !(this.sel.type === 'court3d' && this.sel.mode === 'ai'); const st = typeof C3 !== 'undefined' && C3.AI_STYLE[this.sel.style];
@@ -254,6 +257,28 @@ class Lobby {
         b.addEventListener('click', () => { T.step(id, d); this.refresh(); }); row.appendChild(b);
       }
       rows.appendChild(row);
+    }
+  }
+
+  // 꾸미기: 유니폼·채 색·코트 — 가진 건 눌러서 고르고, 없는 건 눌러서 구매
+  renderSkins() {
+    const K = Skin3, box = this.skinBox, coins = Wallet.coins; box.innerHTML = '';
+    for (const cat of Object.keys(K.CATS)) {
+      const row = document.createElement('div'); row.className = 'skrow';
+      row.innerHTML = `<span class="sklbl">${K.CATS[cat]}</span>`;
+      for (const it of K.ITEMS[cat]) {
+        const has = K.has(cat, it.id), on = K.eq[cat] === it.id, [c1, c2] = K.swatch(cat, it), b = document.createElement('button');
+        b.className = 'skbtn' + (on ? ' sel' : '') + (has ? '' : ' lock'); b.disabled = !has && coins < it.price;
+        b.title = has ? it.name : `${it.name} — ${it.price}코인` + (coins < it.price ? ` (${it.price - coins} 더 필요)` : '');
+        b.innerHTML = `<i style="background:linear-gradient(135deg, ${K.css(c1)} 0 62%, ${K.css(c2)} 62%)"></i><span class="skn">${it.name}</span><span class="skp">${on ? '사용 중' : has ? '보유' : '🪙 ' + it.price}</span>`;
+        b.addEventListener('click', () => {
+          if (has) K.equip(cat, it.id);
+          else { let ok = true; try { ok = window.confirm(`${K.CATS[cat]} 「${it.name}」을(를) ${it.price}코인에 살까요?`); } catch (e) { /* 확인 창이 막힌 환경 */ } if (ok) K.buy(cat, it.id); }
+          this.refresh();
+        });
+        row.appendChild(b);
+      }
+      box.appendChild(row);
     }
   }
 

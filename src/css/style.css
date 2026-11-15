@@ -462,3 +462,12 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .c3sta.tired .eb span{background:#FFD23F;} .c3sta.low .eb span{background:#FF6B6B;} .c3sta.low{border-color:rgba(255,107,107,.6);}
 @media (max-width:640px){.c3sta{left:8px;}}
 body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4px;} body.touch .c3sta .k{display:none;} body.touch .c3sta .eb{width:60px;}
+/* ───── 꾸미기 (스킨) ───── */
+.skinbox{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.skrow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;}
+.sklbl{width:56px;font-size:13px;font-weight:600;color:var(--text2);align-self:center;}
+.skbtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 8px 6px;min-width:88px;border-radius:10px;font-size:12px;}
+.skbtn i{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.25);display:block;}
+.skbtn .skn{color:var(--text);font-weight:600;white-space:nowrap;} .skbtn .skp{font-size:11px;color:var(--text3);}
+.skbtn.sel{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);} .skbtn.sel .skp{color:var(--ok);}
+.skbtn.lock i{opacity:.75;} .skbtn.lock .skp{color:#FFD23F;} .skbtn:disabled{opacity:.5;}

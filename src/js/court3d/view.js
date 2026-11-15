@@ -99,7 +99,7 @@ class CourtView3D {
 
   buildArena() {
     const S = this.scene;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: ARENA.SURROUND, roughness: 0.9 }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: ARENA.SURROUND, roughness: 0.9 })); this.floorMesh = floor;
     floor.rotation.x = -Math.PI / 2; floor.position.y = -0.003; floor.receiveShadow = true; S.add(floor);
 
     // LED 광고판 (색 띠가 흐름)
@@ -165,9 +165,9 @@ class CourtView3D {
   buildCourt() {
     const C = C3.COURT, S = this.scene;
     // 바깥 매트(어두운 초록) + 라인 안쪽 코트(밝은 초록) — 경계가 한눈에 보이게
-    const mat = new THREE.Mesh(new THREE.PlaneGeometry(C.HALF_W_D * 2 + 2.0, C.HALF_LEN * 2 + 3.4), new THREE.MeshStandardMaterial({ color: ARENA.MAT, roughness: 0.8 }));
+    const mat = new THREE.Mesh(new THREE.PlaneGeometry(C.HALF_W_D * 2 + 2.0, C.HALF_LEN * 2 + 3.4), new THREE.MeshStandardMaterial({ color: ARENA.MAT, roughness: 0.8 })); this.matMesh = mat;
     mat.rotation.x = -Math.PI / 2; mat.position.y = -0.001; mat.receiveShadow = true; S.add(mat);
-    const court = new THREE.Mesh(new THREE.PlaneGeometry(C.HALF_W_D * 2, C.HALF_LEN * 2), new THREE.MeshStandardMaterial({ color: ARENA.COURT, roughness: 0.72 }));
+    const court = new THREE.Mesh(new THREE.PlaneGeometry(C.HALF_W_D * 2, C.HALF_LEN * 2), new THREE.MeshStandardMaterial({ color: ARENA.COURT, roughness: 0.72 })); this.courtMesh = court;
     court.rotation.x = -Math.PI / 2; court.receiveShadow = true; S.add(court);
     // 단식 코트(인 구역)를 살짝 밝게
     const singles = new THREE.Mesh(new THREE.PlaneGeometry(C.HALF_W_S * 2, C.HALF_LEN * 2), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.045, depthWrite: false }));
@@ -356,6 +356,11 @@ class CourtView3D {
   }
 
   // 화면 안쪽(맞은편) 엔드 배경: 0 = A, 1 = B
+  // 코트 색 (스킨): { court, mat, surround } · null이면 기본 초록
+  setCourtSkin(sk) {
+    this.courtMesh.material.color.setHex(sk ? sk.court : ARENA.COURT); this.matMesh.material.color.setHex(sk ? sk.mat : ARENA.MAT);
+    this.floorMesh.material.color.setHex(sk ? sk.surround : ARENA.SURROUND);
+  }
   setEnd(far) {
     far = far ? 1 : 0;
     const E = ENDS[far], N = ENDS[far ^ 1];
