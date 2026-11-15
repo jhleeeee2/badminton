@@ -29,6 +29,13 @@
   <h1>배드민턴 랠리 <span class="cock">●</span></h1>
   <p class="sub">실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.</p>
   <div class="acctbar" id="acctBar"></div>
+  <div class="ltabs" id="lobbyTabs" role="tablist">
+    <button data-tab="play" class="active" role="tab">플레이</button>
+    <button data-tab="shop" role="tab">상점</button>
+  </div>
+  <section class="lsec shopsec" id="shopHead">
+    <div class="shophead"><span class="shopcoin" id="shopCoin"></span><span class="shopnote">코인은 경기·일일 챌린지·훈련으로만 얻어요 · 채 효과는 AI 대전·커리어에만 적용, 스킨은 겉모습만</span></div>
+  </section>
   <section class="lsec">
     <div class="lhead">게임 종류</div>
     <div class="typegrid" id="typeList"></div>
@@ -92,15 +99,18 @@
     <div class="careergrid" id="careerList"></div>
     <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
   </section>
-  <section class="lsec" id="gearSettings" hidden>
+  <section class="lsec shopsec" id="gearSettings" hidden>
     <div class="lhead">내 채 <span class="lsub">코인으로 구매·강화 · 강화할수록 장단점이 함께 커짐 · 효과는 AI 대전·커리어에만 적용</span></div>
     <div class="geargrid" id="gearList"></div>
+  </section>
+  <section class="lsec" id="gearNowSec" hidden>
+    <div class="gearnow"><span id="gearNow"></span><button id="gearNowBtn">상점 열기</button></div>
   </section>
   <section class="lsec" id="statSettings" hidden>
     <div class="lhead">내 선수 <span class="lsub">경기·훈련으로 레벨 업 → 레벨마다 스탯 포인트 1 · 다시 나누기 무료 · 효과는 AI 대전·커리어에만 적용</span></div>
     <div class="statbox" id="statBox"></div>
   </section>
-  <section class="lsec" id="skinSettings" hidden>
+  <section class="lsec shopsec" id="skinSettings" hidden>
     <div class="lhead">꾸미기 <span class="lsub">코인으로 구매 · 겉모습만 바뀜(능력치 없음) · 친선게임에서 상대에게도 유니폼·채 색이 보여요</span></div>
     <div class="skinbox" id="skinBox"></div>
   </section>

@@ -505,6 +505,16 @@ body.touch .c3sta{position:relative;left:auto;bottom:auto;padding:3px 9px 3px 4p
 /* ───── 언어 전환 ───── */
 .langbtn{float:right;font-size:12.5px;font-weight:500;padding:5px 12px;border-radius:999px;margin-top:4px;}
 html[lang=en] .c3board.srvMe .me .nm::after,html[lang=en] .c3board.srvOpp .opp .nm::after{content:' · serve';}
+/* ───── 대기화면 탭 (플레이 / 상점) ───── */
+.ltabs{display:flex;gap:6px;margin:0 0 16px;border-bottom:1px solid var(--line);}
+.ltabs button{border:0;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;background:none;padding:9px 20px;font-size:15px;font-weight:600;color:var(--text3);}
+.ltabs button:hover{color:var(--text);} .ltabs button.active{color:var(--text);border-bottom-color:var(--ok);}
+#lobby[data-tab=shop] .lsec:not(.shopsec),#lobby[data-tab=shop] .lfoot{display:none;}
+#lobby:not([data-tab=shop]) .shopsec{display:none;}
+.shophead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 16px;}
+.shopcoin{font-size:15px;color:#FFD23F;} .shopcoin b{font-size:20px;} .shopnote{font-size:12.5px;color:var(--text3);}
+.gearnow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 10px 8px 14px;font-size:13px;color:var(--text2);}
+.gearnow span{flex:1;min-width:200px;} .gearnow b{color:var(--text);margin:0 4px;} .gearnow small{color:var(--text3);}
 </style>
 </head>
 <body>
@@ -513,6 +523,13 @@ html[lang=en] .c3board.srvMe .me .nm::after,html[lang=en] .c3board.srvOpp .opp .
   <h1>배드민턴 랠리 <span class="cock">●</span></h1>
   <p class="sub">실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.</p>
   <div class="acctbar" id="acctBar"></div>
+  <div class="ltabs" id="lobbyTabs" role="tablist">
+    <button data-tab="play" class="active" role="tab">플레이</button>
+    <button data-tab="shop" role="tab">상점</button>
+  </div>
+  <section class="lsec shopsec" id="shopHead">
+    <div class="shophead"><span class="shopcoin" id="shopCoin"></span><span class="shopnote">코인은 경기·일일 챌린지·훈련으로만 얻어요 · 채 효과는 AI 대전·커리어에만 적용, 스킨은 겉모습만</span></div>
+  </section>
   <section class="lsec">
     <div class="lhead">게임 종류</div>
     <div class="typegrid" id="typeList"></div>
@@ -576,15 +593,18 @@ html[lang=en] .c3board.srvMe .me .nm::after,html[lang=en] .c3board.srvOpp .opp .
     <div class="careergrid" id="careerList"></div>
     <div class="careerfoot"><span id="careerNote"></span><button id="careerReset">처음부터 다시</button></div>
   </section>
-  <section class="lsec" id="gearSettings" hidden>
+  <section class="lsec shopsec" id="gearSettings" hidden>
     <div class="lhead">내 채 <span class="lsub">코인으로 구매·강화 · 강화할수록 장단점이 함께 커짐 · 효과는 AI 대전·커리어에만 적용</span></div>
     <div class="geargrid" id="gearList"></div>
+  </section>
+  <section class="lsec" id="gearNowSec" hidden>
+    <div class="gearnow"><span id="gearNow"></span><button id="gearNowBtn">상점 열기</button></div>
   </section>
   <section class="lsec" id="statSettings" hidden>
     <div class="lhead">내 선수 <span class="lsub">경기·훈련으로 레벨 업 → 레벨마다 스탯 포인트 1 · 다시 나누기 무료 · 효과는 AI 대전·커리어에만 적용</span></div>
     <div class="statbox" id="statBox"></div>
   </section>
-  <section class="lsec" id="skinSettings" hidden>
+  <section class="lsec shopsec" id="skinSettings" hidden>
     <div class="lhead">꾸미기 <span class="lsub">코인으로 구매 · 겉모습만 바뀜(능력치 없음) · 친선게임에서 상대에게도 유니폼·채 색이 보여요</span></div>
     <div class="skinbox" id="skinBox"></div>
   </section>
@@ -866,6 +886,9 @@ const I18N = {
     '가장 긴 랠리': 'Longest rally', '내 최고 스매시': 'My top smash', '빨강팀': 'Red team', '파랑팀': 'Blue team', '스매시!': 'SMASH!', '배드민턴': 'BADMINTON',
     '오른쪽': 'right', '왼쪽': 'left', '켬': 'on', '끔': 'off', '무한': 'infinite', '그림자': 'shadow', '낙하 표시': 'landing marker', '(둘 다 적용)': '(applies to both)', '오른손잡이': 'Right-handed',
     '방향키 이동 ·': 'Arrows move ·', '런지 · 조준 ←→': 'lunge · aim ←→', '올리기 ·': 'lift ·', '찍기 ·': 'smash ·', '직선 ·': 'flat ·', '점프 ·': 'jump ·',
+    '플레이': 'Play', '상점': 'Shop', '상점 열기': 'Open shop', '장착한 채': 'Racket',
+    '코인은 경기·일일 챌린지·훈련으로만 얻어요 · 채 효과는 AI 대전·커리어에만 적용, 스킨은 겉모습만': 'Coins come only from matches, the daily challenge and training · racket effects apply in vs AI and Career only, skins are looks only',
+    '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 상점 탭의 「내 채」와 「꾸미기」': 'Only finished matches pay out · spend them on "My racket" and "Customize" in the Shop tab',
     '한국어': '한국어'
   },
   U: { '점': ' pts', '타': ' hits', '경기': ' games', '명': ' players', '초': 's', '전': ' played', '승': 'W', '패': 'L', '코인': ' coins', '번': '×', '개': '' },
@@ -910,6 +933,7 @@ const I18N = {
       R('강화 \\+(\\d) 🪙 ' + N, m => `Upgrade +${m[1]} 🪙 ${m[2]}`), R('강화 \\+(\\d) — 코인 부족 \\(' + N + ' 더 필요\\)', m => `Upgrade +${m[1]} — not enough coins (${m[2]} more)`),
       R('(.+) 채를 (\\d+)코인에 살까요\\?', m => `Buy the ${T(m[1])} racket for ${m[2]} coins?`), R('(.+) 「(.+)」을\\(를\\) (\\d+)코인에 살까요\\?', m => `Buy ${T(m[1])} "${T(m[2])}" for ${m[3]} coins?`),
       R('(.+) \\+(\\d) 강화 \\((\\d+)코인\\)', m => `${T(m[1])} +${m[2]} upgrade (${m[3]} coins)`), R('장점: (.+)', m => { const b = T(m[1]); return b && `Upside: ${b}`; }), R('단점: (.+)', m => { const b = T(m[1]); return b && `Downside: ${b}`; }), R('강화 단계는 나중에 낮춰 쓸 수 있어요\\.', () => 'You can use a lower upgrade level later.'),
+      R('＋ (.+)', m => { const b = T(m[1]); return b && `＋ ${b}`; }), R('－ (.+)', m => { const b = T(m[1]); return b && `－ ${b}`; }),
       R('(균형형|헤드 헤비|헤드 라이트)(?: \\+(\\d))?', m => this.EX[m[1]] + (m[2] ? ' +' + m[2] : '')),
       R('스매시 각 ([+\\-−][\\d.]+)° \\(더 가파르고 빠르게\\)', m => `smash angle ${m[1]}° (steeper, faster)`), R('스매시 각 ([+\\-−][\\d.]+)° \\(더 날카롭고 빠르게\\)', m => `smash angle ${m[1]}° (sharper, faster)`), R('스매시 각 ([+\\-−][\\d.]+)° \\(더 완만하고 느리게\\)', m => `smash angle ${m[1]}° (flatter, slower)`),
       R('상대 반응 \\+(\\d+)ms', m => `opponent reacts +${m[1]}ms later`), R('상대 리턴 오차 \\+(\\d+)%', m => `opponent return error +${m[1]}%`), R('충전 시간 ([+\\-−]\\d+%)', m => `charge time ${m[1]}`), R('정타 여유 ([+\\-−]\\d+%)', m => `timing window ${m[1]}`),
@@ -918,7 +942,7 @@ const I18N = {
       R('타격 판정 거리 \\+([\\d.]+)cm', m => `hit reach +${m[1]}cm`), R('이동 속도 \\+(\\d+)%', m => `move speed +${m[1]}%`), R('점프 초기속도 \\+(\\d+)% \\(높이 약 \\+(\\d+)%\\)', m => `jump speed +${m[1]}% (height about +${m[2]}%)`), R('최대 체력 \\+(\\d+) \\(기본 100\\)', m => `max stamina +${m[1]} (base 100)`),
       R('경험치: 승리 (\\d+)', m => `XP: win ${m[1]}`), R('패배 최대 (\\d+)\\(점수 비례\\)', m => `loss up to ${m[1]} (by score)`), R('훈련 레벨업 (\\d+)', m => `training level-up ${m[1]}`), R('일일 챌린지 첫 도전 (\\d+)', m => `first daily challenge ${m[1]}`), R('친선게임 (\\d+)', m => `online match ${m[1]}`),
       R('스탯마다 최대 (\\d+), 포인트는 모두 (\\d+)개라 전부 채울 수는 없어요', m => `max ${m[1]} per stat, and only ${m[2]} points in total, so you cannot max everything`),
-      R('(리치|스피드|점프|체력) (올리기|내리기)', m => `${this.EX[m[1]]} ${m[2] === '올리기' ? 'up' : 'down'}`), R('(.+) — (\\d+)코인', m => `${T(m[1])} — ${m[2]} coins`), R('🪙 ' + N, m => `🪙 ${m[1]}`),
+      R('(리치|스피드|점프|체력) (올리기|내리기)', m => `${this.EX[m[1]]} ${m[2] === '올리기' ? 'up' : 'down'}`), R('(.+) — (\\d+)코인 \\((\\d+) 더 필요\\)', m => `${T(m[1])} — ${m[2]} coins (${m[3]} more needed)`), R('(.+) — (\\d+)코인', m => `${T(m[1])} — ${m[2]} coins`), R('🪙 ' + N, m => `🪙 ${m[1]}`),
       R('\\+' + N + ' 코인', m => `+${m[1]} coins`), R('보유 ' + N, m => `balance ${m[1]}`), R('🪙 친선게임 코인은 하루 (\\d+)경기까지 \\(오늘은 다 받았어요\\)', m => `🪙 Online-match coins are limited to ${m[1]} games a day (all claimed today)`),
       R('(승리|참가) · 오늘 (\\d)/(\\d)', m => `${m[1] === '승리' ? 'win' : 'played'} · today ${m[2]}/${m[3]}`), R('오늘 (\\d+)/(\\d+)', m => `today ${m[1]}/${m[2]}`), R('\\((.+)\\)', m => { const b = T(m[1]); return b && `(${b})`; }),
       R('선수 경험치 \\+(\\d+)', m => `Player XP +${m[1]}`), R('Lv\\.(\\d+)(?: \\((\\d+)/(\\d+)\\))?', m => m[0]), R('Lv\\.(\\d+) \\(최고 레벨\\)', m => `Lv.${m[1]} (max level)`), R('레벨 업! 스탯 포인트 \\+(\\d+)', m => `Level up! +${m[1]} stat point`), R('\\(대기화면 「내 선수」\\)', () => '("My player" on the menu)'), R('—', () => '—'),
@@ -6779,7 +6803,7 @@ const AccountUI = {
     ];
     const how = el('rlist coinhow', '');
     for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
-    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면의 「내 채」(AI 대전·커리어)와 「꾸미기」').style.marginTop = '8px';
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 상점 탭의 「내 채」와 「꾸미기」').style.marginTop = '8px';
     if (!W.log.length) return;
     el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
     const list = el('rlist coinlog', '');
@@ -6889,6 +6913,10 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.tab = 'play'; this.tabBtns = [...$('lobbyTabs').querySelectorAll('button')]; this.shopCoin = $('shopCoin'); this.gearNowSec = $('gearNowSec'); this.gearNow = $('gearNow');
+    const go = t => { this.tab = t; this.refresh(); window.scrollTo(0, 0); };
+    this.tabBtns.forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
+    $('gearNowBtn').addEventListener('click', () => go('shop'));
     this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
@@ -6998,16 +7026,23 @@ class Lobby {
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
-    this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
-    if (!this.gearBox.hidden) this.renderGear();
-    this.statSec.hidden = this.gearBox.hidden || typeof Stats3 === 'undefined';
+    // 상점 탭: 채(구매·강화·장착)와 스킨은 여기에만. 플레이 탭에는 장착한 채 한 줄 + 상점 열기
+    const has3d = GAME_TYPES.some(t => t.id === 'court3d'), growth = this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career) && this.canStart();
+    document.getElementById('lobby').dataset.tab = this.tab;
+    for (const b of this.tabBtns) b.classList.toggle('active', b.dataset.tab === this.tab);
+    if (typeof Wallet !== 'undefined') this.shopCoin.innerHTML = `🪙 <b>${Wallet.fmt(Wallet.coins)}</b> 코인`;
+    this.gearBox.hidden = !has3d || typeof Gear3 === 'undefined';
+    if (!this.gearBox.hidden && this.tab === 'shop') this.renderGear();
+    this.gearNowSec.hidden = !growth || typeof Gear3 === 'undefined';
+    if (!this.gearNowSec.hidden) { const P = Gear3.pros(Gear3.eq, Gear3.useLv(Gear3.eq)); this.gearNow.innerHTML = `장착한 채 <b>${Gear3.label()}</b> <small>${Gear3.eq === 'bal' ? '효과 없음' : '＋ ' + P.good + ' · － ' + P.bad}</small>`; }
+    this.statSec.hidden = !growth || typeof Stats3 === 'undefined';
     if (!this.statSec.hidden) this.renderStats();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
-    this.skinSec.hidden = this.sel.type !== 'court3d' || !this.canStart() || typeof Skin3 === 'undefined';
-    if (!this.skinSec.hidden) this.renderSkins();
+    this.skinSec.hidden = !has3d || typeof Skin3 === 'undefined';
+    if (!this.skinSec.hidden && this.tab === 'shop') this.renderSkins();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
     const sb = document.getElementById('styleSeg');   // 상대 성향: 3D AI 대전에서만
     if (sb) { sb.hidden = !(this.sel.type === 'court3d' && this.sel.mode === 'ai'); const st = typeof C3 !== 'undefined' && C3.AI_STYLE[this.sel.style];
@@ -7386,7 +7421,7 @@ class App {
       if (AccountUI.isOpen) AccountUI.close();
       else if (this.tutorial.isOpen) this.tutorial.close();
       else if (this.screen !== 'lobby') this.toMenu();
-    } else if (e.code === 'Enter' && this.screen === 'lobby' && !this.tutorial.isOpen && !AccountUI.isOpen) {
+    } else if (e.code === 'Enter' && this.screen === 'lobby' && this.lobby.tab !== 'shop' && !this.tutorial.isOpen && !AccountUI.isOpen) {   // 상점 탭에서는 Enter로 시작하지 않음
       e.preventDefault();
       this.lobby.start();
     }

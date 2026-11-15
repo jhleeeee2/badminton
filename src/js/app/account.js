@@ -393,7 +393,7 @@ const AccountUI = {
     ];
     const how = el('rlist coinhow', '');
     for (const [k, v] of rows) { const row = document.createElement('div'); row.className = 'rrow'; for (const c of [k, v]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } how.appendChild(row); }
-    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면의 「내 채」(AI 대전·커리어)와 「꾸미기」').style.marginTop = '8px';
+    el('rsrc', '끝까지 한 경기만 받을 수 있어요 · 쓰는 곳: 대기화면 상점 탭의 「내 채」와 「꾸미기」').style.marginTop = '8px';
     if (!W.log.length) return;
     el('rsrc', '<b style="color:var(--text)">최근 내역</b>').style.marginTop = '12px';
     const list = el('rlist coinlog', '');

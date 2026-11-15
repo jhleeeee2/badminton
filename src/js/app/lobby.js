@@ -38,6 +38,10 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
+    this.tab = 'play'; this.tabBtns = [...$('lobbyTabs').querySelectorAll('button')]; this.shopCoin = $('shopCoin'); this.gearNowSec = $('gearNowSec'); this.gearNow = $('gearNow');
+    const go = t => { this.tab = t; this.refresh(); window.scrollTo(0, 0); };
+    this.tabBtns.forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
+    $('gearNowBtn').addEventListener('click', () => go('shop'));
     this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
@@ -147,16 +151,23 @@ class Lobby {
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
-    this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
-    if (!this.gearBox.hidden) this.renderGear();
-    this.statSec.hidden = this.gearBox.hidden || typeof Stats3 === 'undefined';
+    // 상점 탭: 채(구매·강화·장착)와 스킨은 여기에만. 플레이 탭에는 장착한 채 한 줄 + 상점 열기
+    const has3d = GAME_TYPES.some(t => t.id === 'court3d'), growth = this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career) && this.canStart();
+    document.getElementById('lobby').dataset.tab = this.tab;
+    for (const b of this.tabBtns) b.classList.toggle('active', b.dataset.tab === this.tab);
+    if (typeof Wallet !== 'undefined') this.shopCoin.innerHTML = `🪙 <b>${Wallet.fmt(Wallet.coins)}</b> 코인`;
+    this.gearBox.hidden = !has3d || typeof Gear3 === 'undefined';
+    if (!this.gearBox.hidden && this.tab === 'shop') this.renderGear();
+    this.gearNowSec.hidden = !growth || typeof Gear3 === 'undefined';
+    if (!this.gearNowSec.hidden) { const P = Gear3.pros(Gear3.eq, Gear3.useLv(Gear3.eq)); this.gearNow.innerHTML = `장착한 채 <b>${Gear3.label()}</b> <small>${Gear3.eq === 'bal' ? '효과 없음' : '＋ ' + P.good + ' · － ' + P.bad}</small>`; }
+    this.statSec.hidden = !growth || typeof Stats3 === 'undefined';
     if (!this.statSec.hidden) this.renderStats();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
     if (!this.trainBox.hidden) this.renderTrain();
-    this.skinSec.hidden = this.sel.type !== 'court3d' || !this.canStart() || typeof Skin3 === 'undefined';
-    if (!this.skinSec.hidden) this.renderSkins();
+    this.skinSec.hidden = !has3d || typeof Skin3 === 'undefined';
+    if (!this.skinSec.hidden && this.tab === 'shop') this.renderSkins();
     this.handBox.hidden = !(this.type().options || []).includes('hand');
     const sb = document.getElementById('styleSeg');   // 상대 성향: 3D AI 대전에서만
     if (sb) { sb.hidden = !(this.sel.type === 'court3d' && this.sel.mode === 'ai'); const st = typeof C3 !== 'undefined' && C3.AI_STYLE[this.sel.style];

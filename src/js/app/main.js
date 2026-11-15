@@ -176,7 +176,7 @@ class App {
       if (AccountUI.isOpen) AccountUI.close();
       else if (this.tutorial.isOpen) this.tutorial.close();
       else if (this.screen !== 'lobby') this.toMenu();
-    } else if (e.code === 'Enter' && this.screen === 'lobby' && !this.tutorial.isOpen && !AccountUI.isOpen) {
+    } else if (e.code === 'Enter' && this.screen === 'lobby' && this.lobby.tab !== 'shop' && !this.tutorial.isOpen && !AccountUI.isOpen) {   // 상점 탭에서는 Enter로 시작하지 않음
       e.preventDefault();
       this.lobby.start();
     }
