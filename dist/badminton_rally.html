@@ -463,6 +463,20 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .gcard .trd{font-size:12.5px;color:var(--text2);line-height:1.55;}
 .gcard .tre{font-size:12px;color:var(--text2);line-height:1.6;} .gcard .good{color:var(--ok);} .gcard .bad{color:var(--bad);}
 .gcard .gbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px;} .gcard .gbtns button{font-size:12.5px;padding:6px 10px;} .gcard .gbtns .gstep{min-width:34px;}
+/* ───── 내 선수 (스탯) ───── */
+.statbox{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.sthead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--text2);}
+.stlv{font-size:18px;font-weight:700;color:var(--text);} .stlv small{font-size:12px;font-weight:500;color:var(--text3);}
+.stbar{flex:1;min-width:120px;height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;} .stbar i{display:block;height:100%;background:var(--ok);border-radius:4px;}
+.stfree b{color:var(--text);font-size:15px;} .stfree.on b{color:#FFD23F;}
+.strows{display:flex;flex-direction:column;gap:6px;}
+.strow{--tc:#FFD23F;display:grid;grid-template-columns:130px 110px 1fr 36px 36px;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:var(--bg);}
+.strow .stn{font-weight:700;color:var(--tc);font-size:14px;} .strow .stn small{font-size:11.5px;font-weight:500;color:var(--text3);margin-left:2px;}
+.strow .pips{display:flex;gap:3px;} .strow .pips i{width:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);} .strow .pips i.on{background:var(--tc);}
+.strow .ste{font-size:12.5px;color:var(--text2);} .strow button{padding:4px 0;font-size:14px;}
+.stnote{font-size:12px;color:var(--text3);line-height:1.55;}
+.xpline{color:#9FD8FF;font-size:.9em;} .xpline b{color:#FFD23F;}
+@media (max-width:560px){.strow{grid-template-columns:1fr 36px 36px;} .strow .stn{grid-column:1 / -1;} .strow .ste{grid-column:1 / -1;order:5;}}
 </style>
 </head>
 <body>
@@ -532,6 +546,10 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
   <section class="lsec" id="gearSettings" hidden>
     <div class="lhead">내 채 <span class="lsub">코인으로 구매·강화 · 강화할수록 장단점이 함께 커짐 · 효과는 AI 대전·커리어에만 적용</span></div>
     <div class="geargrid" id="gearList"></div>
+  </section>
+  <section class="lsec" id="statSettings" hidden>
+    <div class="lhead">내 선수 <span class="lsub">경기·훈련으로 레벨 업 → 레벨마다 스탯 포인트 1 · 다시 나누기 무료 · 효과는 AI 대전·커리어에만 적용</span></div>
+    <div class="statbox" id="statBox"></div>
   </section>
   <section class="lsec" id="dailySettings" hidden>
     <div class="lhead">일일 챌린지 <span class="lsub">날마다 종목이 바뀜 · 누구에게나 같은 공 15개 · 여러 번 도전, 최고 점수만 인정</span></div>
@@ -2518,7 +2536,7 @@ class Athlete3D {
   setHand(h) { this.hand = h; this.h = h === 'R' ? 1 : -1; this.cur = null; }
   right() { return { x: -this.facing, z: 0 }; }
   onGround() { return this.y <= 0 && this.vy === 0; }
-  reach() { return C3.BODY.REACH + (this.extT > 0 ? C3.BODY.EXT_REACH : 0); }
+  reach() { return C3.BODY.REACH + (this.stat ? this.stat.reach : 0) + (this.extT > 0 ? C3.BODY.EXT_REACH : 0); }   // stat: 선수 스탯 효과 (AI 대전·커리어의 내 선수만)
 
   // 라켓 든 팔 어깨의 세계 좌표 (판정용)
   shoulder() {
@@ -2546,7 +2564,7 @@ class Athlete3D {
   }
 
   // ───── 동작 ─────
-  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V; }
+  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
   // 스플릿 스텝: 상대가 치는 순간 가볍게 뛰어 다음 첫 발을 준비 (실제 배드민턴 풋워크) — 여기선 보이는 동작만
   splitStep() { if (this.onGround() && this.extT <= 0 && !this.charge && !this.swingS) this.vy = 1.25; }
   react(kind) { this.mood = { kind, t: 1.3 }; if (kind === 'win' && this.onGround()) this.vy = 2.3; }
@@ -2612,7 +2630,7 @@ class Athlete3D {
       const v = p < 1 ? (B.EXT_LUNGE / (B.EXT_TIME * 0.6)) * 2 * (1 - p) : 0;
       this.vel.x = this.extDir.x * v; this.vel.z = this.extDir.z * v;
     } else {
-      const maxV = B.SPEED * this.speedMul * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
+      const maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
       const L = Math.hypot(this.moveDir.x, this.moveDir.z) || 1;
       const tx = this.moveDir.x / L * maxV, tz = this.moveDir.z / L * maxV;
       const acc = B.ACCEL * (this.onGround() ? 1 : 0.2) * dt;
@@ -4127,6 +4145,84 @@ const Gear3 = {
 Gear3.load();
 </script>
 <script>
+// court3d/stats.js — 선수 스탯: 경기·훈련으로 선수 레벨을 올리고, 레벨만큼 받은 포인트를 스탯에 나눠 줌
+//   · 총합 상한: 최고 레벨 12 = 포인트 12개, 스탯 3종 × 최대 6 = 18칸 → 전부 최대로는 못 채움 (어디에 줄지 고르는 재미)
+//   · 다시 나누기는 언제든 무료 (대기화면 「내 선수」의 −/＋)
+//   · 효과는 AI 대전·커리어에만 적용. 친선게임·일일 챌린지·훈련은 모두 기본 능력치로 공평하게
+//   · 저장: 브라우저(badminton.stats.v1) · 로그인하면 wallets 표 gear 칸의 _stats에 함께 저장 (경험치는 더 높은 쪽) — account.js
+//   수치는 모두 [게임]용으로 정한 값 (리치는 판정 거리만 늘고 몸 모델의 팔 길이는 그대로)
+
+const Stats3 = {
+  KEY: 'badminton.stats.v1', MAX_LV: 12, STAT_MAX: 6,
+  XP: { win: 40, loss: 20, room: 20, daily: 30, levelUp: 50 },   // 패배는 × (내 점수 ÷ 목표 점수) · 일일 챌린지는 그날 첫 도전만 · 친선게임은 코인을 받는 경기(하루 5번)만
+  STATS: {
+    reach: { name: '리치',   sub: '팔 길이',      color: '#FFD23F', per: 0.025, text: n => `타격 판정 거리 +${(0.025 * n * 100).toFixed(1)}cm` },
+    speed: { name: '스피드', sub: '다리·순발력',  color: '#3DD9FF', per: 0.02,  text: n => `이동 속도 +${2 * n}%` },
+    jump:  { name: '점프',   sub: '도약',         color: '#7CFF6B', per: 0.04,  text: n => `점프 초기속도 +${4 * n}% (높이 약 +${Math.round(((1 + 0.04 * n) ** 2 - 1) * 100)}%)` }
+  },
+  xp: 0, alloc: { reach: 0, speed: 0, jump: 0 }, day: '', listeners: [],
+
+  need(L) { return 100 + 50 * L; },   // 레벨 L → L+1에 필요한 경험치 (1레벨 100, 그 뒤로 50씩 증가 · 12레벨까지 합계 4,500)
+  // { lv, cur, need }: 현재 레벨, 이번 레벨에서 쌓은 경험치, 다음 레벨까지 필요한 양 (최고 레벨이면 need 0)
+  info() {
+    let lv = 0, x = this.xp;
+    while (lv < this.MAX_LV && x >= this.need(lv)) { x -= this.need(lv); lv++; }
+    return { lv, cur: lv >= this.MAX_LV ? 0 : x, need: lv >= this.MAX_LV ? 0 : this.need(lv) };
+  },
+  level() { return this.info().lv; },
+  used() { let s = 0; for (const k in this.STATS) s += this.alloc[k] || 0; return s; },
+  free() { return Math.max(0, this.level() - this.used()); },
+  // 저장본·서버 값 정리: 범위를 벗어나거나 포인트보다 많이 쓴 경우 뒤에서부터 덜어냄
+  fix() {
+    this.xp = Math.max(0, Math.round(Number(this.xp) || 0));
+    for (const k in this.STATS) this.alloc[k] = Math.max(0, Math.min(this.STAT_MAX, this.alloc[k] | 0));
+    const ks = Object.keys(this.STATS).reverse();
+    for (let i = 0; this.used() > this.level() && i < 100; i++) { const k = ks.find(x => this.alloc[x] > 0); if (!k) break; this.alloc[k]--; }
+  },
+  dump() { return { xp: this.xp, alloc: { ...this.alloc } }; },
+  // 다른 곳(서버) 값 받기: 경험치는 더 높은 쪽. keepAlloc = 내 분배를 그대로 둘지 (같은 계정이면 유지, 아니면 서버 것)
+  take(v, keepAlloc) {
+    if (!v || typeof v !== 'object') { if (!keepAlloc) { this.xp = 0; this.alloc = { reach: 0, speed: 0, jump: 0 }; } this.fix(); return; }
+    this.xp = keepAlloc ? Math.max(this.xp, Number(v.xp) || 0) : Number(v.xp) || 0;
+    if (!keepAlloc || !this.used()) this.alloc = { reach: 0, speed: 0, jump: 0, ...(v.alloc && typeof v.alloc === 'object' ? v.alloc : {}) };
+    this.fix();
+  },
+
+  load() {
+    try { const v = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (v && typeof v === 'object') { this.xp = v.xp; if (v.alloc && typeof v.alloc === 'object') Object.assign(this.alloc, v.alloc); this.day = typeof v.day === 'string' ? v.day : ''; } } catch (e) { /* 무시 */ }
+    this.fix();
+  },
+  save(quiet) {
+    try { localStorage.setItem(this.KEY, JSON.stringify({ xp: this.xp, alloc: this.alloc, day: this.day })); } catch (e) { /* 무시 */ }
+    if (!quiet) for (const fn of this.listeners) { try { fn(); } catch (e) { console.error(e); } }
+  },
+  on(fn) { this.listeners.push(fn); },
+
+  // 경험치 얻기 → { xp, up, html } (html = 결과 창에 붙일 한 줄). k: 패배 때 (내 점수 ÷ 목표 점수)
+  gain(kind, k) {
+    let n = this.XP[kind] || 0;
+    if (kind === 'loss') n = Math.round(n * Math.max(0, Math.min(1, k || 0)));
+    if (kind === 'daily') { const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); if (this.day === d) n = 0; else this.day = d; }
+    const before = this.level();
+    if (before >= this.MAX_LV || !n) { this.save(true); return { xp: 0, up: false, html: '' }; }
+    this.xp += n; this.save();
+    const I = this.info(), up = I.lv > before;
+    return { xp: n, up, html: `<br><span class="xpline">선수 경험치 +${n} · Lv.${I.lv}${I.need ? ` (${I.cur}/${I.need})` : ' (최고 레벨)'}${up ? ' — <b>레벨 업! 스탯 포인트 +' + (I.lv - before) + '</b> (대기화면 「내 선수」)' : ''}</span>` };
+  },
+  // 스탯에 포인트 주기/빼기 (d = +1 / −1)
+  step(id, d) {
+    if (!this.STATS[id]) return false;
+    const n = (this.alloc[id] || 0) + d;
+    if (n < 0 || n > this.STAT_MAX || (d > 0 && this.free() < d)) return false;
+    this.alloc[id] = n; this.save(); return true;
+  },
+  // 경기에 적용할 효과: reach = 판정 거리 추가(m) · speed·jump = 추가 비율
+  effects() { const S = this.STATS, a = this.alloc; return { reach: S.reach.per * a.reach, speed: S.speed.per * a.speed, jump: S.jump.per * a.jump }; },
+  label() { const a = this.alloc; return this.used() ? `선수 Lv.${this.level()} (리치 ${a.reach} · 스피드 ${a.speed} · 점프 ${a.jump})` : ''; }
+};
+Stats3.load();
+</script>
+<script>
 // court3d/train.js — 훈련 모드: AI가 공을 '먹여 주고'(피딩), 연속 성공 수로 레벨업
 //   str 근력: 높은 공 → 내 스매시가 상대 코트 표적 안에 떨어지면 성공
 //   agi 순발력: AI 스매시 → 상대 코트 안으로 받아 넘기면 성공
@@ -4217,6 +4313,7 @@ class Trainer3D {
       if (this.streak >= need && Progress3.lv[this.kind] < Progress3.MAX) {
         Progress3.up(this.kind); this.streak = 0;
         const coin = typeof Wallet !== 'undefined' ? Wallet.levelUp(TRAIN_INFO[this.kind].name).sum : 0;
+        if (typeof Stats3 !== 'undefined') Stats3.gain('levelUp');
         g.hud.banner(`${TRAIN_INFO[this.kind].name} Lv.${Progress3.lv[this.kind]} 달성!` + (coin ? ` 🪙 +${coin}` : ''), '#FFD23F', 2.0);
         g.view.cheer(1); Sound3.cheer(1);
       } else g.hud.banner(r.msg + ` (${this.streak}/${need})`, '#5BFFB0', 1.0);
@@ -4250,7 +4347,7 @@ class Trainer3D {
     const fmt = n => n.toLocaleString('en-US');
     const base = `일일 챌린지 끝 — ${I.name}<br><b>${fmt(this.score)}점</b> (성공 ${this.hits}/${Daily3.TOTAL} · 최고 연속 ${this.best})<br>`
       + (rec.isNew ? '오늘 내 최고 기록!' : `오늘 내 최고 ${fmt(rec.best)}점`)
-      + (typeof Wallet !== 'undefined' ? Wallet.daily(rec.best).html : '');
+      + (typeof Wallet !== 'undefined' ? Wallet.daily(rec.best).html : '') + (typeof Stats3 !== 'undefined' ? Stats3.gain('daily').html : '');
     const tail = '<br>Enter 또는 다시 시작 = 다시 도전 · Esc = 메뉴';
     g.hud.showMessage(base + tail);
     const run = this.runId = (this.runId || 0) + 1;
@@ -4705,6 +4802,8 @@ class Game3D {
     // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
     const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
     this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
+    // 선수 스탯도 같은 범위에서만
+    this.me.stat = this.mode === 'ai' && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -5123,10 +5222,12 @@ class Game3D {
   // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음
   payMatch(won) {
     if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
-    if (this.mode === 'room') return Wallet.room(won).html;
+    const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
+    if (this.mode === 'room') { const r = Wallet.room(won); return r.html + (XP && r.sum ? XP.gain('room').html : ''); }
     const m = this.match, c = this.career;
+    const xp = XP ? XP.gain(won ? 'win' : 'loss', m.pts / m.win).html : '';   // 선수 경험치
     return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
-      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html;
+      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html + xp;
   }
 
   // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)
@@ -5737,8 +5838,10 @@ const Account = {
       const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
       // 채: 다른 계정이 쓰던 브라우저면 서버 것만, 아니면 채마다 더 높은 강화 단계로 합침
       const sg = r.data && r.data.gear && typeof r.data.gear === 'object' ? r.data.gear : {};
-      if (G) { if (W.uid && W.uid !== id) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
-      const gear = G ? G.own : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      const other = !!(W.uid && W.uid !== id), ST = typeof Stats3 !== 'undefined' ? Stats3 : null;
+      if (G) { if (other) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
+      if (ST) { ST.take(sg._stats, !other); ST.save(true); }   // 선수 스탯: gear 칸의 _stats에 함께 저장
+      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
       if (!r.data || d || dT || gearNew) {
         const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
@@ -5956,7 +6059,8 @@ const AccountUI = {
 
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
-if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));   // 채를 사거나 강화하면 서버에도 반영
+if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));
+if (typeof Stats3 !== 'undefined') Stats3.on(() => Account.syncWallet(true));   // 경험치·스탯 분배도   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();
 </script>
@@ -6001,7 +6105,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
-    this.gearBox = $('gearSettings'); this.gearList = $('gearList');
+    this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
@@ -6108,6 +6212,8 @@ class Lobby {
     this.careerBox.hidden = !career || !this.canStart();
     this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
     if (!this.gearBox.hidden) this.renderGear();
+    this.statSec.hidden = this.gearBox.hidden || typeof Stats3 === 'undefined';
+    if (!this.statSec.hidden) this.renderStats();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
@@ -6193,6 +6299,28 @@ class Lobby {
         if (L > 0) { add('−', () => G.setUse(id, U - 1), U <= 0, 'gstep'); add('＋', () => G.setUse(id, U + 1), U >= L, 'gstep'); }
       }
       box.appendChild(card);
+    }
+  }
+
+  // 내 선수: 레벨·경험치 + 스탯 3종에 포인트 나누기 (−/＋, 다시 나누기 무료)
+  renderStats() {
+    const T = Stats3, I = T.info(), box = this.statBox, free = T.free(), X = T.XP;
+    box.innerHTML = `<div class="sthead"><span class="stlv">Lv.${I.lv}<small> / ${T.MAX_LV}</small></span>
+      <span class="stbar"><i style="width:${I.need ? Math.round(100 * I.cur / I.need) : 100}%"></i></span>
+      <span class="stxp">${I.need ? `다음 레벨까지 ${I.need - I.cur} 경험치` : '최고 레벨'}</span>
+      <span class="stfree${free ? ' on' : ''}">남은 포인트 <b>${free}</b></span></div>
+      <div class="strows"></div>
+      <div class="stnote">경험치: 승리 ${X.win} · 패배 최대 ${X.loss}(점수 비례) · 훈련 레벨업 ${X.levelUp} · 일일 챌린지 첫 도전 ${X.daily} · 친선게임 ${X.room} — 스탯마다 최대 ${T.STAT_MAX}, 포인트는 모두 ${T.MAX_LV}개라 전부 채울 수는 없어요</div>`;
+    const rows = box.querySelector('.strows');
+    for (const id of Object.keys(T.STATS)) {
+      const S = T.STATS[id], n = T.alloc[id], row = document.createElement('div');
+      row.className = 'strow'; row.style.setProperty('--tc', S.color);
+      row.innerHTML = `<span class="stn">${S.name} <small>${S.sub}</small></span><span class="pips">${Array.from({ length: T.STAT_MAX }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span><span class="ste">${n ? S.text(n) : '효과 없음'}</span>`;
+      for (const [txt, d, off] of [['−', -1, n <= 0], ['＋', 1, n >= T.STAT_MAX || free < 1]]) {
+        const b = document.createElement('button'); b.textContent = txt; b.className = 'gstep'; b.disabled = off; b.setAttribute('aria-label', S.name + (d > 0 ? ' 올리기' : ' 내리기'));
+        b.addEventListener('click', () => { T.step(id, d); this.refresh(); }); row.appendChild(b);
+      }
+      rows.appendChild(row);
     }
   }
 

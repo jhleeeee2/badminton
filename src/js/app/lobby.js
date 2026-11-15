@@ -38,7 +38,7 @@ class Lobby {
     this.load();
     this.typeList = $('typeList'); this.modeList = $('modeList');
     this.aiBox = $('aiSettings'); this.trainBox = $('trainSettings'); this.trainList = $('trainList'); this.startBtn = $('lobbyStart'); this.note = $('lobbyNote'); this.handBox = $('handSeg');
-    this.gearBox = $('gearSettings'); this.gearList = $('gearList');
+    this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
     this.dailyBox = $('dailySettings'); this.dailyCard = $('dailyCard'); this.dailyRank = $('dailyRank');
@@ -145,6 +145,8 @@ class Lobby {
     this.careerBox.hidden = !career || !this.canStart();
     this.gearBox.hidden = !(this.sel.type === 'court3d' && (this.sel.mode === 'ai' || career)) || !this.canStart() || typeof Gear3 === 'undefined';
     if (!this.gearBox.hidden) this.renderGear();
+    this.statSec.hidden = this.gearBox.hidden || typeof Stats3 === 'undefined';
+    if (!this.statSec.hidden) this.renderStats();
     if (!this.careerBox.hidden) this.renderCareer();
     this.roomBox.hidden = !room || !this.canStart();
     this.trainBox.hidden = this.sel.mode !== 'train' || !this.canStart();
@@ -230,6 +232,28 @@ class Lobby {
         if (L > 0) { add('−', () => G.setUse(id, U - 1), U <= 0, 'gstep'); add('＋', () => G.setUse(id, U + 1), U >= L, 'gstep'); }
       }
       box.appendChild(card);
+    }
+  }
+
+  // 내 선수: 레벨·경험치 + 스탯 3종에 포인트 나누기 (−/＋, 다시 나누기 무료)
+  renderStats() {
+    const T = Stats3, I = T.info(), box = this.statBox, free = T.free(), X = T.XP;
+    box.innerHTML = `<div class="sthead"><span class="stlv">Lv.${I.lv}<small> / ${T.MAX_LV}</small></span>
+      <span class="stbar"><i style="width:${I.need ? Math.round(100 * I.cur / I.need) : 100}%"></i></span>
+      <span class="stxp">${I.need ? `다음 레벨까지 ${I.need - I.cur} 경험치` : '최고 레벨'}</span>
+      <span class="stfree${free ? ' on' : ''}">남은 포인트 <b>${free}</b></span></div>
+      <div class="strows"></div>
+      <div class="stnote">경험치: 승리 ${X.win} · 패배 최대 ${X.loss}(점수 비례) · 훈련 레벨업 ${X.levelUp} · 일일 챌린지 첫 도전 ${X.daily} · 친선게임 ${X.room} — 스탯마다 최대 ${T.STAT_MAX}, 포인트는 모두 ${T.MAX_LV}개라 전부 채울 수는 없어요</div>`;
+    const rows = box.querySelector('.strows');
+    for (const id of Object.keys(T.STATS)) {
+      const S = T.STATS[id], n = T.alloc[id], row = document.createElement('div');
+      row.className = 'strow'; row.style.setProperty('--tc', S.color);
+      row.innerHTML = `<span class="stn">${S.name} <small>${S.sub}</small></span><span class="pips">${Array.from({ length: T.STAT_MAX }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span><span class="ste">${n ? S.text(n) : '효과 없음'}</span>`;
+      for (const [txt, d, off] of [['−', -1, n <= 0], ['＋', 1, n >= T.STAT_MAX || free < 1]]) {
+        const b = document.createElement('button'); b.textContent = txt; b.className = 'gstep'; b.disabled = off; b.setAttribute('aria-label', S.name + (d > 0 ? ' 올리기' : ' 내리기'));
+        b.addEventListener('click', () => { T.step(id, d); this.refresh(); }); row.appendChild(b);
+      }
+      rows.appendChild(row);
     }
   }
 

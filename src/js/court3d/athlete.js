@@ -74,7 +74,7 @@ class Athlete3D {
   setHand(h) { this.hand = h; this.h = h === 'R' ? 1 : -1; this.cur = null; }
   right() { return { x: -this.facing, z: 0 }; }
   onGround() { return this.y <= 0 && this.vy === 0; }
-  reach() { return C3.BODY.REACH + (this.extT > 0 ? C3.BODY.EXT_REACH : 0); }
+  reach() { return C3.BODY.REACH + (this.stat ? this.stat.reach : 0) + (this.extT > 0 ? C3.BODY.EXT_REACH : 0); }   // stat: 선수 스탯 효과 (AI 대전·커리어의 내 선수만)
 
   // 라켓 든 팔 어깨의 세계 좌표 (판정용)
   shoulder() {
@@ -102,7 +102,7 @@ class Athlete3D {
   }
 
   // ───── 동작 ─────
-  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V; }
+  jump() { if (this.onGround() && this.extT <= 0) this.vy = C3.BODY.JUMP_V * (this.stat ? 1 + this.stat.jump : 1); }
   // 스플릿 스텝: 상대가 치는 순간 가볍게 뛰어 다음 첫 발을 준비 (실제 배드민턴 풋워크) — 여기선 보이는 동작만
   splitStep() { if (this.onGround() && this.extT <= 0 && !this.charge && !this.swingS) this.vy = 1.25; }
   react(kind) { this.mood = { kind, t: 1.3 }; if (kind === 'win' && this.onGround()) this.vy = 2.3; }
@@ -168,7 +168,7 @@ class Athlete3D {
       const v = p < 1 ? (B.EXT_LUNGE / (B.EXT_TIME * 0.6)) * 2 * (1 - p) : 0;
       this.vel.x = this.extDir.x * v; this.vel.z = this.extDir.z * v;
     } else {
-      const maxV = B.SPEED * this.speedMul * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
+      const maxV = B.SPEED * this.speedMul * (this.stat ? 1 + this.stat.speed : 1) * (this.recoverT > 0 ? B.EXT_RECOVER_MUL : 1);
       const L = Math.hypot(this.moveDir.x, this.moveDir.z) || 1;
       const tx = this.moveDir.x / L * maxV, tz = this.moveDir.z / L * maxV;
       const acc = B.ACCEL * (this.onGround() ? 1 : 0.2) * dt;

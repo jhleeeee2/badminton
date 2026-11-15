@@ -56,6 +56,8 @@ class Game3D {
     // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
     const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
     this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
+    // 선수 스탯도 같은 범위에서만
+    this.me.stat = this.mode === 'ai' && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
@@ -474,10 +476,12 @@ class Game3D {
   // 재화 지급 → 결과 창에 붙일 한 줄 (없으면 ''). 훈련·튜토리얼·로컬 2인은 지급 없음
   payMatch(won) {
     if (typeof Wallet === 'undefined' || this.trainer.active || this.duo) return '';
-    if (this.mode === 'room') return Wallet.room(won).html;
+    const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
+    if (this.mode === 'room') { const r = Wallet.room(won); return r.html + (XP && r.sum ? XP.gain('room').html : ''); }
     const m = this.match, c = this.career;
+    const xp = XP ? XP.gain(won ? 'win' : 'loss', m.pts / m.win).html : '';   // 선수 경험치
     return Wallet.match({ diff: c ? c.diff : this.diffId, blend: c ? c.blend : 0, target: m.win, won, pts: m.pts, maxRally: this.maxRally,
-      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html;
+      career: c ? { name: c.name, first: won && c.idx === Career3.cleared && !Career3.done(), replay: c.idx < Career3.cleared, final: c.final, cupIdx: c.cupIdx } : null }).html + xp;
   }
 
   // 커리어 경기 결과 문구 + 진행 저장. 이기면 careerNext에 다음 상대를 걸어 둠 (start가 넘어감)

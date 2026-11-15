@@ -439,3 +439,17 @@ body:not(.touch) #court3d>.tlay{flex:1 1 100%;min-width:0;}
 .gcard .trd{font-size:12.5px;color:var(--text2);line-height:1.55;}
 .gcard .tre{font-size:12px;color:var(--text2);line-height:1.6;} .gcard .good{color:var(--ok);} .gcard .bad{color:var(--bad);}
 .gcard .gbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px;} .gcard .gbtns button{font-size:12.5px;padding:6px 10px;} .gcard .gbtns .gstep{min-width:34px;}
+/* ───── 내 선수 (스탯) ───── */
+.statbox{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.sthead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--text2);}
+.stlv{font-size:18px;font-weight:700;color:var(--text);} .stlv small{font-size:12px;font-weight:500;color:var(--text3);}
+.stbar{flex:1;min-width:120px;height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;} .stbar i{display:block;height:100%;background:var(--ok);border-radius:4px;}
+.stfree b{color:var(--text);font-size:15px;} .stfree.on b{color:#FFD23F;}
+.strows{display:flex;flex-direction:column;gap:6px;}
+.strow{--tc:#FFD23F;display:grid;grid-template-columns:130px 110px 1fr 36px 36px;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:var(--bg);}
+.strow .stn{font-weight:700;color:var(--tc);font-size:14px;} .strow .stn small{font-size:11.5px;font-weight:500;color:var(--text3);margin-left:2px;}
+.strow .pips{display:flex;gap:3px;} .strow .pips i{width:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);} .strow .pips i.on{background:var(--tc);}
+.strow .ste{font-size:12.5px;color:var(--text2);} .strow button{padding:4px 0;font-size:14px;}
+.stnote{font-size:12px;color:var(--text3);line-height:1.55;}
+.xpline{color:#9FD8FF;font-size:.9em;} .xpline b{color:#FFD23F;}
+@media (max-width:560px){.strow{grid-template-columns:1fr 36px 36px;} .strow .stn{grid-column:1 / -1;} .strow .ste{grid-column:1 / -1;order:5;}}

@@ -188,8 +188,10 @@ const Account = {
       const coins = Math.max(0, sc + d), total = Math.max(0, st + dT);
       // 채: 다른 계정이 쓰던 브라우저면 서버 것만, 아니면 채마다 더 높은 강화 단계로 합침
       const sg = r.data && r.data.gear && typeof r.data.gear === 'object' ? r.data.gear : {};
-      if (G) { if (W.uid && W.uid !== id) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
-      const gear = G ? G.own : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
+      const other = !!(W.uid && W.uid !== id), ST = typeof Stats3 !== 'undefined' ? Stats3 : null;
+      if (G) { if (other) { G.own = { bal: 0 }; G.use = {}; G.eq = 'bal'; } G.merge(sg); G.save(true); }
+      if (ST) { ST.take(sg._stats, !other); ST.save(true); }   // 선수 스탯: gear 칸의 _stats에 함께 저장
+      const gear = G ? { ...G.own, ...(ST ? { _stats: ST.dump() } : {}) } : sg, gearNew = JSON.stringify(gear) !== JSON.stringify(sg);
       if (!r.data || d || dT || gearNew) {
         const up = await this.sb.from('wallets').upsert({ user_id: id, coins, total, gear, updated_at: new Date().toISOString() });
         if (up.error) { console.warn('코인 업로드 실패 — 다음에 다시 시도', up.error); return; }
@@ -407,6 +409,7 @@ const AccountUI = {
 
 // 코인이 바뀔 때마다 대기화면 표시 갱신 + (로그인 상태면) 서버에 반영
 if (typeof Wallet !== 'undefined') Wallet.on(() => { if (AccountUI.bar) AccountUI.render(); Account.syncWallet(); });
-if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));   // 채를 사거나 강화하면 서버에도 반영
+if (typeof Gear3 !== 'undefined') Gear3.on(() => Account.syncWallet(true));
+if (typeof Stats3 !== 'undefined') Stats3.on(() => Account.syncWallet(true));   // 경험치·스탯 분배도   // 채를 사거나 강화하면 서버에도 반영
 
 Account.init();
