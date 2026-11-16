@@ -42,7 +42,7 @@ class Lobby {
     const go = t => { this.tab = t; this.refresh(); window.scrollTo(0, 0); };
     this.tabBtns.forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
     $('gearNowBtn').addEventListener('click', () => go('shop'));
-    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
+    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank'); this.rankBox = $('rankSettings'); this.rankInfo = $('rankInfo'); this.rankTop = $('rankTop');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
@@ -141,13 +141,15 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick) || !this.canStart();
-    this.diffBox.hidden = room || career || daily || quick; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career || daily || quick;
+    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick', rank = this.sel.mode === 'rank';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick || rank) || !this.canStart();
+    this.diffBox.hidden = room || career || daily || quick || rank; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : rank ? '랭크전 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily || quick || rank;
     this.quickBox.hidden = !quick || !this.canStart() || typeof Rate3 === 'undefined';
     if (!this.quickBox.hidden) this.quickInfo.innerHTML = `내 매칭 점수 <b>${Rate3.get()}</b> · 선수 Lv.${Stats3.level()} · 빠른 대전 ${Rate3.n}전 ${Rate3.w}승 <small>— 이기면 오르고 지면 내려가요. 처음엔 ±${QUICK3.RANGE0}점 안에서 찾고, 기다릴수록 범위가 넓어져요. ${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전</small>`;
     if (!this.quickBox.hidden) this.renderQuickRank();
+    this.rankBox.hidden = !rank || !this.canStart() || typeof Rank3 === 'undefined';
+    if (!this.rankBox.hidden) this.renderRank();
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
@@ -226,6 +228,33 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 랭크전: 내 랭크 점수·티어(서버 값)와 순위표 상위 20명 (배치 5경기를 마친 사람만). 30초 동안은 받아 둔 것을 다시 씀
+  renderRank() {
+    const logged = typeof Account !== 'undefined' && Account.loggedIn, I = this.rankInfo, T = this.rankTop;
+    const tiers = RANK3.TIERS.slice().reverse().map(t => `<span style="color:${t[2]}">${t[1]} ${t[0] ? t[0] + '+' : ''}</span>`).join(' · ');
+    const info = d => {
+      I.innerHTML = !logged ? '랭크전은 <b>로그인</b>이 필요해요 — 시작을 누르면 로그인 창이 열려요.'
+        : !d ? '랭크 정보를 불러오는 중…' : !d.ok ? escHtml(d.msg)
+        : `랭크 점수 <b>${d.rating}</b> · <b style="color:${d.games >= RANK3.PLACE ? Rank3.tier(d.rating).color : 'inherit'}">${Rank3.label(d)}</b> · ${d.games}전 ${d.wins}승${d.pos ? ' · ' + d.pos + '위' : ''}${d.streak >= 2 ? ' · ' + d.streak + '연승' : ''} · 최고 ${d.peak}<br><small>${tiers} — 처음 ${RANK3.PLACE}경기는 배치 경기 · 같은 상대와는 하루 3경기까지 점수 반영</small>`;
+    };
+    const top = r => {
+      T.innerHTML = `<span class="dn">랭크 순위 <small>상위 20명 · 배치 ${RANK3.PLACE}경기를 마친 사람</small></span>`;
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; T.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '랭크전은 아직 준비 중이에요 (서버 설정 전).' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 순위에 오른 사람이 없어요 — 배치 경기를 마치고 첫 번째로 올라 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname + ' · ' + Rank3.tier(x.rating).name + ' · ' + x.games + '전 ' + x.wins + '승', String(x.rating)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+    };
+    const C = this.rankCache, uid = logged ? Account.user.id : null;
+    if (C && C.uid === uid && Date.now() - C.at < 30000 && !(logged && Rank3.cache === null && C.me)) { info(C.me); top(C.top); return; }
+    const N = this.rankCache = { uid, at: Date.now(), me: null, top: null };
+    info(null); top(null);
+    if (typeof Account === 'undefined' || !Account.online) { N.top = { ok: false }; N.me = { ok: false, msg: '서버에 연결할 수 없어요.' }; info(N.me); top(N.top); return; }
+    const on = () => this.sel.mode === 'rank' && !this.rankBox.hidden && this.rankCache === N;
+    if (logged) Rank3.me().then(d => { N.me = d; if (on()) info(d); });
+    Rank3.top().then(r => { N.top = r; if (on()) top(r); });
   }
 
   // 빠른 대전 순위표: 매칭 점수 상위 10명 (로그인한 사람만 올라감, 30초 동안은 받아 둔 것을 다시 씀)

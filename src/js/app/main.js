@@ -80,6 +80,7 @@ class App {
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
       if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
       if (sel.mode === 'quick') return this.openQuick(sel);
+      if (sel.mode === 'rank') return this.openRank(sel);
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -114,6 +115,37 @@ class App {
         g.configure({ type: 'court3d', mode: 'ai', diff, style: 'base', win: QUICK3.WIN, hand: sel.hand }); g.start();
         g.hud.banner(`대기 중인 사람이 없어 AI(${DIFF_NAMES[diff]})와 대전합니다`, '#9FD8FF', 2.6);
       }
+    }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+  }
+
+  // 랭크전: 로그인 필수. 서버에서 내 랭크 점수를 받아 대기열에 서고, 상대를 찾으면 두 사람 모두 서버에 경기를 등록한 뒤 연결 (court3d/rank.js)
+  openRank(sel) {
+    if (typeof Account === 'undefined' || !Account.loggedIn) { AccountUI.openLogin(); return; }
+    const g = this.court3d, name = (Account.nickname || '선수').slice(0, 12), uid = Account.user.id;
+    g.configure({ ...sel, mode: 'room', quick: true, rank: true, win: RANK3.WIN });
+    Sound3.unlock(); this.show('court3d');
+    g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(null);
+    const R = g.rank, live = () => this.screen === 'court3d' && g.mode === 'room' && g.rank === R;
+    g.hud.showMessage('랭크 정보를 불러오는 중…');
+    Rank3.me().then(me => {
+      if (!live()) return;
+      if (!me.ok) return g.netError(escHtml(me.msg));
+      const wait = s => g.hud.showMessage(`랭크전 상대를 찾는 중… <b>${Math.floor(s ? s.waited : 0)}초</b><br>내 랭크 점수 <b>${me.rating}</b> (${Rank3.label(me)}) · 찾는 범위 ±${s ? s.range : QUICK3.RANGE0}점 · 대기 중인 사람 ${s ? s.others : 0}명<br><small>랭크전은 사람과만 대전해요 · Esc = 취소</small>`);
+      wait(null);
+      return g.qm.start({ r: me.rating, lv: Stats3.level(), name, uid }, {
+        onStatus: s => { if (live() && g.qm.state !== 'matched' && !g.net.active) wait(s); },
+        onMatch: r => {
+          if (!live()) return;
+          g.quick = { r: r.opp.r, lv: r.opp.lv, name: r.opp.name };
+          Account.track('quick_match', { rank: true, wait: Math.round((Date.now() - g.qm.at) / 1000), diff: Math.round(Math.abs(r.opp.r - me.rating)) });
+          g.hud.showMessage(`상대를 찾았어요!<br><b>${escHtml(r.opp.name)}</b> · 랭크 점수 ${Math.round(r.opp.r)}<br><small>연결하는 중…</small>`);
+          Rank3.open(r.opp.uid, r.code).then(m => {   // 서버에 경기 등록 (실패하면 점수에 반영되지 않는 경기로 진행)
+            if (g.rank !== R) return;
+            if (m) { R.id = m.id; R.rated = m.rated; } else g.hud.banner('서버에 경기를 등록하지 못했어요 — 랭크 점수에 반영되지 않습니다', '#FF9B9B', 3);
+          });
+          g.net.open(g, r.code, r.host, { hand: sel.hand, win: RANK3.WIN, name }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+        }
+      }, { ch: RANK3.CH, noAi: true });
     }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
   }
 

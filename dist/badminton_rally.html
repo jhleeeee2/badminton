@@ -614,6 +614,11 @@ html[lang=en] .c3board.srvMe .me .nm::after,html[lang=en] .c3board.srvOpp .opp .
     <div class="cards roomrow nickrow"><span class="quickinfo" id="quickInfo"></span></div>
     <div class="dailycard quickrank" id="quickRank"></div>
   </section>
+  <section class="lsec" id="rankSettings" hidden>
+    <div class="lhead">랭크전 <span class="lsub">로그인 필요 · 11점 경기 · 채·선수 스탯 효과 없이 같은 조건 · 점수는 서버가 계산 · 도중에 나가면 패배</span></div>
+    <div class="cards roomrow nickrow"><span class="quickinfo" id="rankInfo"></span></div>
+    <div class="dailycard quickrank" id="rankTop"></div>
+  </section>
   <section class="lsec" id="careerSettings" hidden>
     <div class="lhead">커리어 — 대회를 차례로 우승 <span class="lsub">이기면 다음 상대 · 지면 그 경기만 재도전 · 훈련 레벨 효과 적용</span></div>
     <div class="careergrid" id="careerList"></div>
@@ -818,7 +823,7 @@ const I18N = {
     // ── 대기화면 ──
     '배드민턴 랠리': 'Badminton Rally',
     '실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.': '3D badminton on a regulation court with real singles rules — right in your browser, no install.',
-    '게임 종류': 'Game', '대전 모드': 'Mode', 'AI 대전 설정': 'AI match settings', '대전 설정': 'Match settings', '커리어 설정': 'Career settings', '일일 챌린지 설정': 'Daily challenge settings', '빠른 대전 설정': 'Quick match settings',
+    '게임 종류': 'Game', '대전 모드': 'Mode', 'AI 대전 설정': 'AI match settings', '대전 설정': 'Match settings', '커리어 설정': 'Career settings', '일일 챌린지 설정': 'Daily challenge settings', '빠른 대전 설정': 'Quick match settings', '랭크전 설정': 'Ranked settings', '랭크 정보를 불러오는 중…': 'Loading your rank…', '로그인 필요 · 서버가 점수 관리': 'Login required · server-side rating',
     '난이도': 'Difficulty', '쉬움': 'Easy', '중간': 'Normal', '어려움': 'Hard', '지옥': 'Hell', '임파서블': 'Impossible',
     '상대 성향': 'Opponent style', '기본': 'Default', '수비형': 'Defender', '네트형': 'Net player', '스매시형': 'Smasher',
     '목표 점수': 'Play to', '주 손': 'Hand', '오른손': 'Right', '왼손': 'Left',
@@ -5234,19 +5239,19 @@ class Quick3 {
   range(at, now) { return QUICK3.RANGE0 + QUICK3.RANGE_STEP * Math.floor(Math.max(0, now - at) / 1000 / QUICK3.RANGE_EVERY); }
 
   // me = { r, lv, name } · cb = { onStatus({ waited, range, others }), onMatch({ code, host, opp:{ r, lv, name } }), onNoOne(), onError(msg) }
-  async start(me, cb) {
+  async start(me, cb, opt) {   // opt = { ch: 대기 채널 이름, noAi: AI로 넘어가지 않음 } — 랭크전이 씀 (me.uid = 계정 id)
     this.stop();
     const sb = typeof Account !== 'undefined' ? Account.sb : null;
     if (!sb) throw new Error('온라인 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
-    Object.assign(this, { me: { r: Math.round(me.r), lv: me.lv | 0, name: String(me.name || '게스트').slice(0, 12) }, cb, at: Date.now(), state: 'wait', target: null, skip: {} });
-    const ch = sb.channel(QUICK3.CH, { config: { broadcast: { self: false }, presence: { key: this.id } } });
+    Object.assign(this, { me: { r: Math.round(me.r), lv: me.lv | 0, name: String(me.name || '게스트').slice(0, 12), uid: me.uid || null }, cb, chName: (opt && opt.ch) || QUICK3.CH, noAi: !!(opt && opt.noAi), at: Date.now(), state: 'wait', target: null, skip: {} });
+    const ch = sb.channel(this.chName, { config: { broadcast: { self: false }, presence: { key: this.id } } });
     this.ch = ch;
     ch.on('broadcast', { event: 'q' }, ({ payload }) => { try { this.recv(payload); } catch (e) { console.error(e); } });
     ch.on('presence', { event: 'sync' }, () => {});
     await new Promise((res, rej) => {
       const to = setTimeout(() => rej(new Error('연결 시간 초과')), 10000);
       ch.subscribe(async st => {
-        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ r: this.me.r, lv: this.me.lv, name: this.me.name, at: this.at }); } catch (e) { /* 무시 */ } res(); }
+        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ r: this.me.r, lv: this.me.lv, name: this.me.name, at: this.at, uid: this.me.uid }); } catch (e) { /* 무시 */ } res(); }
         else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { clearTimeout(to); rej(new Error('대기열 연결 실패 (' + st + ')')); }
       });
     });
@@ -5267,7 +5272,7 @@ class Quick3 {
     for (const k in st) {
       const p = st[k] && st[k][0];
       if (k === this.id || !p || !(Number(p.r) > 0)) continue;
-      out.push({ id: k, r: Number(p.r), lv: p.lv | 0, name: String(p.name || '게스트').slice(0, 12), at: Number(p.at) || Date.now() });
+      out.push({ id: k, r: Number(p.r), lv: p.lv | 0, name: String(p.name || '게스트').slice(0, 12), at: Number(p.at) || Date.now(), uid: p.uid ? String(p.uid).slice(0, 40) : null });
     }
     return out;
   }
@@ -5277,6 +5282,7 @@ class Quick3 {
     let b = null, bk = null;
     for (const p of list) {
       if ((this.skip[p.id] || 0) > now) continue;
+      if (this.me.uid && (!p.uid || p.uid === this.me.uid)) continue;   // 랭크전: 계정이 있어야 하고, 같은 계정끼리는 안 붙음
       const d = Math.abs(p.r - this.me.r);
       if (d > Math.max(mine, this.range(p.at, now))) continue;
       const k = [d, Math.abs(p.lv - this.me.lv), p.id];
@@ -5292,25 +5298,146 @@ class Quick3 {
       const b = this.best(list, now);
       if (b && this.id < b.id) {   // id가 작은 쪽이 초대
         this.state = 'inviting'; this.target = b; this.code = Net3D.makeCode(); this.inviteUntil = now + QUICK3.INVITE_WAIT * 1000;
-        this.send({ t: 'inv', to: b.id, code: this.code, r: this.me.r, lv: this.me.lv, name: this.me.name });
-      } else if (!list.length && waited >= QUICK3.AI_AFTER) { const cb = this.cb; this.stop(); cb.onNoOne && cb.onNoOne(); return; }
+        this.send({ t: 'inv', to: b.id, code: this.code, r: this.me.r, lv: this.me.lv, name: this.me.name, uid: this.me.uid });
+      } else if (!this.noAi && !list.length && waited >= QUICK3.AI_AFTER) { const cb = this.cb; this.stop(); cb.onNoOne && cb.onNoOne(); return; }
     }
     if (this.cb.onStatus) this.cb.onStatus({ waited, range: this.range(this.at, now), others: list.length });
   }
   recv(m) {
     if (!this.ch || !m || m.to !== this.id) return;
     if (m.t === 'inv') {
-      if (this.state !== 'wait' || !/^[A-Z0-9]{5}$/.test(String(m.code))) return this.send({ t: 'no', to: m.from });
+      if (this.state !== 'wait' || !/^[A-Z0-9]{5}$/.test(String(m.code)) || (this.me.uid && (!m.uid || m.uid === this.me.uid))) return this.send({ t: 'no', to: m.from });
       this.send({ t: 'ok', to: m.from });
-      this.matched({ code: m.code, host: false, opp: { r: Number(m.r) > 0 ? Number(m.r) : this.me.r, lv: m.lv | 0, name: String(m.name || '게스트').slice(0, 12) } });
+      this.matched({ code: m.code, host: false, opp: { r: Number(m.r) > 0 ? Number(m.r) : this.me.r, lv: m.lv | 0, name: String(m.name || '게스트').slice(0, 12), uid: m.uid ? String(m.uid).slice(0, 40) : null } });
     } else if (m.t === 'ok' && this.state === 'inviting' && this.target && m.from === this.target.id) {
-      this.matched({ code: this.code, host: true, opp: { r: this.target.r, lv: this.target.lv, name: this.target.name } });
+      this.matched({ code: this.code, host: true, opp: { r: this.target.r, lv: this.target.lv, name: this.target.name, uid: this.target.uid } });
     } else if (m.t === 'no' && this.state === 'inviting' && this.target && m.from === this.target.id) {
       this.skip[m.from] = Date.now() + 3000; this.state = 'wait'; this.target = null;
     }
   }
   matched(r) { const cb = this.cb; setTimeout(() => this.stop(), 300); this.state = 'matched'; if (this.timer) { clearInterval(this.timer); this.timer = null; } cb.onMatch && cb.onMatch(r); }   // 'ok'가 나간 뒤 채널을 닫음
 }
+</script>
+<script>
+// court3d/rank.js — 랭크전: 서버(Supabase 함수)가 점수를 관리하는 1:1 대전 (sql/ranked.sql)
+//   흐름
+//   · 로그인 필수. 대기열은 빠른 대전과 같은 방식(Quick3)이되 채널이 따로(RANK3.CH)이고 계정 id를 함께 알림
+//   · 상대를 찾으면 두 사람 모두 rank_open(상대 id, 방 코드) → 서버에 경기가 열림
+//   · 경기 중 10초마다 rank_beat ("나 아직 있음"). 끝나면 rank_report로 각자 결과 보고
+//     → 두 보고가 같을 때만 서버가 랭크 점수를 계산. 다르면 분쟁(변화 없음)
+//   · 나가면(Esc) 기권 = 패배. 상대가 나가면 남은 쪽이 'left'로 보고 → 상대 신호가 20초 넘게 없으면 몰수승
+//   판정 검증 (Rank3.checkShot / checkPoint)
+//   · 셔틀 물리는 양쪽이 똑같이 계산하므로, 상대가 보낸 타구·판정을 내 계산과 비교해 어긋나면 flags를 올림
+//   · flags는 결과 보고에 함께 실림. 2번 이상이면 서버가 그 경기를 분쟁으로 처리
+//   · 한계: 서버가 랠리를 직접 계산하지는 않음. 상대 선수 위치 자체를 속이는 것까지는 못 잡음
+//   티어 경계·배치 경기 수·검사 허용 폭은 모두 [게임]용으로 정한 값
+
+const RANK3 = Object.freeze({
+  CH: 'bm3d-rankq', WIN: 11, PLACE: 5, BEAT: 10, POLL: 3, POLL_MAX: 14,
+  TIERS: [[1500, '마스터', '#FF6B9A'], [1350, '다이아', '#7FD6FF'], [1200, '플래티넘', '#6CE0C4'], [1050, '골드', '#FFD23F'], [900, '실버', '#C9CED8'], [0, '브론즈', '#C98A5A']],
+  V_MAX: 160,          // 발사 속력 상한 m/s (이보다 빠르면 이상)
+  HIT_DIST: 2.6,       // 상대 타점이 내가 계산한 셔틀 경로에서 떨어질 수 있는 최대 거리 m
+  IN_MARGIN: 0.15      // "확실히 인"으로 보는 안쪽 여유 m
+});
+
+const Rank3 = {
+  cache: null,
+  sb() { return typeof Account !== 'undefined' ? Account.sb : null; },
+  tier(r) { for (const t of RANK3.TIERS) if (r >= t[0]) return { name: t[1], color: t[2], min: t[0] }; return { name: '브론즈', color: '#C98A5A', min: 0 }; },
+  // 표시용: 배치 경기 중이면 티어 대신 '배치 n/5'
+  label(d) { return !d ? '-' : d.games < RANK3.PLACE ? `배치 ${d.games}/${RANK3.PLACE}` : this.tier(d.rating).name; },
+  missing(e) { return !!e && (e.code === 'PGRST202' || e.code === '42883' || e.code === '42P01' || /rank_|ranks/.test(e.message || '')) && !/login_required|not_your_match|bad_/.test(e.message || ''); },
+  async call(fn, args) {
+    const sb = this.sb(); if (!sb) return { error: { message: 'offline' } };
+    try {
+      return await Promise.race([sb.rpc(fn, args || {}), new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 8000))]);
+    } catch (e) { return { error: { message: (e && e.message) || String(e) } }; }
+  },
+
+  // 내 랭크 정보 → { ok, rating, games, wins, streak, peak, pos } 또는 { ok:false, missing, msg }
+  async me() {
+    const r = await this.call('rank_me');
+    if (r.error) return (this.cache = { ok: false, missing: this.missing(r.error), msg: this.missing(r.error) ? '랭크전은 아직 준비 중이에요 (서버 설정 전).' : '랭크 정보를 불러오지 못했어요 (인터넷 연결 확인).' });
+    this.cache = { ok: true, ...r.data }; return this.cache;
+  },
+  async top() {
+    const sb = this.sb(); if (!sb) return { ok: false };
+    try {
+      const r = await Promise.race([
+        sb.from('ranks').select('user_id,nickname,rating,games,wins').gte('games', RANK3.PLACE).order('rating', { ascending: false }).order('updated_at', { ascending: true }).limit(20),
+        new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))]);
+      if (r.error) return { ok: false, missing: this.missing(r.error) };
+      const me = Account.user && Account.user.id;
+      return { ok: true, rows: (r.data || []).map(x => ({ nickname: x.nickname, rating: x.rating, games: x.games, wins: x.wins, mine: x.user_id === me })) };
+    } catch (e) { return { ok: false }; }
+  },
+
+  // 경기 열기: id가 큰 쪽은 상대가 먼저 만들 때까지 잠깐 다시 시도 → { id, rated } 또는 null
+  async open(oppUid, code) {
+    for (let i = 0; i < 8; i++) {
+      const r = await this.call('rank_open', { p_opp: oppUid, p_room: code });
+      if (r.error) { console.warn('rank_open', r.error); return null; }
+      if (r.data && r.data.id) return r.data;
+      await new Promise(res => setTimeout(res, 700));
+    }
+    return null;
+  },
+  beat(id) { return this.call('rank_beat', { p_match: id }); },
+  resign(id, my, opp) { this.call('rank_report', { p_match: id, p_my: my | 0, p_opp: opp | 0, p_kind: 'resign', p_flags: 0 }); this.cache = null; },
+  // 결과 보고 → 서버가 마무리할 때까지 몇 초마다 다시 물어봄. cb(상태)는 바뀔 때마다 불림
+  async report(id, my, opp, kind, flags, cb) {
+    const args = { p_match: id, p_my: my | 0, p_opp: opp | 0, p_kind: kind, p_flags: flags | 0 };
+    for (let i = 0; i <= RANK3.POLL_MAX; i++) {
+      const r = await this.call('rank_report', args);
+      if (r.error) { if (i >= 2) { cb({ status: 'error' }); return; } }
+      else if (r.data && r.data.status !== 'live') { this.cache = null; cb(r.data); return; }
+      else if (i === 0) cb({ status: 'live' });
+      await new Promise(res => setTimeout(res, RANK3.POLL * 1000));
+    }
+    cb({ status: 'timeout' });
+  },
+  // 결과 창에 붙일 한 줄
+  line(s) {
+    const sp = t => `<span class="xpline">${t}</span>`;
+    if (!s || s.status === 'live') return sp('상대의 결과 보고를 기다리는 중…');
+    if (s.status === 'error') return sp('서버에 결과를 보내지 못했어요 — 랭크 점수는 반영되지 않았을 수 있어요');
+    if (s.status === 'timeout' || s.status === 'pending') return sp('서버 확인이 끝나지 않았어요 — 대기화면의 랭크전에서 점수를 확인해 주세요');
+    if (s.status === 'disputed') return sp(s.how === 'flags' ? '판정이 서로 맞지 않아 랭크 점수에 반영되지 않았어요' : '두 사람의 결과 보고가 달라 랭크 점수에 반영되지 않았어요');
+    if (s.status === 'void') return sp(s.how === 'short' ? '경기가 너무 짧아 랭크 점수에 반영되지 않았어요' : '무효 경기 — 랭크 점수 변화 없음');
+    if (s.rated === false || s.before == null) return sp('같은 상대와 오늘 3경기를 넘어 랭크 점수에는 반영되지 않았어요');
+    const d = s.after - s.before, how = s.how === 'resign' ? (s.won ? ' · 상대 기권' : ' · 기권') : s.how === 'forfeit' ? ' · 몰수승' : '';
+    const g = { rating: s.after, games: s.games };
+    return sp(`랭크 점수 ${s.before} → <b>${s.after}</b> (${d >= 0 ? '+' : ''}${d}) · ${this.label(g)}${how}`);
+  },
+
+  // ───── 판정 검증 (경기 중, game.js가 부름) ─────
+  // 내가 친 공: 경로와 예상 낙하를 기억해 둠
+  mine(R, p0, v0, serve, box) {
+    const sim = Phys3.simulate(p0, v0, { path: true });
+    R.shot = { path: sim.path, land: sim.land, net: !!sim.net, serve: !!serve, box: box || null };
+  },
+  flag(R, why) { R.flags = (R.flags || 0) + 1; (R.why = R.why || []).push(why); console.warn('[랭크전] 판정 이상:', why); },
+  // 상대가 친 공(내 좌표로 바꾼 p0, v0): 속력·위치가 말이 되는지
+  checkShot(R, p0, v0, serve) {
+    const sp = Math.hypot(v0.x, v0.y, v0.z), C = C3.COURT;
+    if (!(sp <= RANK3.V_MAX)) return this.flag(R, 'speed ' + Math.round(sp));
+    if (!(p0.z < 0.5) || !(Math.abs(p0.x) < C.HALF_W_S + 3) || !(p0.y > -0.1 && p0.y < 4.2) || !(p0.z > -(C.HALF_LEN + 4))) return this.flag(R, 'pos');
+    const s = R.shot; R.shot = null;
+    if (serve || !s || !s.path || !s.path.length) return;
+    let best = Infinity;   // 내 타구 경로와 상대 타점 사이 최소 거리
+    for (const q of s.path) { const d = Math.hypot(q.x - p0.x, q.y - p0.y, q.z - p0.z); if (d < best) best = d; }
+    if (best > RANK3.HIT_DIST) this.flag(R, 'far ' + best.toFixed(1));
+  },
+  // 상대가 알려 온 판정: 내 타구가 확실히 들어갔는데 상대 득점이라고 하면 이상
+  checkPoint(R, winner, match) {
+    const s = R.shot; R.shot = null;
+    if (!s || winner !== 'opp' || s.net || !s.land) return;
+    const C = C3.COURT, M = RANK3.IN_MARGIN, x = s.land.x, z = s.land.z;
+    let inside = z < -M && Math.abs(x) <= C.HALF_W_S - M && Math.abs(z) <= C.HALF_LEN - M;
+    if (inside && s.serve && s.box) inside = x >= s.box.xMin + M && x <= s.box.xMax - M && z >= s.box.zMin + M && z <= s.box.zMax - M;
+    if (inside) this.flag(R, 'call');
+  }
+};
 </script>
 <script>
 // court3d/emote.js — 감정표현: T를 누르고 있는 동안 원판(안쪽 = 표정, 바깥쪽 = 말)이 뜨고,
@@ -5456,9 +5583,10 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career, daily, quick }) {
+  configure({ diff, win, hand, mode, train, style, career, daily, quick, rank }) {
     if (this.qm) this.qm.stop(); else if (typeof Quick3 !== 'undefined') this.qm = new Quick3();
     this.quick = mode === 'room' && quick ? (typeof quick === 'object' ? quick : {}) : null;   // 빠른 대전: 친선게임과 같은 연결에 매칭 점수만 얹음 (상대를 찾으면 { r, lv, name })
+    this.rank = mode === 'room' && rank ? (typeof rank === 'object' ? rank : { id: null, over: false, flags: 0, beatT: 0 }) : null;   // 랭크전: 빠른 대전과 같은 연결 + 서버 경기 등록(court3d/rank.js)
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -5484,7 +5612,7 @@ class Game3D {
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
-      : this.mode === 'room' ? (this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
+      : this.mode === 'room' ? (this.rank ? '랭크전 · ' : this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
@@ -5495,6 +5623,7 @@ class Game3D {
   get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
+    if (this.rank && this.rank.over) return;   // 랭크전은 재대결 없음 — 메뉴에서 다시 상대를 찾음
     if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
     if (this.mode === 'train' && this.trainer.daily) this.trainer.start(Daily3.kind(), true);   // 일일 챌린지: 다시 도전 = 같은 공을 처음부터 (자정이 지났으면 새 날짜의 종목)
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
@@ -5522,6 +5651,7 @@ class Game3D {
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
+    if (this.rank && this.rank.id && !this.rank.over && this.net.connected && ['serve', 'rally', 'point'].includes(this.phase)) { this.rank.over = true; Rank3.resign(this.rank.id, this.match.pts, this.match.opts); }   // 랭크전 도중 나가기 = 기권
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.setShare(null); if (this.qm) this.qm.stop();
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
@@ -5617,6 +5747,7 @@ class Game3D {
     if (a === this.me && !isServe && /스매시/.test(plan.name)) this.topKmh = Math.max(this.topKmh || 0, plan.kmh);   // 결과 카드용: 이 경기 내 최고 스매시
     if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
       const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
+      if (this.rank) Rank3.mine(this.rank, p0, plan.v0, isServe, isServe ? this.match.box('opp', this.match.serveCourt()) : null);   // 판정 검증용: 내 타구의 경로·예상 낙하
       this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
     }
     // 역동성: 불꽃·충격파·화면 흔들림·줌·소리, 상대는 스플릿 스텝 [게임 연출]
@@ -5752,7 +5883,7 @@ class Game3D {
     // 새 상대 (또는 처음): 다른 사람이면 세트 스코어 새로
     if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
     this.roomRec.name = peer.name; this.awayPeer = null;
-    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick });
+    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick, rank: this.rank });
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
@@ -5762,7 +5893,7 @@ class Game3D {
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
   netResume(m) {
     const M = this.match;
-    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick });
+    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick, rank: this.rank });
     M.pts = m.pts | 0; M.opts = m.opts | 0; M.server = m.server === 'opp' ? 'opp' : 'me'; M.rally = 0;
     this.roomRec.sets = { me: (m.sets && m.sets.me) | 0, opp: (m.sets && m.sets.opp) | 0 };
     this.myEnd = m.end ? 1 : 0; this.midSwapped = !!m.mid; this.swapNext = !!m.swapNext; this.view.setEnd(this.myEnd ^ 1);
@@ -5796,6 +5927,16 @@ class Game3D {
     this.hud.banner('상대방이 나갔습니다', '#FF6B6B', 2);
     this.hud.showMessage('상대방이 나갔습니다' + (live ? ` — 점수 ${this.match.pts} : ${this.match.opts}에서 멈춤` : '')
       + (this.quick ? '<br>Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)' : `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`));
+    if (this.rank && !this.rank.over) { this.phase = 'over'; this.awayPeer = null; this.rankFinish('left', `상대방이 나갔습니다 — ${this.match.pts} : ${this.match.opts}에서 종료`); }
+  }
+  // 랭크전 마무리: 서버에 결과를 보고하고, 서버가 계산한 랭크 점수를 결과 창에 붙임 (kind: done = 끝까지 · left = 상대가 나감)
+  rankFinish(kind, head) {
+    const R = this.rank; if (!R || R.over) return; R.over = true;
+    const tail = '<br>Esc = 메뉴 (랭크전을 다시 누르면 새 상대를 찾아요)';
+    const show = line => { if (this.rank === R) this.hud.showMessage(head + '<br>' + line + tail); };
+    if (!R.id) return show('<span class="xpline">서버에 경기가 등록되지 않아 랭크 점수에 반영되지 않았어요</span>');
+    show(Rank3.line(null));
+    Rank3.report(R.id, this.match.pts, this.match.opts, kind, R.flags, st => show(Rank3.line(st)));
   }
   netEmote(m) { this.emote.show('opp', String(m.id || '')); }
   netError(msg) {
@@ -5823,6 +5964,7 @@ class Game3D {
     } else if (this.phase !== 'rally') return;
     if (!a.swingS) a.swing('flat', 0.5, p0, 'side');
     a.onHit(p0);
+    if (this.rank) Rank3.checkShot(this.rank, p0, v0, !!m.serve);   // 랭크전: 상대 타구가 말이 되는지
     this.match.rally = Math.max(0, (m.r | 0) - 1);   // launch()에서 +1
     this.launch(a, p0, { v0, sim: Phys3.simulate(p0, v0), kmh: m.kmh | 0, name: String(m.name || '') }, !!m.serve, m.hand ? { hand: m.hand } : null);
     // 지연 보정: 상대가 친 뒤 흐른 시간만큼 셔틀을 앞으로 감음
@@ -5842,6 +5984,7 @@ class Game3D {
       s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
       this.view.ripple({ x: s.p.x, y: 0, z: s.p.z }, 0xFFFFFF, 1.0);
     }
+    if (this.rank) { if (s.lastHitter === 'me') Rank3.checkPoint(this.rank, flip3(m.w), this.match); else if (flip3(m.w) === 'opp') Rank3.flag(this.rank, 'steal'); }   // 랭크전: 상대 판정을 내 계산과 비교
     this.point(flip3(m.w), String(m.r || ''), { pts: m.pts | 0, opts: m.opts | 0 });
   }
 
@@ -5899,10 +6042,11 @@ class Game3D {
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
       if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
         me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
-        mode: this.mode === 'room' ? (this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
-      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
+        mode: this.mode === 'room' ? (this.rank ? '랭크전' : this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.rank ? 'rank' : this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
+      else if (this.rank) this.rankFinish('done', head + coin);
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
@@ -5942,7 +6086,7 @@ class Game3D {
     const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
     if (this.mode === 'room') {
       const r = Wallet.room(won); let rate = '';
-      if (this.quick && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
+      if (this.quick && !this.rank && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
       return rate + r.html + (XP && r.sum ? XP.gain('room').html : '');
     }
     const m = this.match, c = this.career;
@@ -5995,6 +6139,7 @@ class Game3D {
     if (this.trainer.tick) this.trainer.tick(real);
     if (this.duo) this.opp.updateCharge(real);
     if (this.mode === 'room') this.net.tick(real);
+    if (this.rank && this.rank.id && !this.rank.over && (this.rank.beatT = (this.rank.beatT || 0) + real) >= RANK3.BEAT) { this.rank.beatT = 0; Rank3.beat(this.rank.id); }   // 랭크전: 서버에 '나 아직 있음'
     let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율
     this.simRate = this.timeScale * C3.GAME_SPEED * tp.spd;
     if (this.hitStop > 0) { this.hitStop -= real; sim = 0; }   // 히트스톱 중엔 시간 정지
@@ -6399,7 +6544,7 @@ const GAME_TYPES = [
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
-    modes: ['ai', 'career', 'daily', 'train', 'quick', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'career', 'daily', 'train', 'quick', 'rank', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
     id: 'classic', name: '레트로 모드',
@@ -6415,7 +6560,7 @@ const MODES = [
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
   { id: 'quick',   name: '빠른 대전',   desc: '비슷한 실력과 자동 매칭' },
   { id: 'room',    name: '친선게임', desc: '방 코드로 온라인 대전' },
-  { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
+  { id: 'rank',    name: '랭크전',      desc: '로그인 필요 · 서버가 점수 관리' },
   { id: 'doubles', name: '복식',        desc: '2 대 2' }
 ];
 
@@ -6943,7 +7088,7 @@ class Lobby {
     const go = t => { this.tab = t; this.refresh(); window.scrollTo(0, 0); };
     this.tabBtns.forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
     $('gearNowBtn').addEventListener('click', () => go('shop'));
-    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank');
+    this.skinSec = $('skinSettings'); this.skinBox = $('skinBox'); this.quickBox = $('quickSettings'); this.quickInfo = $('quickInfo'); this.quickRank = $('quickRank'); this.rankBox = $('rankSettings'); this.rankInfo = $('rankInfo'); this.rankTop = $('rankTop');
     this.gearBox = $('gearSettings'); this.gearList = $('gearList'); this.statSec = $('statSettings'); this.statBox = $('statBox');
     this.careerBox = $('careerSettings'); this.careerList = $('careerList'); this.careerNote = $('careerNote'); this.cstage = null;   // cstage: 직접 고른 커리어 경기 (null = 다음 도전 경기)
     $('careerReset').addEventListener('click', () => { if (!Career3.cleared || confirmReset()) { Career3.reset(); this.cstage = null; this.refresh(); } });
@@ -7042,13 +7187,15 @@ class Lobby {
     }
     for (const s of this.segs || []) s.btns.forEach(b => b.classList.toggle('active', b.dataset[s.attr] === s.get()));
     const room = this.sel.mode === 'room', career = this.sel.mode === 'career';
-    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick';
-    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick) || !this.canStart();
-    this.diffBox.hidden = room || career || daily || quick; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : 'AI 대전 설정';
-    document.getElementById('winSeg').hidden = career || daily || quick;
+    const daily = this.sel.mode === 'daily', quick = this.sel.mode === 'quick', rank = this.sel.mode === 'rank';
+    this.aiBox.hidden = !(this.sel.mode === 'ai' || room || career || daily || quick || rank) || !this.canStart();
+    this.diffBox.hidden = room || career || daily || quick || rank; this.aiHead.textContent = room ? '대전 설정' : career ? '커리어 설정' : daily ? '일일 챌린지 설정' : quick ? '빠른 대전 설정' : rank ? '랭크전 설정' : 'AI 대전 설정';
+    document.getElementById('winSeg').hidden = career || daily || quick || rank;
     this.quickBox.hidden = !quick || !this.canStart() || typeof Rate3 === 'undefined';
     if (!this.quickBox.hidden) this.quickInfo.innerHTML = `내 매칭 점수 <b>${Rate3.get()}</b> · 선수 Lv.${Stats3.level()} · 빠른 대전 ${Rate3.n}전 ${Rate3.w}승 <small>— 이기면 오르고 지면 내려가요. 처음엔 ±${QUICK3.RANGE0}점 안에서 찾고, 기다릴수록 범위가 넓어져요. ${QUICK3.AI_AFTER}초 동안 아무도 없으면 AI와 대전</small>`;
     if (!this.quickBox.hidden) this.renderQuickRank();
+    this.rankBox.hidden = !rank || !this.canStart() || typeof Rank3 === 'undefined';
+    if (!this.rankBox.hidden) this.renderRank();
     this.dailyBox.hidden = !daily || !this.canStart();
     if (!this.dailyBox.hidden) this.renderDaily();   // 커리어는 경기마다 목표 점수가 정해져 있음
     this.careerBox.hidden = !career || !this.canStart();
@@ -7127,6 +7274,33 @@ class Lobby {
     const s = Career3.stage(pick), sty = C3.AI_STYLE[s.style];
     this.careerNote.textContent = (Career3.done() ? '모든 대회 우승! · ' : '') + `${s.cup} ${s.round} — ${s.name} (${sty.name}: ${sty.desc})`;
     document.getElementById('careerReset').hidden = !Career3.cleared;
+  }
+
+  // 랭크전: 내 랭크 점수·티어(서버 값)와 순위표 상위 20명 (배치 5경기를 마친 사람만). 30초 동안은 받아 둔 것을 다시 씀
+  renderRank() {
+    const logged = typeof Account !== 'undefined' && Account.loggedIn, I = this.rankInfo, T = this.rankTop;
+    const tiers = RANK3.TIERS.slice().reverse().map(t => `<span style="color:${t[2]}">${t[1]} ${t[0] ? t[0] + '+' : ''}</span>`).join(' · ');
+    const info = d => {
+      I.innerHTML = !logged ? '랭크전은 <b>로그인</b>이 필요해요 — 시작을 누르면 로그인 창이 열려요.'
+        : !d ? '랭크 정보를 불러오는 중…' : !d.ok ? escHtml(d.msg)
+        : `랭크 점수 <b>${d.rating}</b> · <b style="color:${d.games >= RANK3.PLACE ? Rank3.tier(d.rating).color : 'inherit'}">${Rank3.label(d)}</b> · ${d.games}전 ${d.wins}승${d.pos ? ' · ' + d.pos + '위' : ''}${d.streak >= 2 ? ' · ' + d.streak + '연승' : ''} · 최고 ${d.peak}<br><small>${tiers} — 처음 ${RANK3.PLACE}경기는 배치 경기 · 같은 상대와는 하루 3경기까지 점수 반영</small>`;
+    };
+    const top = r => {
+      T.innerHTML = `<span class="dn">랭크 순위 <small>상위 20명 · 배치 ${RANK3.PLACE}경기를 마친 사람</small></span>`;
+      const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; T.appendChild(e); return e; };
+      if (!r) add('dd', '순위표를 불러오는 중…');
+      else if (!r.ok) add('dd', r.missing ? '랭크전은 아직 준비 중이에요 (서버 설정 전).' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
+      else if (!r.rows.length) add('dd', '아직 순위에 오른 사람이 없어요 — 배치 경기를 마치고 첫 번째로 올라 보세요!');
+      else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname + ' · ' + Rank3.tier(x.rating).name + ' · ' + x.games + '전 ' + x.wins + '승', String(x.rating)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
+    };
+    const C = this.rankCache, uid = logged ? Account.user.id : null;
+    if (C && C.uid === uid && Date.now() - C.at < 30000 && !(logged && Rank3.cache === null && C.me)) { info(C.me); top(C.top); return; }
+    const N = this.rankCache = { uid, at: Date.now(), me: null, top: null };
+    info(null); top(null);
+    if (typeof Account === 'undefined' || !Account.online) { N.top = { ok: false }; N.me = { ok: false, msg: '서버에 연결할 수 없어요.' }; info(N.me); top(N.top); return; }
+    const on = () => this.sel.mode === 'rank' && !this.rankBox.hidden && this.rankCache === N;
+    if (logged) Rank3.me().then(d => { N.me = d; if (on()) info(d); });
+    Rank3.top().then(r => { N.top = r; if (on()) top(r); });
   }
 
   // 빠른 대전 순위표: 매칭 점수 상위 10명 (로그인한 사람만 올라감, 30초 동안은 받아 둔 것을 다시 씀)
@@ -7351,6 +7525,7 @@ class App {
       if (sel.mode === 'career') sel = Career3.sel(this.lobby.careerStage(), sel.hand);   // 고른(또는 다음) 경기를 AI 대전 설정으로 바꿈
       if (sel.mode === 'daily') sel = { ...sel, mode: 'train', train: Daily3.kind(), daily: true };   // 오늘의 종목을 훈련과 같은 방식으로
       if (sel.mode === 'quick') return this.openQuick(sel);
+      if (sel.mode === 'rank') return this.openRank(sel);
       if (sel.mode === 'ai' && !Guide3D.seen()) return this.startGuide(sel);   // 3D가 처음이면 체험 튜토리얼부터 (한 번만)
       this.court3d.configure(sel);
       Sound3.unlock();
@@ -7385,6 +7560,37 @@ class App {
         g.configure({ type: 'court3d', mode: 'ai', diff, style: 'base', win: QUICK3.WIN, hand: sel.hand }); g.start();
         g.hud.banner(`대기 중인 사람이 없어 AI(${DIFF_NAMES[diff]})와 대전합니다`, '#9FD8FF', 2.6);
       }
+    }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+  }
+
+  // 랭크전: 로그인 필수. 서버에서 내 랭크 점수를 받아 대기열에 서고, 상대를 찾으면 두 사람 모두 서버에 경기를 등록한 뒤 연결 (court3d/rank.js)
+  openRank(sel) {
+    if (typeof Account === 'undefined' || !Account.loggedIn) { AccountUI.openLogin(); return; }
+    const g = this.court3d, name = (Account.nickname || '선수').slice(0, 12), uid = Account.user.id;
+    g.configure({ ...sel, mode: 'room', quick: true, rank: true, win: RANK3.WIN });
+    Sound3.unlock(); this.show('court3d');
+    g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(null);
+    const R = g.rank, live = () => this.screen === 'court3d' && g.mode === 'room' && g.rank === R;
+    g.hud.showMessage('랭크 정보를 불러오는 중…');
+    Rank3.me().then(me => {
+      if (!live()) return;
+      if (!me.ok) return g.netError(escHtml(me.msg));
+      const wait = s => g.hud.showMessage(`랭크전 상대를 찾는 중… <b>${Math.floor(s ? s.waited : 0)}초</b><br>내 랭크 점수 <b>${me.rating}</b> (${Rank3.label(me)}) · 찾는 범위 ±${s ? s.range : QUICK3.RANGE0}점 · 대기 중인 사람 ${s ? s.others : 0}명<br><small>랭크전은 사람과만 대전해요 · Esc = 취소</small>`);
+      wait(null);
+      return g.qm.start({ r: me.rating, lv: Stats3.level(), name, uid }, {
+        onStatus: s => { if (live() && g.qm.state !== 'matched' && !g.net.active) wait(s); },
+        onMatch: r => {
+          if (!live()) return;
+          g.quick = { r: r.opp.r, lv: r.opp.lv, name: r.opp.name };
+          Account.track('quick_match', { rank: true, wait: Math.round((Date.now() - g.qm.at) / 1000), diff: Math.round(Math.abs(r.opp.r - me.rating)) });
+          g.hud.showMessage(`상대를 찾았어요!<br><b>${escHtml(r.opp.name)}</b> · 랭크 점수 ${Math.round(r.opp.r)}<br><small>연결하는 중…</small>`);
+          Rank3.open(r.opp.uid, r.code).then(m => {   // 서버에 경기 등록 (실패하면 점수에 반영되지 않는 경기로 진행)
+            if (g.rank !== R) return;
+            if (m) { R.id = m.id; R.rated = m.rated; } else g.hud.banner('서버에 경기를 등록하지 못했어요 — 랭크 점수에 반영되지 않습니다', '#FF9B9B', 3);
+          });
+          g.net.open(g, r.code, r.host, { hand: sel.hand, win: RANK3.WIN, name }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
+        }
+      }, { ch: RANK3.CH, noAi: true });
     }).catch(err => { if (this.screen === 'court3d') g.netError(err.message || String(err)); });
   }
 
@@ -7604,6 +7810,7 @@ const Dev = {
     body.appendChild(this.el('div', 'devnote', '기준 시각 ' + this.day(d.at) + ' · 날짜는 한국 시간 · 게스트의 코인·기록은 서버에 없어서 포함되지 않음'));
     this.table(body, '난이도별 AI 대전 (서버 기록 · 로그인한 사람만)', ['게임', '난이도', '경기', '승', '승률'],
       (d.match_diff || []).map(x => [x.game_type, (typeof DIFF_NAMES !== 'undefined' && DIFF_NAMES[x.difficulty]) || x.difficulty, x.games, x.wins, this.pct(x.wins, x.games)]), d.matches === null ? this.missing('matches') : null);
+    this.table(body, '랭크전 경기 처리 결과', ['상태', '사유', '경기'], (d.rank_stats || []).map(x => [x.status, x.how, x.n]), d.ranks === null ? this.missing('ranks') : null);
     this.table(body, '일일 챌린지 (최근)', ['날짜', '종목', '참가', '최고 점수'], (d.daily || []).map(x => [x.day, x.kind, x.players, x.best]), d.daily === null ? this.missing('daily_scores') : null);
   },
   viewEv(body, d) {
@@ -7618,16 +7825,16 @@ const Dev = {
   viewUsers(body, d) {
     if (d.users === null) { body.appendChild(this.el('div', 'devnote', '가입자 목록을 읽지 못했어요.')); return; }
     const by = (a, k) => { const m = {}; for (const x of a || []) m[x[k]] = x; return m; };
-    const M = by(d.matches, 'user_id'), W = by(d.wallets, 'user_id'), P = by(d.progress, 'user_id'), R = by(d.ratings, 'user_id');
+    const M = by(d.matches, 'user_id'), W = by(d.wallets, 'user_id'), P = by(d.progress, 'user_id'), R = by(d.ratings, 'user_id'), K = by(d.ranks, 'user_id');
     const rows = (d.users || []).map(u => {
-      const m = M[u.id], w = W[u.id], p = P[u.id], r = R[u.id], g = (w && w.gear) || {}, st = g._stats;
+      const m = M[u.id], w = W[u.id], p = P[u.id], r = R[u.id], k = K[u.id], g = (w && w.gear) || {}, st = g._stats;
       const rackets = Object.keys(g).filter(k => k[0] !== '_' && k !== 'bal').map(k => k + '+' + g[k]).join(' ');
       return [u.nickname, u.email, this.day(u.created_at), this.day(u.last_sign_in_at), m ? m.games : 0, m ? this.pct(m.wins, m.games) : '-',
-        w ? w.coins : '-', w ? w.total : '-', st ? this.lvOf(st.xp) : '-', p ? `${p.str}/${p.agi}/${p.jud}` : '-', r ? `${r.rating} (${r.wins}/${r.games})` : '-',
+        w ? w.coins : '-', w ? w.total : '-', st ? this.lvOf(st.xp) : '-', p ? `${p.str}/${p.agi}/${p.jud}` : '-', r ? `${r.rating} (${r.wins}/${r.games})` : '-', k ? `${k.rating} (${k.wins}/${k.games})` : '-', k ? k.disputes : '-',
         rackets || '-', g._skins ? Object.keys(g._skins).length : '-'];
     });
     this.table(body, `가입자 ${d.user_count}명` + (d.user_count > rows.length ? ` (최근 ${rows.length}명만 표시)` : ''),
-      ['닉네임', '이메일', '가입', '마지막 로그인', 'AI 대전', '승률', '코인', '번 코인', '선수 Lv', '훈련(근/순/판)', '매칭 점수(승/경기)', '채', '스킨 수'], rows);
+      ['닉네임', '이메일', '가입', '마지막 로그인', 'AI 대전', '승률', '코인', '번 코인', '선수 Lv', '훈련(근/순/판)', '매칭 점수(승/경기)', '랭크 점수(승/경기)', '랭크 분쟁', '채', '스킨 수'], rows);
     body.appendChild(this.el('div', 'devnote', '이메일 등 개인정보가 보이는 화면이에요 — 화면 공유·캡처에 주의. 게스트(로그인 안 한 사람)는 목록에 없음.'));
   },
   viewLocal(body) {

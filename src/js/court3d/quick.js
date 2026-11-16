@@ -48,19 +48,19 @@ class Quick3 {
   range(at, now) { return QUICK3.RANGE0 + QUICK3.RANGE_STEP * Math.floor(Math.max(0, now - at) / 1000 / QUICK3.RANGE_EVERY); }
 
   // me = { r, lv, name } · cb = { onStatus({ waited, range, others }), onMatch({ code, host, opp:{ r, lv, name } }), onNoOne(), onError(msg) }
-  async start(me, cb) {
+  async start(me, cb, opt) {   // opt = { ch: 대기 채널 이름, noAi: AI로 넘어가지 않음 } — 랭크전이 씀 (me.uid = 계정 id)
     this.stop();
     const sb = typeof Account !== 'undefined' ? Account.sb : null;
     if (!sb) throw new Error('온라인 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
-    Object.assign(this, { me: { r: Math.round(me.r), lv: me.lv | 0, name: String(me.name || '게스트').slice(0, 12) }, cb, at: Date.now(), state: 'wait', target: null, skip: {} });
-    const ch = sb.channel(QUICK3.CH, { config: { broadcast: { self: false }, presence: { key: this.id } } });
+    Object.assign(this, { me: { r: Math.round(me.r), lv: me.lv | 0, name: String(me.name || '게스트').slice(0, 12), uid: me.uid || null }, cb, chName: (opt && opt.ch) || QUICK3.CH, noAi: !!(opt && opt.noAi), at: Date.now(), state: 'wait', target: null, skip: {} });
+    const ch = sb.channel(this.chName, { config: { broadcast: { self: false }, presence: { key: this.id } } });
     this.ch = ch;
     ch.on('broadcast', { event: 'q' }, ({ payload }) => { try { this.recv(payload); } catch (e) { console.error(e); } });
     ch.on('presence', { event: 'sync' }, () => {});
     await new Promise((res, rej) => {
       const to = setTimeout(() => rej(new Error('연결 시간 초과')), 10000);
       ch.subscribe(async st => {
-        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ r: this.me.r, lv: this.me.lv, name: this.me.name, at: this.at }); } catch (e) { /* 무시 */ } res(); }
+        if (st === 'SUBSCRIBED') { clearTimeout(to); try { await ch.track({ r: this.me.r, lv: this.me.lv, name: this.me.name, at: this.at, uid: this.me.uid }); } catch (e) { /* 무시 */ } res(); }
         else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { clearTimeout(to); rej(new Error('대기열 연결 실패 (' + st + ')')); }
       });
     });
@@ -81,7 +81,7 @@ class Quick3 {
     for (const k in st) {
       const p = st[k] && st[k][0];
       if (k === this.id || !p || !(Number(p.r) > 0)) continue;
-      out.push({ id: k, r: Number(p.r), lv: p.lv | 0, name: String(p.name || '게스트').slice(0, 12), at: Number(p.at) || Date.now() });
+      out.push({ id: k, r: Number(p.r), lv: p.lv | 0, name: String(p.name || '게스트').slice(0, 12), at: Number(p.at) || Date.now(), uid: p.uid ? String(p.uid).slice(0, 40) : null });
     }
     return out;
   }
@@ -91,6 +91,7 @@ class Quick3 {
     let b = null, bk = null;
     for (const p of list) {
       if ((this.skip[p.id] || 0) > now) continue;
+      if (this.me.uid && (!p.uid || p.uid === this.me.uid)) continue;   // 랭크전: 계정이 있어야 하고, 같은 계정끼리는 안 붙음
       const d = Math.abs(p.r - this.me.r);
       if (d > Math.max(mine, this.range(p.at, now))) continue;
       const k = [d, Math.abs(p.lv - this.me.lv), p.id];
@@ -106,19 +107,19 @@ class Quick3 {
       const b = this.best(list, now);
       if (b && this.id < b.id) {   // id가 작은 쪽이 초대
         this.state = 'inviting'; this.target = b; this.code = Net3D.makeCode(); this.inviteUntil = now + QUICK3.INVITE_WAIT * 1000;
-        this.send({ t: 'inv', to: b.id, code: this.code, r: this.me.r, lv: this.me.lv, name: this.me.name });
-      } else if (!list.length && waited >= QUICK3.AI_AFTER) { const cb = this.cb; this.stop(); cb.onNoOne && cb.onNoOne(); return; }
+        this.send({ t: 'inv', to: b.id, code: this.code, r: this.me.r, lv: this.me.lv, name: this.me.name, uid: this.me.uid });
+      } else if (!this.noAi && !list.length && waited >= QUICK3.AI_AFTER) { const cb = this.cb; this.stop(); cb.onNoOne && cb.onNoOne(); return; }
     }
     if (this.cb.onStatus) this.cb.onStatus({ waited, range: this.range(this.at, now), others: list.length });
   }
   recv(m) {
     if (!this.ch || !m || m.to !== this.id) return;
     if (m.t === 'inv') {
-      if (this.state !== 'wait' || !/^[A-Z0-9]{5}$/.test(String(m.code))) return this.send({ t: 'no', to: m.from });
+      if (this.state !== 'wait' || !/^[A-Z0-9]{5}$/.test(String(m.code)) || (this.me.uid && (!m.uid || m.uid === this.me.uid))) return this.send({ t: 'no', to: m.from });
       this.send({ t: 'ok', to: m.from });
-      this.matched({ code: m.code, host: false, opp: { r: Number(m.r) > 0 ? Number(m.r) : this.me.r, lv: m.lv | 0, name: String(m.name || '게스트').slice(0, 12) } });
+      this.matched({ code: m.code, host: false, opp: { r: Number(m.r) > 0 ? Number(m.r) : this.me.r, lv: m.lv | 0, name: String(m.name || '게스트').slice(0, 12), uid: m.uid ? String(m.uid).slice(0, 40) : null } });
     } else if (m.t === 'ok' && this.state === 'inviting' && this.target && m.from === this.target.id) {
-      this.matched({ code: this.code, host: true, opp: { r: this.target.r, lv: this.target.lv, name: this.target.name } });
+      this.matched({ code: this.code, host: true, opp: { r: this.target.r, lv: this.target.lv, name: this.target.name, uid: this.target.uid } });
     } else if (m.t === 'no' && this.state === 'inviting' && this.target && m.from === this.target.id) {
       this.skip[m.from] = Date.now() + 3000; this.state = 'wait'; this.target = null;
     }

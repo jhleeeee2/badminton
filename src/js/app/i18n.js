@@ -12,7 +12,7 @@ const I18N = {
     // ── 대기화면 ──
     '배드민턴 랠리': 'Badminton Rally',
     '실제 코트 규격과 단식 규칙으로 치는 3D 배드민턴 — 설치 없이 브라우저에서 바로.': '3D badminton on a regulation court with real singles rules — right in your browser, no install.',
-    '게임 종류': 'Game', '대전 모드': 'Mode', 'AI 대전 설정': 'AI match settings', '대전 설정': 'Match settings', '커리어 설정': 'Career settings', '일일 챌린지 설정': 'Daily challenge settings', '빠른 대전 설정': 'Quick match settings',
+    '게임 종류': 'Game', '대전 모드': 'Mode', 'AI 대전 설정': 'AI match settings', '대전 설정': 'Match settings', '커리어 설정': 'Career settings', '일일 챌린지 설정': 'Daily challenge settings', '빠른 대전 설정': 'Quick match settings', '랭크전 설정': 'Ranked settings', '랭크 정보를 불러오는 중…': 'Loading your rank…', '로그인 필요 · 서버가 점수 관리': 'Login required · server-side rating',
     '난이도': 'Difficulty', '쉬움': 'Easy', '중간': 'Normal', '어려움': 'Hard', '지옥': 'Hell', '임파서블': 'Impossible',
     '상대 성향': 'Opponent style', '기본': 'Default', '수비형': 'Defender', '네트형': 'Net player', '스매시형': 'Smasher',
     '목표 점수': 'Play to', '주 손': 'Hand', '오른손': 'Right', '왼손': 'Left',

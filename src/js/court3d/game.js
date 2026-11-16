@@ -38,9 +38,10 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career, daily, quick }) {
+  configure({ diff, win, hand, mode, train, style, career, daily, quick, rank }) {
     if (this.qm) this.qm.stop(); else if (typeof Quick3 !== 'undefined') this.qm = new Quick3();
     this.quick = mode === 'room' && quick ? (typeof quick === 'object' ? quick : {}) : null;   // 빠른 대전: 친선게임과 같은 연결에 매칭 점수만 얹음 (상대를 찾으면 { r, lv, name })
+    this.rank = mode === 'room' && rank ? (typeof rank === 'object' ? rank : { id: null, over: false, flags: 0, beatT: 0 }) : null;   // 랭크전: 빠른 대전과 같은 연결 + 서버 경기 등록(court3d/rank.js)
     this.diffId = diff; this.match.win = win; this.me.setHand(hand || 'R');
     this.mode = ['train', 'room', 'local2p', 'guide'].includes(mode) ? mode : 'ai';
     this.trainer.stop(); this.trainer = this.mode === 'guide' ? this.guide : this.coach;   // 체험 튜토리얼은 훈련과 같은 자리에 끼움
@@ -66,7 +67,7 @@ class Game3D {
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
-      : this.mode === 'room' ? (this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
+      : this.mode === 'room' ? (this.rank ? '랭크전 · ' : this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
@@ -77,6 +78,7 @@ class Game3D {
   get duo() { return this.mode === 'local2p'; }   // 로컬 2인: opp = P2 (사람)
 
   start(fromNet) {
+    if (this.rank && this.rank.over) return;   // 랭크전은 재대결 없음 — 메뉴에서 다시 상대를 찾음
     if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
     if (this.mode === 'train' && this.trainer.daily) this.trainer.start(Daily3.kind(), true);   // 일일 챌린지: 다시 도전 = 같은 공을 처음부터 (자정이 지났으면 새 날짜의 종목)
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
@@ -104,6 +106,7 @@ class Game3D {
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
+    if (this.rank && this.rank.id && !this.rank.over && this.net.connected && ['serve', 'rally', 'point'].includes(this.phase)) { this.rank.over = true; Rank3.resign(this.rank.id, this.match.pts, this.match.opts); }   // 랭크전 도중 나가기 = 기권
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.setShare(null); if (this.qm) this.qm.stop();
     this.phase = 'idle'; this.me.charge = null; this.opp.charge = null; this.timeScale = 1; this.hud.setGauge(null, '', this.hud.g2);
@@ -199,6 +202,7 @@ class Game3D {
     if (a === this.me && !isServe && /스매시/.test(plan.name)) this.topKmh = Math.max(this.topKmh || 0, plan.kmh);   // 결과 카드용: 이 경기 내 최고 스매시
     if (this.online && a === this.me) {   // 온라인: 발사 정보만 보내면 상대도 같은 궤적을 계산
       const r = v => Math.round(v * 10000) / 10000, m = p0, w = plan.v0;   // 내 좌표 그대로 보내고, 받는 쪽에서 180° 돌림
+      if (this.rank) Rank3.mine(this.rank, p0, plan.v0, isServe, isServe ? this.match.box('opp', this.match.serveCourt()) : null);   // 판정 검증용: 내 타구의 경로·예상 낙하
       this.net.send({ t: 'hit', p: { x: r(m.x), y: r(m.y), z: r(m.z) }, v: { x: r(w.x), y: r(w.y), z: r(w.z) }, name: plan.name, kmh: plan.kmh, serve: !!isServe, hand: k ? k.hand : null, r: this.match.rally });
     }
     // 역동성: 불꽃·충격파·화면 흔들림·줌·소리, 상대는 스플릿 스텝 [게임 연출]
@@ -334,7 +338,7 @@ class Game3D {
     // 새 상대 (또는 처음): 다른 사람이면 세트 스코어 새로
     if (this.roomRec.cid !== peer.cid) this.roomRec = { cid: peer.cid, name: peer.name, sets: { me: 0, opp: 0 } };
     this.roomRec.name = peer.name; this.awayPeer = null;
-    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick });
+    this.match.win = win; this.configure({ diff: 'normal', win, hand: this.me.hand, mode: 'room', quick: this.quick, rank: this.rank });
     this.setOppName(peer.name); this.hud.setSets(this.roomRec.sets);
     this.myEnd = this.net.host ? 0 : 1; this.swapNext = false; this.view.setEnd(this.myEnd ^ 1);
     this.hud.banner(peer.name + ' 입장!', '#5BFFB0', 1.2);
@@ -344,7 +348,7 @@ class Game3D {
   // 다시 들어온 쪽: 남아 있던 쪽이 보낸 점수·서브·세트·엔드로 맞추고 이어서
   netResume(m) {
     const M = this.match;
-    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick });
+    this.configure({ diff: 'normal', win: [11, 15, 21].includes(m.win) ? m.win : M.win, hand: this.me.hand, mode: 'room', quick: this.quick, rank: this.rank });
     M.pts = m.pts | 0; M.opts = m.opts | 0; M.server = m.server === 'opp' ? 'opp' : 'me'; M.rally = 0;
     this.roomRec.sets = { me: (m.sets && m.sets.me) | 0, opp: (m.sets && m.sets.opp) | 0 };
     this.myEnd = m.end ? 1 : 0; this.midSwapped = !!m.mid; this.swapNext = !!m.swapNext; this.view.setEnd(this.myEnd ^ 1);
@@ -378,6 +382,16 @@ class Game3D {
     this.hud.banner('상대방이 나갔습니다', '#FF6B6B', 2);
     this.hud.showMessage('상대방이 나갔습니다' + (live ? ` — 점수 ${this.match.pts} : ${this.match.opts}에서 멈춤` : '')
       + (this.quick ? '<br>Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)' : `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`));
+    if (this.rank && !this.rank.over) { this.phase = 'over'; this.awayPeer = null; this.rankFinish('left', `상대방이 나갔습니다 — ${this.match.pts} : ${this.match.opts}에서 종료`); }
+  }
+  // 랭크전 마무리: 서버에 결과를 보고하고, 서버가 계산한 랭크 점수를 결과 창에 붙임 (kind: done = 끝까지 · left = 상대가 나감)
+  rankFinish(kind, head) {
+    const R = this.rank; if (!R || R.over) return; R.over = true;
+    const tail = '<br>Esc = 메뉴 (랭크전을 다시 누르면 새 상대를 찾아요)';
+    const show = line => { if (this.rank === R) this.hud.showMessage(head + '<br>' + line + tail); };
+    if (!R.id) return show('<span class="xpline">서버에 경기가 등록되지 않아 랭크 점수에 반영되지 않았어요</span>');
+    show(Rank3.line(null));
+    Rank3.report(R.id, this.match.pts, this.match.opts, kind, R.flags, st => show(Rank3.line(st)));
   }
   netEmote(m) { this.emote.show('opp', String(m.id || '')); }
   netError(msg) {
@@ -405,6 +419,7 @@ class Game3D {
     } else if (this.phase !== 'rally') return;
     if (!a.swingS) a.swing('flat', 0.5, p0, 'side');
     a.onHit(p0);
+    if (this.rank) Rank3.checkShot(this.rank, p0, v0, !!m.serve);   // 랭크전: 상대 타구가 말이 되는지
     this.match.rally = Math.max(0, (m.r | 0) - 1);   // launch()에서 +1
     this.launch(a, p0, { v0, sim: Phys3.simulate(p0, v0), kmh: m.kmh | 0, name: String(m.name || '') }, !!m.serve, m.hand ? { hand: m.hand } : null);
     // 지연 보정: 상대가 친 뒤 흐른 시간만큼 셔틀을 앞으로 감음
@@ -424,6 +439,7 @@ class Game3D {
       s.live = false; this.landPend = null; this.view.setLanding(null); this.view.setPath(null);
       this.view.ripple({ x: s.p.x, y: 0, z: s.p.z }, 0xFFFFFF, 1.0);
     }
+    if (this.rank) { if (s.lastHitter === 'me') Rank3.checkPoint(this.rank, flip3(m.w), this.match); else if (flip3(m.w) === 'opp') Rank3.flag(this.rank, 'steal'); }   // 랭크전: 상대 판정을 내 계산과 비교
     this.point(flip3(m.w), String(m.r || ''), { pts: m.pts | 0, opts: m.opts | 0 });
   }
 
@@ -481,10 +497,11 @@ class Game3D {
       const head = this.duo ? `${w === 'me' ? 'P1' : 'P2'} 승리! P1 ${m.pts} : ${m.opts} P2` : `${w === 'me' ? '승리!' : '패배...'} ${m.pts} : ${m.opts}`;
       if (!this.trainer.active && !this.duo) this.setShare({ won: w === 'me', pts: m.pts, opts: m.opts, maxRally: this.maxRally, topKmh: this.topKmh,   // 결과 카드 (하이라이트 공유)
         me: (typeof Account !== 'undefined' && Account.nickname) || '나', opp: this.mode === 'room' ? (this.roomRec.name || '친구') : this.career ? this.career.name : 'AI ' + DIFF_NAMES[this.diffId],
-        mode: this.mode === 'room' ? (this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
-      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
+        mode: this.mode === 'room' ? (this.rank ? '랭크전' : this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
+      if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.rank ? 'rank' : this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
       if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
+      else if (this.rank) this.rankFinish('done', head + coin);
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
       // 코트 체인지: 15점 이상 경기에서 한쪽이 절반 점수에 닿으면 엔드 교대 (양쪽 화면이 같은 점수로 각자 계산)
@@ -524,7 +541,7 @@ class Game3D {
     const XP = typeof Stats3 !== 'undefined' ? Stats3 : null;
     if (this.mode === 'room') {
       const r = Wallet.room(won); let rate = '';
-      if (this.quick && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
+      if (this.quick && !this.rank && this.quick.r && typeof Rate3 !== 'undefined') { const u = Rate3.update(this.quick.r, won); rate = `<br><span class="xpline">매칭 점수 ${u.before} → <b>${u.after}</b> (${u.diff >= 0 ? '+' : ''}${u.diff}) · 상대 ${Math.round(this.quick.r)}</span>`; }
       return rate + r.html + (XP && r.sum ? XP.gain('room').html : '');
     }
     const m = this.match, c = this.career;
@@ -577,6 +594,7 @@ class Game3D {
     if (this.trainer.tick) this.trainer.tick(real);
     if (this.duo) this.opp.updateCharge(real);
     if (this.mode === 'room') this.net.tick(real);
+    if (this.rank && this.rank.id && !this.rank.over && (this.rank.beatT = (this.rank.beatT || 0) + real) >= RANK3.BEAT) { this.rank.beatT = 0; Rank3.beat(this.rank.id); }   // 랭크전: 서버에 '나 아직 있음'
     let sim = real * this.timeScale * C3.GAME_SPEED * tp.spd;   // 랠리 템포 배율
     this.simRate = this.timeScale * C3.GAME_SPEED * tp.spd;
     if (this.hitStop > 0) { this.hitStop -= real; sim = 0; }   // 히트스톱 중엔 시간 정지

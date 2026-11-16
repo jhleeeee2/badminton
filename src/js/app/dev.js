@@ -141,6 +141,7 @@ const Dev = {
     body.appendChild(this.el('div', 'devnote', '기준 시각 ' + this.day(d.at) + ' · 날짜는 한국 시간 · 게스트의 코인·기록은 서버에 없어서 포함되지 않음'));
     this.table(body, '난이도별 AI 대전 (서버 기록 · 로그인한 사람만)', ['게임', '난이도', '경기', '승', '승률'],
       (d.match_diff || []).map(x => [x.game_type, (typeof DIFF_NAMES !== 'undefined' && DIFF_NAMES[x.difficulty]) || x.difficulty, x.games, x.wins, this.pct(x.wins, x.games)]), d.matches === null ? this.missing('matches') : null);
+    this.table(body, '랭크전 경기 처리 결과', ['상태', '사유', '경기'], (d.rank_stats || []).map(x => [x.status, x.how, x.n]), d.ranks === null ? this.missing('ranks') : null);
     this.table(body, '일일 챌린지 (최근)', ['날짜', '종목', '참가', '최고 점수'], (d.daily || []).map(x => [x.day, x.kind, x.players, x.best]), d.daily === null ? this.missing('daily_scores') : null);
   },
   viewEv(body, d) {
@@ -155,16 +156,16 @@ const Dev = {
   viewUsers(body, d) {
     if (d.users === null) { body.appendChild(this.el('div', 'devnote', '가입자 목록을 읽지 못했어요.')); return; }
     const by = (a, k) => { const m = {}; for (const x of a || []) m[x[k]] = x; return m; };
-    const M = by(d.matches, 'user_id'), W = by(d.wallets, 'user_id'), P = by(d.progress, 'user_id'), R = by(d.ratings, 'user_id');
+    const M = by(d.matches, 'user_id'), W = by(d.wallets, 'user_id'), P = by(d.progress, 'user_id'), R = by(d.ratings, 'user_id'), K = by(d.ranks, 'user_id');
     const rows = (d.users || []).map(u => {
-      const m = M[u.id], w = W[u.id], p = P[u.id], r = R[u.id], g = (w && w.gear) || {}, st = g._stats;
+      const m = M[u.id], w = W[u.id], p = P[u.id], r = R[u.id], k = K[u.id], g = (w && w.gear) || {}, st = g._stats;
       const rackets = Object.keys(g).filter(k => k[0] !== '_' && k !== 'bal').map(k => k + '+' + g[k]).join(' ');
       return [u.nickname, u.email, this.day(u.created_at), this.day(u.last_sign_in_at), m ? m.games : 0, m ? this.pct(m.wins, m.games) : '-',
-        w ? w.coins : '-', w ? w.total : '-', st ? this.lvOf(st.xp) : '-', p ? `${p.str}/${p.agi}/${p.jud}` : '-', r ? `${r.rating} (${r.wins}/${r.games})` : '-',
+        w ? w.coins : '-', w ? w.total : '-', st ? this.lvOf(st.xp) : '-', p ? `${p.str}/${p.agi}/${p.jud}` : '-', r ? `${r.rating} (${r.wins}/${r.games})` : '-', k ? `${k.rating} (${k.wins}/${k.games})` : '-', k ? k.disputes : '-',
         rackets || '-', g._skins ? Object.keys(g._skins).length : '-'];
     });
     this.table(body, `가입자 ${d.user_count}명` + (d.user_count > rows.length ? ` (최근 ${rows.length}명만 표시)` : ''),
-      ['닉네임', '이메일', '가입', '마지막 로그인', 'AI 대전', '승률', '코인', '번 코인', '선수 Lv', '훈련(근/순/판)', '매칭 점수(승/경기)', '채', '스킨 수'], rows);
+      ['닉네임', '이메일', '가입', '마지막 로그인', 'AI 대전', '승률', '코인', '번 코인', '선수 Lv', '훈련(근/순/판)', '매칭 점수(승/경기)', '랭크 점수(승/경기)', '랭크 분쟁', '채', '스킨 수'], rows);
     body.appendChild(this.el('div', 'devnote', '이메일 등 개인정보가 보이는 화면이에요 — 화면 공유·캡처에 주의. 게스트(로그인 안 한 사람)는 목록에 없음.'));
   },
   viewLocal(body) {

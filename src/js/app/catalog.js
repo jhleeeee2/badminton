@@ -6,7 +6,7 @@ const GAME_TYPES = [
   {
     id: 'court3d', name: '3D 코트',
     desc: '실제 규격 코트와 단식 규칙. WASD로 움직이고 마우스로 방향을 잡아, 셔틀이 라켓에 닿는 순간 스윙.',
-    modes: ['ai', 'career', 'daily', 'train', 'quick', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
+    modes: ['ai', 'career', 'daily', 'train', 'quick', 'rank', 'room'], badge: { text: '본편', tone: 'ok' }, art: 'persp', options: ['hand']
   },
   {
     id: 'classic', name: '레트로 모드',
@@ -22,7 +22,7 @@ const MODES = [
   { id: 'train',   name: '훈련',        desc: '선수 키우기 · 근력/순발력/판단력' },
   { id: 'quick',   name: '빠른 대전',   desc: '비슷한 실력과 자동 매칭' },
   { id: 'room',    name: '친선게임', desc: '방 코드로 온라인 대전' },
-  { id: 'rank',    name: '랭크전',      desc: '구글 로그인 · 레이팅' },
+  { id: 'rank',    name: '랭크전',      desc: '로그인 필요 · 서버가 점수 관리' },
   { id: 'doubles', name: '복식',        desc: '2 대 2' }
 ];
 
