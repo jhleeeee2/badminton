@@ -5,6 +5,10 @@
 --   · 끝나면 두 사람이 각자 결과를 보고(rank_report). 둘의 보고가 일치할 때만 점수 반영.
 --     서로 다르면 '분쟁'(점수 변화 없음, 두 사람의 분쟁 횟수 +1).
 --   · 한쪽만 보고한 경우: 상대가 20초 넘게 신호(rank_beat)를 보내지 않았을 때만 그 보고를 인정.
+--   · 시작 점수는 배치고사(AI와 5경기)로 정함(rank_place). 배치를 마쳐야 랭크전을 할 수 있음.
+--     배치고사는 각자 브라우저에서 AI와 하는 경기라 서버가 검증할 수 없음 → 시작 점수 범위를 630~1220으로 제한.
+--     그보다 높은 티어는 사람과의 랭크전으로만 올라감.
+--   · 점수는 엘로 방식(K = 32 고정): 이기면 오르고 지면 그만큼 내려가므로 경기 수만 늘려서는 오르지 않음.
 --   · 수치는 모두 [게임]용으로 정한 값.
 
 create table if not exists public.ranks (
@@ -19,6 +23,8 @@ create table if not exists public.ranks (
   updated_at timestamptz not null default now()
 );
 create index if not exists ranks_rating on public.ranks (rating desc);
+alter table public.ranks add column if not exists placed boolean not null default false;   -- 배치고사를 마쳤는지
+alter table public.ranks add column if not exists place jsonb;                              -- 배치고사 5경기 기록
 alter table public.ranks enable row level security;
 drop policy if exists "ranks read all" on public.ranks;
 create policy "ranks read all" on public.ranks for select using (true);
@@ -86,8 +92,7 @@ begin
   select * into rb from public.ranks where user_id = m.b for update;
   ea := 1 / (1 + power(10, (rb.rating - ra.rating) / 400.0));      -- a가 이길 기대 확률 (엘로)
   sa := case when p_winner = m.a then 1 else 0 end;
-  ka := case when ra.games < 10 then 40 else 32 end;                -- 처음 10경기는 변동 폭이 큼
-  kb := case when rb.games < 10 then 40 else 32 end;
+  ka := 32; kb := 32;                                               -- 두 사람 모두 같은 폭 → 이긴 만큼 상대가 잃음 (경기 수로는 오르지 않음)
   na := greatest(100, round(ra.rating + ka * (sa - ea))::integer);
   nb := greatest(100, round(rb.rating + kb * ((1 - sa) - (1 - ea)))::integer);
   update public.ranks set rating = na, games = games + 1, wins = wins + sa::integer, peak = greatest(peak, na),
@@ -110,7 +115,7 @@ begin
     'won', case when m.winner is null then null else m.winner = p_uid end,
     'before', case when me_a then m.a_before else m.b_before end,
     'after', case when me_a then m.a_after else m.b_after end,
-    'rating', r.rating, 'games', r.games, 'wins', r.wins, 'streak', r.streak, 'peak', r.peak);
+    'rating', r.rating, 'games', r.games, 'wins', r.wins, 'streak', r.streak, 'peak', r.peak, 'placed', r.placed);
 end $$;
 
 -- 내 랭크 정보 (+ 내 순위)
@@ -121,9 +126,39 @@ begin
   if u is null then raise exception 'login_required' using errcode = '42501'; end if;
   perform public.rank__ensure(u);
   select * into r from public.ranks where user_id = u;
-  select count(*) + 1 into pos from public.ranks where games >= 5 and rating > r.rating;
+  select count(*) + 1 into pos from public.ranks where placed and games >= 3 and rating > r.rating;
   return jsonb_build_object('rating', r.rating, 'games', r.games, 'wins', r.wins, 'streak', r.streak, 'peak', r.peak, 'disputes', r.disputes,
-    'pos', case when r.games >= 5 then pos else null end);
+    'placed', r.placed, 'pos', case when r.placed and r.games >= 3 then pos else null end);
+end $$;
+
+-- 배치고사 결과 → 시작 점수 (한 계정에 한 번)
+--   p_games: 5경기 [{ d: AI 단계 0~4(쉬움·중간·어려움·지옥·임파서블), w: 이겼는지, p: 내 점수, o: 상대 점수, f: 도중에 나감 }]
+--   규칙: 첫 경기는 중간(1). 이기면 다음은 한 단계 위, 지면 한 단계 아래 (0~4 안에서)
+--   시작 점수 = 5경기 평균 of (AI 단계 기준 점수 700 + 150 × d, 이기면 +100 / 지면 −100) → 630 ~ 1220
+create or replace function public.rank_place(p_games jsonb) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare u uuid := auth.uid(); r public.ranks; g jsonb; i integer; d integer; want integer := 1; w boolean; total numeric := 0; start integer;
+begin
+  if u is null then raise exception 'login_required' using errcode = '42501'; end if;
+  perform public.rank__ensure(u);
+  select * into r from public.ranks where user_id = u for update;
+  if not r.placed then
+    if p_games is null or jsonb_typeof(p_games) <> 'array' or jsonb_array_length(p_games) <> 5 then raise exception 'bad_games'; end if;
+    for i in 0..4 loop
+      g := p_games->i; d := (g->>'d')::integer; w := coalesce((g->>'w')::boolean, false);
+      if d is distinct from want then raise exception 'bad_ladder'; end if;
+      if coalesce((g->>'f')::boolean, false) then
+        if w then raise exception 'bad_games'; end if;
+      elsif not public.rank__valid(greatest((g->>'p')::integer, (g->>'o')::integer), least((g->>'p')::integer, (g->>'o')::integer))
+            or w is distinct from ((g->>'p')::integer > (g->>'o')::integer) then raise exception 'bad_score';
+      end if;
+      total := total + 700 + 150 * d + case when w then 100 else -100 end;
+      want := greatest(0, least(4, d + case when w then 1 else -1 end));
+    end loop;
+    start := round(total / 5)::integer;
+    update public.ranks set rating = start, peak = start, placed = true, place = p_games, updated_at = now() where user_id = u returning * into r;
+  end if;
+  return jsonb_build_object('rating', r.rating, 'games', r.games, 'wins', r.wins, 'streak', r.streak, 'peak', r.peak, 'placed', r.placed);
 end $$;
 
 -- 경기 열기: 두 사람이 서로를 상대로 지목해야 'live'가 됨. id가 작은 쪽이 만들고 큰 쪽이 들어감
@@ -135,6 +170,7 @@ begin
   if p_opp is null or p_opp = u or not exists (select 1 from auth.users where id = p_opp) then raise exception 'bad_opponent'; end if;
   if p_room is null or p_room !~ '^[A-Z0-9]{5}$' then raise exception 'bad_room'; end if;
   perform public.rank__ensure(u);
+  if not exists (select 1 from public.ranks where user_id = u and placed) then raise exception 'not_placed'; end if;
   -- 묵은 경기 정리: 60초 넘게 안 열린 것 · 30분 넘게 안 끝난 것
   update public.rank_matches set status = 'void', how = 'expired', ended_at = now()
     where (a = u or b = u) and ((status = 'pending' and created_at < now() - interval '60 seconds') or (status = 'live' and started_at < now() - interval '30 minutes'));
@@ -228,11 +264,16 @@ begin
   return public.rank__view(p_match, u);
 end $$;
 
+-- 표는 게임에서 읽기만 (쓰기 권한 자체를 뺌)
+revoke insert, update, delete on public.ranks, public.rank_matches from anon, authenticated;
+
 -- 속 함수는 게임에서 직접 못 부르게
 revoke all on function public.rank__ensure(uuid) from public, anon, authenticated;
 revoke all on function public.rank__close(uuid, text, text, uuid, integer, integer) from public, anon, authenticated;
 revoke all on function public.rank__view(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.rank_me() from public, anon;
+revoke all on function public.rank_place(jsonb) from public, anon;
+grant execute on function public.rank_place(jsonb) to authenticated;
 revoke all on function public.rank_open(uuid, text) from public, anon;
 revoke all on function public.rank_beat(uuid) from public, anon;
 revoke all on function public.rank_report(uuid, integer, integer, text, integer) from public, anon;

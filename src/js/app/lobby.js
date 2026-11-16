@@ -237,14 +237,15 @@ class Lobby {
     const info = d => {
       I.innerHTML = !logged ? '랭크전은 <b>로그인</b>이 필요해요 — 시작을 누르면 로그인 창이 열려요.'
         : !d ? '랭크 정보를 불러오는 중…' : !d.ok ? escHtml(d.msg)
-        : `랭크 점수 <b>${d.rating}</b> · <b style="color:${d.games >= RANK3.PLACE ? Rank3.tier(d.rating).color : 'inherit'}">${Rank3.label(d)}</b> · ${d.games}전 ${d.wins}승${d.pos ? ' · ' + d.pos + '위' : ''}${d.streak >= 2 ? ' · ' + d.streak + '연승' : ''} · 최고 ${d.peak}<br><small>${tiers} — 처음 ${RANK3.PLACE}경기는 배치 경기 · 같은 상대와는 하루 3경기까지 점수 반영</small>`;
+        : !d.placed ? `<b>배치고사 ${Math.min(RANK3.PLACE, Rank3.pGames().length)}/${RANK3.PLACE}</b> — 시작을 누르면 AI와 11점 경기 ${RANK3.PLACE}판으로 랭크 시작 점수를 정해요.<br><small>첫 상대는 AI 중간. 이기면 다음은 더 센 AI, 지면 더 약한 AI · 채·선수 스탯 효과 없음 · 도중에 나가면 그 경기는 패배 · ${tiers}</small>`
+        : `랭크 점수 <b>${d.rating}</b> · <b style="color:${Rank3.tier(d.rating).color}">${Rank3.label(d)}</b> · ${d.games}전 ${d.wins}승${d.pos ? ' · ' + d.pos + '위' : ''}${d.streak >= 2 ? ' · ' + d.streak + '연승' : ''} · 최고 ${d.peak}<br><small>${tiers} — 이기면 오르고 지면 내려가요(경기 수만으로는 오르지 않음) · 같은 상대와는 하루 3경기까지 점수 반영</small>`;
     };
     const top = r => {
-      T.innerHTML = `<span class="dn">랭크 순위 <small>상위 20명 · 배치 ${RANK3.PLACE}경기를 마친 사람</small></span>`;
+      T.innerHTML = `<span class="dn">랭크 순위 <small>상위 20명 · 랭크전 3경기 이상</small></span>`;
       const add = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; T.appendChild(e); return e; };
       if (!r) add('dd', '순위표를 불러오는 중…');
       else if (!r.ok) add('dd', r.missing ? '랭크전은 아직 준비 중이에요 (서버 설정 전).' : '순위표를 불러오지 못했어요 (인터넷 연결 확인).');
-      else if (!r.rows.length) add('dd', '아직 순위에 오른 사람이 없어요 — 배치 경기를 마치고 첫 번째로 올라 보세요!');
+      else if (!r.rows.length) add('dd', '아직 순위에 오른 사람이 없어요 — 랭크전 3경기를 하고 첫 번째로 올라 보세요!');
       else r.rows.forEach((x, i) => { const row = add('drow' + (x.mine ? ' mine' : ''), ''); for (const c of [i + 1 + '위', x.nickname + ' · ' + Rank3.tier(x.rating).name + ' · ' + x.games + '전 ' + x.wins + '승', String(x.rating)]) { const sp = document.createElement('span'); sp.textContent = c; row.appendChild(sp); } });
     };
     const C = this.rankCache, uid = logged ? Account.user.id : null;

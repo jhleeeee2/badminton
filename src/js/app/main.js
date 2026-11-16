@@ -127,9 +127,19 @@ class App {
     g.placeForServe(); g.frame(0); g.hud.setHint(''); g.hud.setRoom(null);
     const R = g.rank, live = () => this.screen === 'court3d' && g.mode === 'room' && g.rank === R;
     g.hud.showMessage('랭크 정보를 불러오는 중…');
-    Rank3.me().then(me => {
+    Rank3.me().then(async me => {
       if (!live()) return;
       if (!me.ok) return g.netError(escHtml(me.msg));
+      if (!me.placed) {   // 배치고사부터: AI와 5경기 (다 했는데 서버에 못 보낸 상태면 먼저 보냄)
+        if (Rank3.pGames().length >= RANK3.PLACE) {
+          g.hud.showMessage('배치고사 결과를 보내는 중…');
+          const r = await Rank3.pSubmit(); if (!live()) return;
+          if (r.ok) { g.hud.banner(`배치고사 완료! 시작 점수 ${r.rating} · ${Rank3.tier(r.rating).name}`, '#FFD23F', 3); return this.openRank(sel); }
+          if (!r.bad) return g.netError('배치고사 결과를 서버에 보내지 못했어요 (인터넷 연결 확인).');
+        }
+        g.configure(Rank3.pSel(sel.hand)); g.start();
+        return;
+      }
       const wait = s => g.hud.showMessage(`랭크전 상대를 찾는 중… <b>${Math.floor(s ? s.waited : 0)}초</b><br>내 랭크 점수 <b>${me.rating}</b> (${Rank3.label(me)}) · 찾는 범위 ±${s ? s.range : QUICK3.RANGE0}점 · 대기 중인 사람 ${s ? s.others : 0}명<br><small>랭크전은 사람과만 대전해요 · Esc = 취소</small>`);
       wait(null);
       return g.qm.start({ r: me.rating, lv: Stats3.level(), name, uid }, {

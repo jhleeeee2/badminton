@@ -13,7 +13,8 @@
 
 const RANK3 = Object.freeze({
   CH: 'bm3d-rankq', WIN: 11, PLACE: 5, BEAT: 10, POLL: 3, POLL_MAX: 14,
-  TIERS: [[1500, '마스터', '#FF6B9A'], [1350, '다이아', '#7FD6FF'], [1200, '플래티넘', '#6CE0C4'], [1050, '골드', '#FFD23F'], [900, '실버', '#C9CED8'], [0, '브론즈', '#C98A5A']],
+  TIERS: [[1500, '마스터', '#FF6B9A'], [1350, '다이아', '#7FD6FF'], [1200, '플래티넘', '#6CE0C4'], [1050, '골드', '#FFD23F'], [900, '실버', '#C9CED8'], [750, '브론즈', '#C98A5A'], [0, '아이언', '#8A8F98']],
+  LADDER: ['easy', 'normal', 'hard', 'hell', 'imp'], PLACE_BASE: 700, PLACE_STEP: 150, PLACE_WIN: 100,   // 배치고사: AI 단계별 기준 점수 700 + 150 × 단계, 이기면 +100 / 지면 −100 → 5경기 평균 (서버 rank_place와 같은 식)
   V_MAX: 160,          // 발사 속력 상한 m/s (이보다 빠르면 이상)
   HIT_DIST: 2.6,       // 상대 타점이 내가 계산한 셔틀 경로에서 떨어질 수 있는 최대 거리 m
   IN_MARGIN: 0.15      // "확실히 인"으로 보는 안쪽 여유 m
@@ -22,10 +23,10 @@ const RANK3 = Object.freeze({
 const Rank3 = {
   cache: null,
   sb() { return typeof Account !== 'undefined' ? Account.sb : null; },
-  tier(r) { for (const t of RANK3.TIERS) if (r >= t[0]) return { name: t[1], color: t[2], min: t[0] }; return { name: '브론즈', color: '#C98A5A', min: 0 }; },
-  // 표시용: 배치 경기 중이면 티어 대신 '배치 n/5'
-  label(d) { return !d ? '-' : d.games < RANK3.PLACE ? `배치 ${d.games}/${RANK3.PLACE}` : this.tier(d.rating).name; },
-  missing(e) { return !!e && (e.code === 'PGRST202' || e.code === '42883' || e.code === '42P01' || /rank_|ranks/.test(e.message || '')) && !/login_required|not_your_match|bad_/.test(e.message || ''); },
+  tier(r) { for (const t of RANK3.TIERS) if (r >= t[0]) return { name: t[1], color: t[2], min: t[0] }; return { name: '아이언', color: '#8A8F98', min: 0 }; },
+  // 표시용: 배치고사 전이면 티어 대신 '배치 전'
+  label(d) { return !d ? '-' : d.placed === false ? '배치 전' : this.tier(d.rating).name; },
+  missing(e) { return !!e && (e.code === 'PGRST202' || e.code === '42883' || e.code === '42P01' || /rank_|ranks/.test(e.message || '')) && !/login_required|not_your_match|not_placed|bad_/.test(e.message || ''); },
   async call(fn, args) {
     const sb = this.sb(); if (!sb) return { error: { message: 'offline' } };
     try {
@@ -43,7 +44,7 @@ const Rank3 = {
     const sb = this.sb(); if (!sb) return { ok: false };
     try {
       const r = await Promise.race([
-        sb.from('ranks').select('user_id,nickname,rating,games,wins').gte('games', RANK3.PLACE).order('rating', { ascending: false }).order('updated_at', { ascending: true }).limit(20),
+        sb.from('ranks').select('user_id,nickname,rating,games,wins').eq('placed', true).gte('games', 3).order('rating', { ascending: false }).order('updated_at', { ascending: true }).limit(20),
         new Promise(res => setTimeout(() => res({ error: { message: 'timeout' } }), 6000))]);
       if (r.error) return { ok: false, missing: this.missing(r.error) };
       const me = Account.user && Account.user.id;
@@ -85,8 +86,33 @@ const Rank3 = {
     if (s.status === 'void') return sp(s.how === 'short' ? '경기가 너무 짧아 랭크 점수에 반영되지 않았어요' : '무효 경기 — 랭크 점수 변화 없음');
     if (s.rated === false || s.before == null) return sp('같은 상대와 오늘 3경기를 넘어 랭크 점수에는 반영되지 않았어요');
     const d = s.after - s.before, how = s.how === 'resign' ? (s.won ? ' · 상대 기권' : ' · 기권') : s.how === 'forfeit' ? ' · 몰수승' : '';
-    const g = { rating: s.after, games: s.games };
+    const g = { rating: s.after, placed: true };
     return sp(`랭크 점수 ${s.before} → <b>${s.after}</b> (${d >= 0 ? '+' : ''}${d}) · ${this.label(g)}${how}`);
+  },
+
+  // ───── 배치고사: AI와 5경기로 시작 점수를 정함 ─────
+  //   첫 경기는 중간. 이기면 다음 상대는 한 단계 위, 지면 한 단계 아래. 진행은 이 브라우저(badminton.place.v1)에 저장해 이어서 할 수 있음
+  //   5경기를 마치면 서버(rank_place)가 같은 규칙으로 다시 확인하고 시작 점수(630~1220)를 정함 — 한 계정에 한 번
+  PKEY: 'badminton.place.v1',
+  pLoad() {
+    const uid = typeof Account !== 'undefined' && Account.user ? Account.user.id : null;
+    try { const v = JSON.parse(localStorage.getItem(this.PKEY) || 'null'); if (v && v.uid === uid && Array.isArray(v.g)) return v; } catch (e) { /* 무시 */ }
+    return { uid, g: [] };
+  },
+  pGames() { return this.pLoad().g; },
+  pNext(g) { g = g || this.pGames(); const x = g[g.length - 1]; return x ? Math.max(0, Math.min(4, x.d + (x.w ? 1 : -1))) : 1; },
+  pAdd(d, w, p, o, forfeit) {
+    const v = this.pLoad(); if (v.g.length >= RANK3.PLACE) return v.g;
+    v.g.push(forfeit ? { d, w: false, f: true } : { d, w: !!w, p: p | 0, o: o | 0 });
+    try { localStorage.setItem(this.PKEY, JSON.stringify(v)); } catch (e) { /* 무시 */ }
+    return v.g;
+  },
+  pClear() { try { localStorage.removeItem(this.PKEY); } catch (e) { /* 무시 */ } },
+  pSel(hand) { return { type: 'court3d', mode: 'ai', diff: RANK3.LADDER[this.pNext()], style: 'base', win: RANK3.WIN, hand, place: true }; },
+  async pSubmit() {
+    const r = await this.call('rank_place', { p_games: this.pGames() });
+    if (r.error) { const bad = /bad_/.test(r.error.message || ''); if (bad) this.pClear(); return { ok: false, bad }; }   // 기록이 규칙과 안 맞으면 처음부터
+    this.pClear(); this.cache = null; return { ok: true, ...r.data };
   },
 
   // ───── 판정 검증 (경기 중, game.js가 부름) ─────

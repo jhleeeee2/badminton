@@ -38,7 +38,7 @@ class Game3D {
     this.frame(0);
   }
 
-  configure({ diff, win, hand, mode, train, style, career, daily, quick, rank }) {
+  configure({ diff, win, hand, mode, train, style, career, daily, quick, rank, place }) {
     if (this.qm) this.qm.stop(); else if (typeof Quick3 !== 'undefined') this.qm = new Quick3();
     this.quick = mode === 'room' && quick ? (typeof quick === 'object' ? quick : {}) : null;   // 빠른 대전: 친선게임과 같은 연결에 매칭 점수만 얹음 (상대를 찾으면 { r, lv, name })
     this.rank = mode === 'room' && rank ? (typeof rank === 'object' ? rank : { id: null, over: false, flags: 0, beatT: 0 }) : null;   // 랭크전: 빠른 대전과 같은 연결 + 서버 경기 등록(court3d/rank.js)
@@ -52,6 +52,7 @@ class Game3D {
     else this.diffId = 'normal';
     // 커리어: AI 대전과 같은 규칙에 상대 이름·유니폼·섞은 난이도만 얹음
     this.career = this.mode === 'ai' && career ? career : null; this.careerNext = null;
+    this.place = this.mode === 'ai' && place && typeof Rank3 !== 'undefined' ? { d: Rank3.pNext(), n: Rank3.pGames().length + 1 } : null;   // 배치고사 (랭크 시작 점수) — 채·스탯 효과 없이 같은 조건
     this.opp.setKit(this.career ? this.career.kit : C3.KITS.opp); this.opp.setRacket(null);
     if (typeof Skin3 !== 'undefined') { this.me.setKit(Skin3.kit()); this.me.setRacket(Skin3.racket()); this.view.setCourtSkin(Skin3.court()); }   // 내 스킨: 겉모습만, 모든 모드
     if (this.career) this.setOppName(this.career.name);
@@ -59,16 +60,17 @@ class Game3D {
     this.setMeName(this.mode === 'local2p' ? 'P1' : '나');
     this.roomSta = true;   // 친선게임 체력: 방에 들어갈 때마다 기본 켜짐
     // 채 효과: AI 대전·커리어에만 (친선게임·훈련·일일 챌린지·튜토리얼은 균형형과 같은 조건)
-    const gearOn = this.mode === 'ai' && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
+    const gearOn = this.mode === 'ai' && !this.place && typeof Gear3 !== 'undefined' && Gear3.eq !== 'bal';
     this.me.gear = gearOn ? Gear3.cur() : null; this.opp.gear = null;
     // 선수 스탯도 같은 범위에서만
-    this.me.stat = this.mode === 'ai' && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
+    this.me.stat = this.mode === 'ai' && !this.place && typeof Stats3 !== 'undefined' && Stats3.used() ? Stats3.effects() : null; this.opp.stat = null;
     this.resetStamina();
     this.hud.setDuo(this.mode === 'local2p');
     const hn = hand === 'L' ? '왼손' : '오른손';
     this.hud.setConfig(this.mode === 'guide' ? '튜토리얼 · ' + hn : this.mode === 'train' && this.trainer.daily ? '일일 챌린지 · ' + TRAIN_INFO[this.trainer.kind].name + ' · ' + hn : this.mode === 'train' ? TRAIN_INFO[this.trainer.kind].name + ' 훈련 · ' + hn
       : this.mode === 'room' ? (this.rank ? '랭크전 · ' : this.quick ? '빠른 대전 · ' : '친선게임 · ') + win + '점 · ' + hn
       : this.mode === 'local2p' ? '로컬 2인 · ' + win + '점 · P1 ' + hn
+      : this.place ? '배치고사 ' + this.place.n + '/' + RANK3.PLACE + ' · AI ' + DIFF_NAMES[diff] + ' · ' + win + '점 · ' + hn
       : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round + ' · ' + win + '점 · ' + hn
       : DIFF_NAMES[diff] + (this.styleId !== 'base' ? ' ' + C3.AI_STYLE[this.styleId].name : '') + ' · ' + win + '점 · ' + hn);
     if (gearOn) this.hud.setConfig(this.hud.el.cfg.textContent + ' · ' + Gear3.label());
@@ -79,6 +81,12 @@ class Game3D {
 
   start(fromNet) {
     if (this.rank && this.rank.over) return;   // 랭크전은 재대결 없음 — 메뉴에서 다시 상대를 찾음
+    if (this.place) {   // 배치고사: 경기 도중 다시 시작 불가, 끝난 뒤 Enter = 다음 상대
+      if (this.place.done || this.place.live) return;
+      if (this.phase === 'over') this.configure(Rank3.pSel(this.me.hand));
+      this.place.live = true;
+      this.hud.banner(`배치고사 ${this.place.n}/${RANK3.PLACE} · AI ${DIFF_NAMES[this.diffId]}`, '#FFD23F', 2.4);
+    }
     if (this.career && this.careerNext != null) this.configure(Career3.sel(this.careerNext, this.me.hand));   // 커리어: 이긴 뒤 Enter = 다음 상대
     if (this.mode === 'train' && this.trainer.daily) this.trainer.start(Daily3.kind(), true);   // 일일 챌린지: 다시 도전 = 같은 공을 처음부터 (자정이 지났으면 새 날짜의 종목)
     if (this.mode === 'guide') {   // 끝났으면 경기로 넘어가고, 도중이면 처음부터
@@ -106,6 +114,7 @@ class Game3D {
     if (!this.running) { this.running = true; requestAnimationFrame(this.loop); }
   }
   stop() {
+    if (this.place && this.place.live && !this.place.done && this.match.pts + this.match.opts > 0) { this.place.live = false; Rank3.pAdd(this.place.d, false, 0, 0, true); }   // 배치고사 도중 나가기 = 그 경기 패배 (0:0에서는 그냥 나감)
     if (this.rank && this.rank.id && !this.rank.over && this.net.connected && ['serve', 'rally', 'point'].includes(this.phase)) { this.rank.over = true; Rank3.resign(this.rank.id, this.match.pts, this.match.opts); }   // 랭크전 도중 나가기 = 기권
     this.net.close(); this.awayPeer = null; this.emote.close(); this.swapNext = false; this.careerNext = null;
     this.setShare(null); if (this.qm) this.qm.stop();
@@ -384,6 +393,21 @@ class Game3D {
       + (this.quick ? '<br>Esc = 메뉴 (빠른 대전을 다시 누르면 새 상대를 찾아요)' : `<br>같은 방 코드(<b>${this.net.code}</b>)로 다시 들어오면 ${live ? '이어서 경기합니다' : '세트 스코어가 이어집니다'}<br><small>Esc = 메뉴</small>`));
     if (this.rank && !this.rank.over) { this.phase = 'over'; this.awayPeer = null; this.rankFinish('left', `상대방이 나갔습니다 — ${this.match.pts} : ${this.match.opts}에서 종료`); }
   }
+  // 배치고사 한 경기 끝: 기록하고 다음 상대(이기면 더 센 AI, 지면 더 약한 AI)를 알려 줌. 5경기째면 서버가 시작 점수를 정함
+  placeFinish(won, head) {
+    const P = this.place, m = this.match; P.live = false;
+    const g = Rank3.pAdd(P.d, won, m.pts, m.opts), n = g.length;
+    if (n < RANK3.PLACE) {
+      const nd = Rank3.pNext(g), why = nd === P.d ? '같은 단계' : won ? '이겨서 더 센 상대' : '져서 더 약한 상대';
+      this.hud.showMessage(`${head}<br><span class="xpline">배치고사 ${n}/${RANK3.PLACE} · 다음 상대: AI <b>${DIFF_NAMES[RANK3.LADDER[nd]]}</b> (${why})</span><br>Enter 또는 다시 시작 = 다음 경기 · Esc = 메뉴 (나중에 이어서 할 수 있어요)`);
+      return;
+    }
+    P.done = true;
+    const show = line => { if (this.place === P) this.hud.showMessage(`${head}<br><span class="xpline">${line}</span><br>Esc = 메뉴`); };
+    show('배치고사 완료 — 시작 점수를 계산하는 중…');
+    Rank3.pSubmit().then(r => show(r.ok ? `배치고사 완료! 랭크 시작 점수 <b>${r.rating}</b> · ${Rank3.tier(r.rating).name} — 이제 랭크전을 할 수 있어요`
+      : r.bad ? '배치고사 기록이 맞지 않아 처음부터 다시 해야 해요' : '시작 점수를 서버에 보내지 못했어요 — 랭크전을 다시 누르면 자동으로 다시 보냅니다'));
+  }
   // 랭크전 마무리: 서버에 결과를 보고하고, 서버가 계산한 랭크 점수를 결과 창에 붙임 (kind: done = 끝까지 · left = 상대가 나감)
   rankFinish(kind, head) {
     const R = this.rank; if (!R || R.over) return; R.over = true;
@@ -500,7 +524,8 @@ class Game3D {
         mode: this.mode === 'room' ? (this.rank ? '랭크전' : this.quick ? '빠른 대전' : '친선게임') : this.career ? '커리어 · ' + this.career.cup + ' ' + this.career.round : 'AI 대전 · ' + DIFF_NAMES[this.diffId] });
       if (typeof Account !== 'undefined' && !this.trainer.active && !this.duo) Account.track('match_end', { mode: this.mode === 'room' ? (this.rank ? 'rank' : this.quick ? 'quick' : 'room') : this.career ? 'career' : 'ai', diff: this.mode === 'room' ? null : this.diffId, won: w === 'me', pts: m.pts, opts: m.opts, rally: this.maxRally });
       const coin = this.payMatch(w === 'me');   // 재화: 끝까지 한 경기만 지급 (커리어 진행을 저장하기 전에 계산)
-      if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
+      if (this.place) this.placeFinish(w === 'me', head + coin);
+      else if (this.career) this.hud.showMessage(this.careerResult(w === 'me', head + coin));
       else if (this.rank) this.rankFinish('done', head + coin);
       else this.hud.showMessage(`${head}${setTxt}${coin}<br>Enter 또는 다시 시작 = 재대결${this.mode === 'room' ? ' (둘 중 누가 눌러도 함께 시작)' : ''} · Esc = 메뉴`);
     } else if (!this.trainer.active && !this.midSwapped && m.midPoint() && Math.max(m.pts, m.opts) >= m.midPoint()) {
