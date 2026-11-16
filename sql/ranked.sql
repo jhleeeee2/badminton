@@ -6,7 +6,7 @@
 --     서로 다르면 '분쟁'(점수 변화 없음, 두 사람의 분쟁 횟수 +1).
 --   · 한쪽만 보고한 경우: 상대가 20초 넘게 신호(rank_beat)를 보내지 않았을 때만 그 보고를 인정.
 --   · 시작 점수는 배치고사(AI와 5경기)로 정함(rank_place). 배치를 마쳐야 랭크전을 할 수 있음.
---     배치고사는 각자 브라우저에서 AI와 하는 경기라 서버가 검증할 수 없음 → 시작 점수 범위를 630~1220으로 제한.
+--     배치고사는 각자 브라우저에서 AI와 하는 경기라 서버가 검증할 수 없음 → 시작 점수 범위를 649~1111로 제한.
 --     그보다 높은 티어는 사람과의 랭크전으로만 올라감.
 --   · 점수는 엘로 방식(K = 32 고정): 이기면 오르고 지면 그만큼 내려가므로 경기 수만 늘려서는 오르지 않음.
 --   · 수치는 모두 [게임]용으로 정한 값.
@@ -134,7 +134,8 @@ end $$;
 -- 배치고사 결과 → 시작 점수 (한 계정에 한 번)
 --   p_games: 5경기 [{ d: AI 단계 0~4(쉬움·중간·어려움·지옥·임파서블), w: 이겼는지, p: 내 점수, o: 상대 점수, f: 도중에 나감 }]
 --   규칙: 첫 경기는 중간(1). 이기면 다음은 한 단계 위, 지면 한 단계 아래 (0~4 안에서)
---   시작 점수 = 5경기 평균 of (AI 단계 기준 점수 700 + 150 × d, 이기면 +100 / 지면 −100) → 630 ~ 1220
+--   시작 점수 = 5경기 평균 of (AI 단계 기준 점수 700 + 120 × d, 이기면 +75 / 지면 −75) → 649(전패) ~ 1111(전승)
+--   중간 AI와 이겼다 졌다 하는 보통 실력(2~3승)이 757~883 = 브론즈가 되도록 맞춘 값
 create or replace function public.rank_place(p_games jsonb) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare u uuid := auth.uid(); r public.ranks; g jsonb; i integer; d integer; want integer := 1; w boolean; total numeric := 0; start integer;
@@ -152,7 +153,7 @@ begin
       elsif not public.rank__valid(greatest((g->>'p')::integer, (g->>'o')::integer), least((g->>'p')::integer, (g->>'o')::integer))
             or w is distinct from ((g->>'p')::integer > (g->>'o')::integer) then raise exception 'bad_score';
       end if;
-      total := total + 700 + 150 * d + case when w then 100 else -100 end;
+      total := total + 700 + 120 * d + case when w then 75 else -75 end;
       want := greatest(0, least(4, d + case when w then 1 else -1 end));
     end loop;
     start := round(total / 5)::integer;

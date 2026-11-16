@@ -14,7 +14,7 @@
 const RANK3 = Object.freeze({
   CH: 'bm3d-rankq', WIN: 11, PLACE: 5, BEAT: 10, POLL: 3, POLL_MAX: 14,
   TIERS: [[1500, '마스터', '#FF6B9A'], [1350, '다이아', '#7FD6FF'], [1200, '플래티넘', '#6CE0C4'], [1050, '골드', '#FFD23F'], [900, '실버', '#C9CED8'], [750, '브론즈', '#C98A5A'], [0, '아이언', '#8A8F98']],
-  LADDER: ['easy', 'normal', 'hard', 'hell', 'imp'], PLACE_BASE: 700, PLACE_STEP: 150, PLACE_WIN: 100,   // 배치고사: AI 단계별 기준 점수 700 + 150 × 단계, 이기면 +100 / 지면 −100 → 5경기 평균 (서버 rank_place와 같은 식)
+  LADDER: ['easy', 'normal', 'hard', 'hell', 'imp'], PLACE_BASE: 700, PLACE_STEP: 120, PLACE_WIN: 75,   // 배치고사: AI 단계별 기준 점수 700 + 120 × 단계, 이기면 +75 / 지면 −75 → 5경기 평균 (계산은 서버 rank_place가 함 · 보통 실력 = 브론즈)
   V_MAX: 160,          // 발사 속력 상한 m/s (이보다 빠르면 이상)
   HIT_DIST: 2.6,       // 상대 타점이 내가 계산한 셔틀 경로에서 떨어질 수 있는 최대 거리 m
   IN_MARGIN: 0.15      // "확실히 인"으로 보는 안쪽 여유 m
@@ -92,7 +92,7 @@ const Rank3 = {
 
   // ───── 배치고사: AI와 5경기로 시작 점수를 정함 ─────
   //   첫 경기는 중간. 이기면 다음 상대는 한 단계 위, 지면 한 단계 아래. 진행은 이 브라우저(badminton.place.v1)에 저장해 이어서 할 수 있음
-  //   5경기를 마치면 서버(rank_place)가 같은 규칙으로 다시 확인하고 시작 점수(630~1220)를 정함 — 한 계정에 한 번
+  //   5경기를 마치면 서버(rank_place)가 같은 규칙으로 다시 확인하고 시작 점수(649~1111)를 정함 — 한 계정에 한 번
   PKEY: 'badminton.place.v1',
   pLoad() {
     const uid = typeof Account !== 'undefined' && Account.user ? Account.user.id : null;
